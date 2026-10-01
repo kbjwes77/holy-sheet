@@ -1,0 +1,24 @@
+{
+  "name": "test-sheet-grader",
+  "private": true,
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/qrcode": "^1.5.6",
+    "qrcode": "^1.5.4",
+    "typescript": "^7.0.2"
+  },
+  "dependencies": {
+    "fflate": "^0.8.3",
+    "sharp": "^0.35.5",
+    "zxing-wasm": "^3.1.4"
+  },
+  "type": "module",
+  "scripts": {
+    "grade": "bun run grade.ts",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit -p .",
+    "build:shared": "bun build src/codec.ts src/layout.ts --outdir dist/shared --target browser --format esm --entry-naming [name].mjs",
+    "make-fixture": "bun gen/make-fixture.ts",
+    "check-pages": "bun gen/check-pages.ts"
+  }
+}
