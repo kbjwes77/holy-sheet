@@ -1,6 +1,6 @@
-// Timing-track markers, response rings and fill measurement on the rectified darkness map.
+// Timing-track markers, choice bubbles and fill measurement on the rectified darkness map.
 import { blobs, canvasToPage, pageToCanvas, type Canvas, type FloatMap } from "./image.ts";
-import { LAYOUT, type LayoutSpec, type Point, colX, markerRect, ringCenters, ringRadius, rowY } from "./layout.ts";
+import { LAYOUT, type BubbleColumn, type LayoutSpec, type Point, bubbleCenter, colX, markerRect, ringRadius, rowY } from "./layout.ts";
 
 /** Darkness above this counts as ink when finding printed features. */
 export const INK = 0.4;
@@ -20,9 +20,11 @@ export interface MarkerScan {
 /** Finds marker blobs in the marker column and maps them to grid rows. */
 export function findMarkers(dark: FloatMap, c: Canvas, L: LayoutSpec = LAYOUT): MarkerScan {
     const s = c.scale;
-    const exp = markerRect(L.bodyFirstRow, L);
+    // Questions start lower on page 1, so one search window serves every page.
+    const first = Math.min(L.firstRowPage1, L.firstRowContinued);
+    const exp = markerRect(first, L);
     const expArea = exp.w * exp.h * s * s;
-    const a = pageToCanvas(c, { x: colX(L.marker.col, L) - 0.6 * L.cellW, y: rowY(L.bodyFirstRow, L) - 0.5 * L.cellH });
+    const a = pageToCanvas(c, { x: colX(L.marker.col, L) - 0.6 * L.cellW, y: rowY(first, L) - 0.5 * L.cellH });
     const b = pageToCanvas(c, { x: colX(L.marker.col + 1, L) + 0.6 * L.cellW, y: rowY(L.bodyLastRow + 1, L) + 0.25 * L.cellH });
     const found = blobs(dark, a.x, a.y, b.x, b.y, INK).filter((bl) => {
         const w = bl.maxX - bl.minX + 1;
@@ -91,10 +93,10 @@ function ringScore(dark: FloatMap, k: RingKernels, x: number, y: number): number
     return meanAt(dark, k.ring, x, y) - 0.5 * meanAt(dark, k.outside, x, y);
 }
 
-export interface RingRow {
-    /** Ring centres, canvas px, left to right. */
-    centers: Point[];
-    /** Problem with the row, if any. */
+export interface BubbleHit {
+    /** Refined bubble centre, canvas px. */
+    center: Point;
+    /** Problem with the bubble, if any. */
     error?: string;
 }
 
@@ -102,61 +104,28 @@ export interface RingRow {
 export const RING_PRESENT = 0.2;
 
 /**
- * Scans a ring row from the ring start column to the right edge, counts ring outlines and checks
- * their positions against the layout's spacing for that count. `y` is the row centre (canvas px).
+ * Finds the printed bubble on grid row `row` in bubble column `column`: it sits at a fixed grid
+ * column, so this only refines its centre locally (absorbing paper curl the homography can't
+ * model) and checks that an outline is there. `y` is the row centre from the row's timing marker
+ * (canvas px). The search window stays well inside half a row, so it can't lock onto the bubble
+ * above or below, and the two bubble columns are far apart.
  */
-export function findRings(dark: FloatMap, c: Canvas, row: number, y: number, k: RingKernels, L: LayoutSpec = LAYOUT): RingRow {
+export function findBubble(dark: FloatMap, c: Canvas, row: number, column: BubbleColumn, y: number, k: RingKernels, L: LayoutSpec = LAYOUT): BubbleHit {
     const s = c.scale;
-    const xStart = Math.floor(pageToCanvas(c, { x: colX(L.ring.startCol, L) - 0.5 * L.cellW, y: 0 }).x);
-    const xEnd = Math.ceil(pageToCanvas(c, { x: colX(L.cols + 1, L), y: 0 }).x);
+    const e = pageToCanvas(c, bubbleCenter(row, column, L));
+    const x0 = Math.round(e.x);
+    const y0 = Math.round(y);
+    const dxMax = Math.round(0.35 * L.cellW * s);
     const dyMax = Math.round(0.3 * L.cellH * s);
-    const profile = new Float32Array(xEnd - xStart);
-    for (let x = xStart; x < xEnd; x++) {
-        let best = -Infinity;
-        for (let dy = -dyMax; dy <= dyMax; dy += 2) best = Math.max(best, ringScore(dark, k, x, Math.round(y) + dy));
-        profile[x - xStart] = best;
-    }
-    // Peaks, strongest first, suppressing neighbours closer than half the minimum pitch.
-    const minPitch = Math.floor((L.ring.lastCol - L.ring.startCol) / (L.ring.maxChoices - 1)) * L.cellW * s;
-    const order = Array.from(profile.keys())
-        .filter((i) => profile[i]! > RING_PRESENT)
-        .sort((a, b) => profile[b]! - profile[a]!);
-    const peaks: number[] = [];
-    for (const i of order) if (peaks.every((p) => Math.abs(p - i) > minPitch / 2)) peaks.push(i);
-    peaks.sort((a, b) => a - b);
-
-    // Refine each centre locally (absorbs curl the homography can't model).
-    const centers = peaks.map((i) => {
-        let best = { x: xStart + i, y: Math.round(y), s: -Infinity };
-        const x0 = xStart + i;
-        for (let dy = -dyMax; dy <= dyMax; dy++)
-            for (let dx = -3; dx <= 3; dx++) {
-                const sc = ringScore(dark, k, x0 + dx, Math.round(y) + dy);
-                if (sc > best.s) best = { x: x0 + dx, y: Math.round(y) + dy, s: sc };
-            }
-        return { x: best.x, y: best.y };
-    });
-
-    const n = centers.length;
-    if (n === 0) return { centers, error: `row ${row}: no rings found` };
-    if (n > L.ring.maxChoices) return { centers, error: `row ${row}: ${n} rings found, more than ${L.ring.maxChoices}` };
-    const expected = ringCenters(n, row, L).map((p) => pageToCanvas(c, p));
-    const tol = 0.45 * L.cellW * s;
-    for (let i = 0; i < n; i++) {
-        const e = expected[i]!;
-        const d = centers[i]!;
-        if (Math.abs(d.x - e.x) > tol || Math.abs(d.y - e.y) > tol) {
-            const at = canvasToPage(c, d);
-            return {
-                centers,
-                error: `row ${row}: ${n} rings found but ring ${i + 1} is at col ${((at.x - L.margin) / L.cellW + 0.5).toFixed(1)}, expected col ${(
-                    (canvasToPage(c, e).x - L.margin) / L.cellW +
-                    0.5
-                ).toFixed(1)}`,
-            };
+    let best = { x: x0, y: y0, s: -Infinity };
+    for (let dy = -dyMax; dy <= dyMax; dy++)
+        for (let dx = -dxMax; dx <= dxMax; dx++) {
+            const sc = ringScore(dark, k, x0 + dx, y0 + dy);
+            if (sc > best.s) best = { x: x0 + dx, y: y0 + dy, s: sc };
         }
-    }
-    return { centers };
+    const center = { x: best.x, y: best.y };
+    if (best.s < RING_PRESENT) return { center: { x: x0, y: y0 }, error: `row ${row}: bubble not found` };
+    return { center };
 }
 
 /** Mean darkness inside the ring's inner disk. */

@@ -21,7 +21,7 @@ export async function loadGray(bytes: Uint8Array, maxEdge = 2000): Promise<Gray>
         .rotate()
         .grayscale()
         // Anchor black at the true minimum: on a nearly empty page the default 1st percentile is
-        // antialiasing gray, and stretching it would turn the light ring letters black.
+        // antialiasing gray, and stretching it would turn light-gray print black.
         .normalize({ lower: 0, upper: 99 })
         .resize(maxEdge, maxEdge, { fit: "inside", withoutEnlargement: true })
         .raw()

@@ -4,7 +4,9 @@
   "devDependencies": {
     "@types/bun": "latest",
     "@types/qrcode": "^1.5.6",
+    "jspdf": "^4.2.1",
     "qrcode": "^1.5.4",
+    "svg2pdf.js": "^2.8.1",
     "typescript": "^7.0.2"
   },
   "dependencies": {
@@ -19,6 +21,8 @@
     "typecheck": "tsc --noEmit -p .",
     "build:shared": "bun build src/codec.ts src/layout.ts --outdir dist/shared --target browser --format esm --entry-naming [name].mjs",
     "make-fixture": "bun gen/make-fixture.ts",
-    "check-pages": "bun gen/check-pages.ts"
+    "check-pages": "bun gen/check-pages.ts",
+    "web": "bun --hot web/server.ts",
+    "build:web": "bun web/build.ts"
   }
 }

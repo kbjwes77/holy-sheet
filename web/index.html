@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <!-- The app has its own dark theme; stop Dark Reader from inverting the sheet previews. -->
+        <meta name="darkreader-lock" />
+        <title>Sheet Generator</title>
+        <script>
+            // Follow the OS light/dark preference before first paint.
+            document.documentElement.dataset.bsTheme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        </script>
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+        <link rel="stylesheet" href="./app.css" />
+    </head>
+    <body>
+        <div class="app">
+            <!-- source-only:start -->
+            <div class="alert alert-warning rounded-0 mb-0 d-none" id="source-warning" role="alert">
+                <i class="bi bi-exclamation-triangle me-1"></i>
+                This is the app's source page and can't run from disk. Run <code>bun run web</code> and open
+                <code>http://localhost:3000</code>, or run <code>bun run build:web</code> and open
+                <code>dist/web/sheet-generator.html</code>.
+            </div>
+            <script>
+                if (location.protocol === "file:") document.getElementById("source-warning").classList.remove("d-none");
+            </script>
+            <!-- source-only:end -->
+            <nav class="navbar border-bottom bg-body-tertiary">
+                <div class="container-xxl">
+                    <span class="navbar-brand fw-semibold"><i class="bi bi-ui-radios-grid me-2 text-primary"></i>Sheet Generator</span>
+                    <span class="navbar-text small text-body-secondary d-none d-md-inline me-auto">
+                        Build printable answer sheets the grader can read
+                    </span>
+                    <!-- The grader needs the local server, so the link is hidden when opened from disk. -->
+                    <a class="btn btn-sm btn-outline-secondary d-none" href="/grader" id="grader-link"><i class="bi bi-clipboard-check me-1"></i>Grader</a>
+                    <script>
+                        if (location.protocol !== "file:") document.getElementById("grader-link").classList.remove("d-none");
+                    </script>
+                </div>
+            </nav>
+
+            <main class="container-xxl py-4">
+                <div class="row g-4">
+                    <!-- Input -->
+                    <div class="col-lg-5">
+                        <div class="card shadow-sm">
+                            <div class="card-header d-flex align-items-center gap-2 flex-wrap">
+                                <span class="fw-semibold me-auto"><i class="bi bi-braces me-1"></i>Sheet JSON</span>
+                                <input type="file" id="file-input" accept=".json,application/json" hidden />
+                                <div class="btn-group btn-group-sm">
+                                    <button type="button" class="btn btn-outline-secondary" id="btn-load" title="Load a .json file">
+                                        <i class="bi bi-folder2-open"></i> Load file
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary" id="btn-example" title="Fill in an example test">
+                                        <i class="bi bi-file-earmark-code"></i> Example
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary" id="btn-clear" title="Clear the editor">
+                                        <i class="bi bi-x-lg"></i> Clear
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <div class="drop-zone" id="drop-zone">
+                                    <textarea
+                                        id="json-input"
+                                        class="form-control font-monospace"
+                                        rows="22"
+                                        spellcheck="false"
+                                        autocomplete="off"
+                                        aria-label="Sheet JSON"
+                                        placeholder='Paste sheet JSON here, or drop a .json file.
+
+{
+  "test": "Test Name",
+  "questions": [
+    {
+      "prompt": "On what continent is France located?",
+      "choices": ["Asia", "Europe", "North America", "Antarctica"]
+    }
+  ]
+}'
+                                    ></textarea>
+                                    <div class="drop-hint"><i class="bi bi-file-earmark-arrow-down"></i> Drop .json file to load</div>
+                                </div>
+                                <div class="form-text d-flex justify-content-between mt-2">
+                                    <span id="input-status">&nbsp;</span>
+                                    <a class="link-secondary" data-bs-toggle="collapse" href="#format-help" role="button" aria-expanded="false">
+                                        <i class="bi bi-question-circle"></i> Format
+                                    </a>
+                                </div>
+                                <div class="collapse" id="format-help">
+                                    <div class="format-help small border rounded p-3 mt-2 bg-body-tertiary">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary bg-body format-copy" id="btn-copy-format" title="Copy format help">
+                                            <i class="bi bi-clipboard" id="copy-format-icon"></i> Copy
+                                        </button>
+                                        <pre class="mb-2"><code>{
+  "test": "Unit 4 Quiz",
+  "questions": [
+    {
+      "prompt": "Question text",
+      "figures": ["graph"],
+      "choices": ["First", "Second", "Third"],
+      "answer": "B"
+    }
+  ],
+  "figures": {
+    "graph": {
+      "type": "svg",
+      "content": "&lt;svg viewBox=\"0 0 200 150\"&gt;…&lt;/svg&gt;",
+      "width": 2.5,
+      "caption": "Figure 1"
+    }
+  }
+}</code></pre>
+                                        <ul class="mb-0 ps-3">
+                                            <li><code>test</code>: the test name (required).</li>
+                                            <li><code>questions</code>: 1–256 questions, each with a <code>prompt</code> and 2–8 <code>choices</code> (lettered A–H).</li>
+                                            <li>
+                                                <code>answer</code> (optional): the correct letters, e.g. <code>"B"</code> or <code>"AC"</code> for
+                                                more than one. Give it for every question or none; with all of them you get the grader's answer key.
+                                            </li>
+                                            <li>
+                                                <code>figures</code> (optional, in a question): ids of figures to print between the prompt and the
+                                                choices, side by side while they fit.
+                                            </li>
+                                            <li>No other keys are allowed. A sheet can be at most 16 pages.</li>
+                                        </ul>
+                                        <div class="fw-semibold mt-3 mb-1">Layout</div>
+                                        <p class="mb-0">
+                                            Questions print in two 3.3 in columns, down the left and then the right. A question prints full width
+                                            when one of its choices would wrap in a column or a figure is wider than one. A grey line across
+                                            the page separates the columns from full-width questions below them; after a full-width
+                                            question below the columns, the rest of that page prints full width. If a
+                                            full-width question's figures are each 3.3 in or narrower, they print to the right of its text when
+                                            that's shorter and no choice wraps. Keep choices short to fit more on a page.
+                                        </p>
+                                        <div class="fw-semibold mt-3 mb-1">Figures</div>
+                                        <p class="mb-1">
+                                            Define each figure once in a top-level <code>figures</code> object, usually at the end of the file, keyed
+                                            by an id (letters, digits, <code>-</code> and <code>_</code>). Several questions can show the same figure.
+                                        </p>
+                                        <ul class="mb-0 ps-3">
+                                            <li>
+                                                <code>type</code>: <code>"svg"</code> for a drawing or graph, or <code>"table"</code> for an HTML
+                                                table.
+                                            </li>
+                                            <li>
+                                                <code>content</code>: the markup as one JSON string, with its quotes escaped as <code>\"</code>.
+                                            </li>
+                                            <li>
+                                                <code>width</code> (optional): the printed width in inches. Otherwise an SVG prints at its own size
+                                                (96 px per inch) and a table fits its text. Up to 3.3 in fits a column; anything wider than 7.13 in
+                                                is scaled down.
+                                            </li>
+                                            <li><code>caption</code> (optional): printed small and centred under the figure.</li>
+                                            <li>
+                                                <strong>SVG</strong>:
+                                                <ul class="ps-3">
+                                                    <li>One <code>&lt;svg&gt;</code> with a <code>viewBox</code>, or a <code>width</code> and <code>height</code>.</li>
+                                                    <li>Style it with attributes or <code>style="…"</code>, not <code>&lt;style&gt;</code> or <code>class</code>.</li>
+                                                    <li>Fonts: Arial/Helvetica, Times or Courier only.</li>
+                                                    <li>Not supported: scripts, images, links, filters or <code>foreignObject</code>.</li>
+                                                </ul>
+                                            </li>
+                                            <li>
+                                                <strong>Tables</strong>:
+                                                <ul class="ps-3">
+                                                    <li>Tags: <code>&lt;table&gt;</code>, <code>&lt;caption&gt;</code>, <code>&lt;thead&gt;</code>/<code>&lt;tbody&gt;</code>, <code>&lt;tr&gt;</code>, <code>&lt;th&gt;</code> and <code>&lt;td&gt;</code>.</li>
+                                                    <li>Extras: <code>colspan</code>/<code>rowspan</code>, <code>align</code>, and <code>&lt;b&gt;</code>, <code>&lt;i&gt;</code>, <code>&lt;sub&gt;</code>, <code>&lt;sup&gt;</code> in cells.</li>
+                                                    <li>Each cell is one line, and every tag must be closed.</li>
+                                                </ul>
+                                            </li>
+                                            <li>
+                                                Anything that wouldn't print exactly as previewed is reported as an error. A figure no question uses
+                                                is only noted. See <code>examples/figures-demo.json</code>.
+                                            </li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card-footer d-flex align-items-center gap-3">
+                                <button type="button" class="btn btn-primary" id="btn-generate">
+                                    <i class="bi bi-gear-wide-connected me-1"></i>Generate sheet
+                                </button>
+                                <span class="small text-body-secondary d-none d-sm-inline"><kbd>Ctrl</kbd> + <kbd>Enter</kbd></span>
+                            </div>
+                        </div>
+
+                        <div class="alert alert-danger mt-3 d-none" id="errors" role="alert">
+                            <div class="fw-semibold mb-2"><i class="bi bi-exclamation-octagon me-1"></i><span id="errors-title"></span></div>
+                            <ul class="mb-0 ps-3 error-list" id="errors-list"></ul>
+                        </div>
+                        <div class="alert alert-info mt-3 d-none" id="notes" role="status">
+                            <div class="fw-semibold mb-2"><i class="bi bi-info-circle me-1"></i>Generated, with a note:</div>
+                            <ul class="mb-0 ps-3 error-list" id="notes-list"></ul>
+                        </div>
+                    </div>
+
+                    <!-- Output -->
+                    <div class="col-lg-7">
+                        <div class="card shadow-sm empty-state" id="empty-state">
+                            <div class="card-body text-center text-body-secondary py-5">
+                                <i class="bi bi-file-earmark-text display-4 d-block mb-3"></i>
+                                <p class="mb-1 fw-semibold">No sheet yet</p>
+                                <p class="mb-0 small">Paste or load your test JSON, then choose <strong>Generate sheet</strong>.</p>
+                            </div>
+                        </div>
+
+                        <div class="d-none" id="output">
+                            <div class="alert alert-warning d-flex align-items-center gap-2 d-none" id="stale" role="status">
+                                <i class="bi bi-arrow-repeat"></i>
+                                <span>The JSON has changed since this sheet was generated. Generate again to update it.</span>
+                            </div>
+
+                            <div class="card shadow-sm mb-3">
+                                <div class="card-body">
+                                    <div class="d-flex flex-wrap align-items-start gap-3">
+                                        <div class="me-auto min-w-0">
+                                            <h2 class="h5 mb-1 text-break" id="out-title"></h2>
+                                            <div class="d-flex flex-wrap gap-2 small" id="out-badges"></div>
+                                        </div>
+                                        <div class="d-flex gap-2">
+                                            <button type="button" class="btn btn-success" id="btn-print"><i class="bi bi-printer me-1"></i>Print</button>
+                                            <button type="button" class="btn btn-outline-primary" id="btn-pdf">
+                                                <span class="spinner-border spinner-border-sm me-1 d-none" id="pdf-spinner" aria-hidden="true"></span>
+                                                <i class="bi bi-file-earmark-pdf me-1" id="pdf-icon"></i>Download PDF
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <p class="small text-body-secondary mb-0 mt-3">
+                                        <i class="bi bi-info-circle me-1"></i>Print on US Letter at 100% scale (Actual size). Print one copy per
+                                        student and keep each student's pages together.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div class="card shadow-sm mb-3" id="key-card">
+                                <div class="card-body">
+                                    <label class="form-label fw-semibold" for="key-line"><i class="bi bi-key me-1"></i>Answer key for the grader</label>
+                                    <div class="input-group" id="key-group">
+                                        <input type="text" class="form-control font-monospace" id="key-line" readonly />
+                                        <button type="button" class="btn btn-outline-secondary" id="btn-copy-key" title="Copy key">
+                                            <i class="bi bi-clipboard" id="copy-icon"></i> Copy
+                                        </button>
+                                        <button type="button" class="btn btn-outline-secondary" id="btn-download-key" title="Download key.txt">
+                                            <i class="bi bi-download"></i> key.txt
+                                        </button>
+                                    </div>
+                                    <div class="form-text" id="key-help"></div>
+                                    <div class="small text-body-secondary d-none" id="key-none">
+                                        No answer key: add an <code>"answer"</code> to every question to get one here.
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div id="previews"></div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+
+        <!-- Only this is shown when printing: one US Letter page per sheet page. -->
+        <div id="print-root" aria-hidden="true"></div>
+
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+        <script type="module" src="./app.ts"></script>
+    </body>
+</html>

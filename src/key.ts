@@ -1,6 +1,7 @@
 // Answer key parsing and prompting.
 import { createInterface } from "node:readline";
 import { CHOICE_LETTERS } from "./layout.ts";
+import { keyErrorLine, keyPrompt } from "./report.ts";
 
 export type Key = number[][];
 
@@ -37,24 +38,52 @@ export function parseKey(line: string, maxChoices: readonly number[]): KeyParse 
     return { key };
 }
 
-/** Prompts on stderr (stdout is reserved for CSV) until a valid key is entered. */
-export async function promptKey(
-    maxChoices: readonly number[],
-    input: NodeJS.ReadableStream = process.stdin,
-    write: (s: string) => void = (s) => process.stderr.write(s),
-): Promise<Key> {
-    const rl = createInterface({ input, output: process.stderr, terminal: false });
-    const lines = rl[Symbol.asyncIterator]();
-    try {
-        for (;;) {
-            write(`Answer key for ${maxChoices.length} questions (e.g. A,AB,D): `);
-            const next = await lines.next();
-            if (next.done) throw new KeyAbortError("no answer key given (stdin closed)");
-            const parsed = parseKey(next.value, maxChoices);
-            if ("key" in parsed) return parsed.key;
-            write(`  ${parsed.error}\n`);
+/** Lines from stdin, opened on first use and shared by every prompt of a run. */
+export class LineReader {
+    private lines?: AsyncIterator<string>;
+    private close?: () => void;
+
+    constructor(private readonly input: NodeJS.ReadableStream = process.stdin) {}
+
+    /** The next line, or undefined once the input is closed. */
+    async next(): Promise<string | undefined> {
+        if (!this.lines) {
+            const rl = createInterface({ input: this.input, terminal: false });
+            this.lines = rl[Symbol.asyncIterator]();
+            this.close = () => rl.close();
         }
-    } finally {
-        rl.close();
+        const r = await this.lines.next();
+        return r.done ? undefined : r.value;
     }
+
+    dispose(): void {
+        this.close?.();
+    }
+}
+
+/**
+ * Writes `prompt` on stderr (stdout is reserved for CSV) and reads lines until `parse` accepts
+ * one; each rejection is written as an indented error line after the prompt.
+ */
+export async function ask<T extends object>(
+    lines: LineReader,
+    write: (s: string) => void,
+    prompt: string,
+    parse: (line: string) => { error: string } | T,
+    closed: string,
+): Promise<T> {
+    for (;;) {
+        write(prompt);
+        const line = await lines.next();
+        if (line === undefined) throw new KeyAbortError(closed);
+        const parsed = parse(line);
+        if ("error" in parsed) write(keyErrorLine(parsed.error));
+        else return parsed;
+    }
+}
+
+/** Prompts until a valid key is entered. */
+export async function promptKey(maxChoices: readonly number[], lines: LineReader, write: (s: string) => void): Promise<Key> {
+    const parsed = await ask<{ key: Key }>(lines, write, keyPrompt(maxChoices.length), (line) => parseKey(line, maxChoices), "no answer key given (stdin closed)");
+    return parsed.key;
 }

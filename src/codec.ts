@@ -3,14 +3,30 @@
 //
 // Layout (MSB-first, final byte zero-padded):
 //   version 4 | totalPages 5 | pageNumber 5 | totalQuestions 9 | questionsOnPage 9 |
-//   firstQuestionIndex 9 | questionsOnPage × (grid row − 1) 6
+//   firstQuestionIndex 9 | twoColumns 1 |
+//   per question: (choice count − 1) 3, then its column 1 (only when twoColumns) |
+//   column 0 bubble-row mask 54 | column 1 bubble-row mask 54 (only when twoColumns)
+//
+// Column 0 holds full-width questions and the left column, whose bubbles share one bubble
+// column; column 1 is the right column. Each mask has one bit per question row (first bit =
+// row 4, last = row 57), set for every row holding a bubble in that column. Set rows are handed
+// out top to bottom to that column's questions in order: the first takes as many rows as it has
+// choices (A, B, …), then the next, and so on.
 
-export const FORMAT_VERSION = 1;
-export const HEADER_BITS = 41;
-export const ROW_BITS = 6;
+// Version 4 moved the QR and page 1's header up a row (version 3 sheets' name box is elsewhere).
+export const FORMAT_VERSION = 4;
+export const HEADER_BITS = 42;
+export const CHOICE_COUNT_BITS = 3;
+/** The rows a mask covers: every row a question can use (LayoutSpec firstRowContinued–bodyLastRow). */
+export const MASK_FIRST_ROW = 4;
+export const MASK_LAST_ROW = 57;
+export const MASK_ROWS = MASK_LAST_ROW - MASK_FIRST_ROW + 1;
 export const MAX_PAGES = 16;
 export const MAX_QUESTIONS = 256;
-export const GRID_ROWS = 60;
+export const MAX_CHOICES = 8;
+
+/** 0 for a full-width or left-column question, 1 for a right-column one. */
+export type PayloadColumn = 0 | 1;
 
 export interface PagePayload {
     version: number;
@@ -21,20 +37,22 @@ export interface PagePayload {
     questionsOnPage: number;
     /** 0-based index of this page's first question */
     firstQuestionIndex: number;
-    /** 1-based grid row of each question's ring row, in question order */
-    rows: number[];
+    /** Per question on this page, the 1-based grid rows of its choice bubbles (A, B, … top to bottom). */
+    choiceRows: number[][];
+    /** Per question on this page, the column its bubbles are in. */
+    columns: PayloadColumn[];
 }
 
 export class PayloadError extends Error {
     override name = "PayloadError";
 }
 
-export function payloadBitLength(questionsOnPage: number): number {
-    return HEADER_BITS + ROW_BITS * questionsOnPage;
+export function payloadBitLength(questionsOnPage: number, twoColumns: boolean): number {
+    return HEADER_BITS + (CHOICE_COUNT_BITS + (twoColumns ? 1 : 0)) * questionsOnPage + MASK_ROWS * (twoColumns ? 2 : 1);
 }
 
-export function payloadByteLength(questionsOnPage: number): number {
-    return Math.ceil(payloadBitLength(questionsOnPage) / 8);
+export function payloadByteLength(questionsOnPage: number, twoColumns: boolean): number {
+    return Math.ceil(payloadBitLength(questionsOnPage, twoColumns) / 8);
 }
 
 function validate(p: PagePayload): void {
@@ -55,15 +73,31 @@ function validate(p: PagePayload): void {
             `questions ${p.firstQuestionIndex}+${p.questionsOnPage} exceed totalQuestions ${p.totalQuestions}`,
         );
     }
-    if (p.rows.length !== p.questionsOnPage) {
-        throw new PayloadError(`${p.rows.length} rows given for ${p.questionsOnPage} questions`);
+    if (p.choiceRows.length !== p.questionsOnPage) {
+        throw new PayloadError(`${p.choiceRows.length} questions' rows given for ${p.questionsOnPage} questions`);
     }
-    for (const row of p.rows) intIn("row", row, 1, GRID_ROWS);
+    if (p.columns.length !== p.questionsOnPage) {
+        throw new PayloadError(`${p.columns.length} questions' columns given for ${p.questionsOnPage} questions`);
+    }
+    const last = [0, 0];
+    p.choiceRows.forEach((rows, i) => {
+        const col = p.columns[i]!;
+        if (col !== 0 && col !== 1) throw new PayloadError(`question ${i + 1} column ${col} is not 0 or 1`);
+        intIn(`question ${i + 1} choice count`, rows.length, 1, MAX_CHOICES);
+        for (const row of rows) {
+            intIn("row", row, MASK_FIRST_ROW, MASK_LAST_ROW);
+            if (row <= last[col]!) {
+                throw new PayloadError(`bubble rows must increase down each column (row ${row} after ${last[col]} in column ${col})`);
+            }
+            last[col] = row;
+        }
+    });
 }
 
 export function pack(p: PagePayload): Uint8Array {
     validate(p);
-    const out = new Uint8Array(payloadByteLength(p.questionsOnPage));
+    const two = p.columns.includes(1);
+    const out = new Uint8Array(payloadByteLength(p.questionsOnPage, two));
     let bit = 0;
     const put = (value: number, width: number) => {
         for (let i = width - 1; i >= 0; i--, bit++) {
@@ -76,7 +110,15 @@ export function pack(p: PagePayload): Uint8Array {
     put(p.totalQuestions, 9);
     put(p.questionsOnPage, 9);
     put(p.firstQuestionIndex, 9);
-    for (const row of p.rows) put(row - 1, ROW_BITS);
+    put(two ? 1 : 0, 1);
+    p.choiceRows.forEach((rows, i) => {
+        put(rows.length - 1, CHOICE_COUNT_BITS);
+        if (two) put(p.columns[i]!, 1);
+    });
+    for (const col of two ? [0, 1] : [0]) {
+        const used = new Set(p.choiceRows.filter((_, i) => p.columns[i] === col).flat());
+        for (let row = MASK_FIRST_ROW; row <= MASK_LAST_ROW; row++) put(used.has(row) ? 1 : 0, 1);
+    }
     return out;
 }
 
@@ -89,19 +131,43 @@ export function unpack(bytes: Uint8Array): PagePayload {
         return v;
     };
     const version = take(4);
-    if (version !== FORMAT_VERSION) throw new PayloadError(`unknown payload version ${version}`);
+    if (version !== FORMAT_VERSION) {
+        throw new PayloadError(
+            `unknown payload version ${version}${version < FORMAT_VERSION ? " (sheet printed with an older layout; reprint it)" : ""}`,
+        );
+    }
     const totalPages = take(5);
     const pageNumber = take(5);
     const totalQuestions = take(9);
     const questionsOnPage = take(9);
     const firstQuestionIndex = take(9);
-    const expected = payloadByteLength(questionsOnPage);
+    const two = take(1) === 1;
+    const expected = payloadByteLength(questionsOnPage, two);
     if (bytes.length !== expected) {
         throw new PayloadError(`payload is ${bytes.length} bytes, expected ${expected} for ${questionsOnPage} questions`);
     }
-    const rows: number[] = [];
-    for (let i = 0; i < questionsOnPage; i++) rows.push(take(ROW_BITS) + 1);
-    const p: PagePayload = { version, totalPages, pageNumber, totalQuestions, questionsOnPage, firstQuestionIndex, rows };
+    const counts: number[] = [];
+    const columns: PayloadColumn[] = [];
+    for (let i = 0; i < questionsOnPage; i++) {
+        counts.push(take(CHOICE_COUNT_BITS) + 1);
+        columns.push(two && take(1) ? 1 : 0);
+    }
+    const choiceRows: number[][] = counts.map(() => []);
+    for (const col of two ? [0, 1] : [0]) {
+        const rows: number[] = [];
+        for (let row = MASK_FIRST_ROW; row <= MASK_LAST_ROW; row++) if (take(1)) rows.push(row);
+        const mine = counts.flatMap((_, i) => (columns[i] === col ? [i] : []));
+        const needed = mine.reduce((sum, i) => sum + counts[i]!, 0);
+        if (rows.length !== needed) {
+            throw new PayloadError(`${rows.length} bubble rows marked in column ${col}, expected ${needed} for the choice counts`);
+        }
+        let at = 0;
+        for (const i of mine) {
+            choiceRows[i] = rows.slice(at, at + counts[i]!);
+            at += counts[i]!;
+        }
+    }
+    const p: PagePayload = { version, totalPages, pageNumber, totalQuestions, questionsOnPage, firstQuestionIndex, choiceRows, columns };
     validate(p);
     return p;
 }

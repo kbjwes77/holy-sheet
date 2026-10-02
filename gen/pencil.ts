@@ -4,7 +4,7 @@ import type { Rng } from "./rng.ts";
 
 /**
  * - solid: a normal, confident fill
- * - sloppy: overflows the ring and sits off-centre
+ * - sloppy: overflows the ring by up to 0.05 in and sits off-centre
  * - scribble: loose zigzag strokes, some paper showing through
  * - partial: only part of the ring shaded (should read ambiguous)
  * - light: faint shading (should read ambiguous)
@@ -13,6 +13,9 @@ import type { Rng } from "./rng.ts";
 export type MarkStyle = "solid" | "sloppy" | "scribble" | "partial" | "light" | "erased";
 
 const f = (n: number) => +n.toFixed(2);
+
+/** How far a sloppy mark spills past the ring outline, in page units (1/100 in). */
+export const SLOPPY_OVERSHOOT: [number, number] = [1.5, 5];
 
 function graphite(rng: Rng): string {
     const v = rng.int(0x22, 0x50);
@@ -60,8 +63,9 @@ export function markSvg(c: Point, r: number, style: MarkStyle, rng: Rng): string
             );
         }
         case "sloppy": {
+            // Overshoot is absolute (page units), like a real pencil, not scaled with the bubble.
             const cc = o(0.3);
-            return `<polygon points="${blob(cc, r * rng.range(1.15, 1.4), rng, 0.15)}" fill="${color}" opacity="${f(rng.range(0.75, 0.9))}"/>`;
+            return `<polygon points="${blob(cc, r + rng.range(SLOPPY_OVERSHOOT[0], SLOPPY_OVERSHOOT[1]), rng, 0.15)}" fill="${color}" opacity="${f(rng.range(0.75, 0.9))}"/>`;
         }
         case "scribble": {
             const cc = o(0.1);

@@ -10,7 +10,9 @@ import { makeFixture, type Fixture } from "../gen/fixture.ts";
 import { main } from "../src/cli.ts";
 import { parseKey } from "../src/key.ts";
 import type { NameReader } from "../src/ocr.ts";
+import { paginate } from "../gen/sheet.ts";
 import { processPage } from "../src/pipeline.ts";
+import type { AnswerItem } from "../src/review.ts";
 import { gradeZip } from "../src/run.ts";
 
 /** Mock OCR: answers with the simulated student's name for page-1 files. */
@@ -50,6 +52,70 @@ describe("synthetic sheets", () => {
             120_000,
         );
     }
+});
+
+describe("sheets with figures", () => {
+    test(
+        "figures between prompts and choices don't disturb reading any mark",
+        async () => {
+            const fx = await makeFixture({ seed: 11, students: 4, questions: 20, figureRate: 0.5 });
+            expect(fx.dummy.test.questions.filter((q) => q.figures?.length).length).toBeGreaterThan(5);
+            const entries = unzipSync(fx.zip);
+            for (const f of fx.files) {
+                const res = await processPage(f.name, entries[f.name]!);
+                expect({ file: f.name, reasons: res.reasons }).toEqual({ file: f.name, reasons: [] });
+                for (const q of res.questions!) {
+                    expect({ q: q.index, marked: q.marked }).toEqual({ q: q.index, marked: fx.students[f.student]!.responses[q.index]!.chosen });
+                }
+            }
+        },
+        240_000,
+    );
+});
+
+describe("two-column sheets", () => {
+    test(
+        "reads every mark in both columns, and review crops frame each question's bubbles",
+        async () => {
+            // Short choices put most questions in columns; every student also has one faint mark.
+            const fx = await makeFixture({ seed: 34, students: 3, questions: 30, shortChoices: true, ambiguousRate: 1 });
+            const columns = new Map(paginate(fx.dummy.test).flatMap((p) => p.questions.map((q) => [q.index, q.column] as const)));
+            expect([...columns.values()].filter((c) => c === "right").length).toBeGreaterThan(10);
+            const entries = unzipSync(fx.zip);
+            for (const f of fx.files) {
+                const res = await processPage(f.name, entries[f.name]!);
+                expect({ file: f.name, reasons: res.reasons.filter((r) => !res.ambiguous?.includes(r)) }).toEqual({ file: f.name, reasons: [] });
+                for (const q of res.questions!) {
+                    expect({ q: q.index, column: q.column }).toEqual({ q: q.index, column: columns.get(q.index) === "right" ? 1 : 0 });
+                    expect({ q: q.index, marked: q.marked }).toEqual({ q: q.index, marked: fx.students[f.student]!.responses[q.index]!.chosen });
+                }
+            }
+
+            const items: AnswerItem[] = [];
+            await gradeZip(fx.zip, {
+                nameReader: mockReader(fx),
+                getKey: keyFor(fx),
+                review: {
+                    async begin(list) {
+                        for (const { item } of list) if (item.kind === "answer") items.push(item);
+                    },
+                    async ask() {
+                        return { skip: true };
+                    },
+                },
+            });
+            expect(items.some((it) => columns.get(it.question - 1) === "right")).toBe(true);
+            for (const it of items) {
+                for (const ring of it.rings) {
+                    expect(ring.x - ring.r).toBeGreaterThan(0);
+                    expect(ring.x + ring.r).toBeLessThan(it.width);
+                    expect(ring.y - ring.r).toBeGreaterThan(0);
+                    expect(ring.y + ring.r).toBeLessThan(it.height);
+                }
+            }
+        },
+        300_000,
+    );
 });
 
 describe("end to end", () => {

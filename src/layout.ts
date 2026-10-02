@@ -29,31 +29,59 @@ export interface LayoutSpec {
     cellH: number;
     /** Solid squares anchoring the full-page homography, in TL, TR, BR, BL order. */
     cornerSquares: readonly [CellRange, CellRange, CellRange, CellRange];
-    /** QR area including quiet zone. */
+    /**
+     * QR area including quiet zone. Its top row is row 0, the page margin above the corner squares,
+     * so the symbol's top edge is level with theirs.
+     */
     qrArea: CellRange;
     /** Side of the square QR symbol (no quiet zone), centred in `qrArea`, in page units. */
     qrSymbolSide: number;
+    /** Page 1: printed test name, above the handwritten fields (not read by the grader). Fixed at two rows. */
+    titleArea: CellRange;
+    /** Handwritten boxes on page 1; only `name` is read (OCR). */
     fields: {
         name: CellRange;
         period: CellRange;
-        testName: CellRange;
         date: CellRange;
     };
-    headerDividerRow: number;
-    bodyFirstRow: number;
+    /** Page 1 only: one line of marking instructions, under the fields. */
+    instructionsRow: number;
+    /** First question row on page 1, one blank row below the instructions. */
+    firstRowPage1: number;
+    /** Later pages (no title or fields): the first bubble row, the first a marker can use below the corner square. */
+    firstRowContinued: number;
+    /**
+     * Later pages: the highest row the first question's prompt may start on, beside the top-left
+     * corner square, so that its first choice can land on `firstRowContinued`.
+     */
+    topRowContinued: number;
+    /** Rows above this sit beside the QR, so text there stops short of it. */
+    qrClearRow: number;
+    /** Last question row; one empty row keeps markers clear of the bottom corner squares. */
     bodyLastRow: number;
+    /**
+     * Questions print in two columns where they fit. The left column runs from `promptCol` to
+     * `leftLastCol` with its bubbles in `ring.col`, the same bubble column as full-width questions.
+     * The right column starts at `right.promptCol` with its bubbles in `right.ringCol`, and starts no
+     * higher than `qrClearRow`, below the QR. A hairline in `dividerCol` separates them.
+     */
+    columns: {
+        leftLastCol: number;
+        dividerCol: number;
+        right: { promptCol: number; ringCol: number };
+    };
     marker: {
         col: number;
         /** Fractions of a cell. */
         widthCells: number;
         heightCells: number;
     };
+    /** Column where question prompts start. */
+    promptCol: number;
+    /** Choice bubbles: one per choice, centred in this column (the left one) on the choice's own grid row. */
     ring: {
-        startCol: number;
-        lastCol: number;
+        col: number;
         maxChoices: number;
-        /** Upper bound on ring pitch, in columns. */
-        maxPitch: number;
         /** Diameter as a fraction of the cell width. */
         diameterCells: number;
         strokeWidth: number;
@@ -82,24 +110,32 @@ export const LAYOUT: LayoutSpec = {
         { col1: 45, col2: 46, row1: 59, row2: 60 },
         { col1: 1, col2: 2, row1: 59, row2: 60 },
     ],
-    qrArea: { col1: 37, col2: 44, row1: 1, row2: 8 },
+    qrArea: { col1: 37, col2: 44, row1: 0, row2: 7 },
     qrSymbolSide: 6 * ((PAGE_H - 2 * MARGIN) / ROWS),
+    titleArea: { col1: 4, col2: 35, row1: 1, row2: 2 },
     fields: {
-        name: { col1: 4, col2: 35, row1: 2, row2: 4 },
-        period: { col1: 4, col2: 9, row1: 6, row2: 8 },
-        testName: { col1: 11, col2: 28, row1: 6, row2: 8 },
-        date: { col1: 30, col2: 35, row1: 6, row2: 8 },
+        name: { col1: 4, col2: 23, row1: 4, row2: 6 },
+        period: { col1: 25, col2: 28, row1: 4, row2: 6 },
+        date: { col1: 30, col2: 35, row1: 4, row2: 6 },
     },
-    headerDividerRow: 9,
-    bodyFirstRow: 10,
+    instructionsRow: 7,
+    firstRowPage1: 9,
+    // Row 3 has no bubbles, like row 58: a marker right under a corner square can merge with it.
+    firstRowContinued: 4,
+    topRowContinued: 1,
+    qrClearRow: 8,
     bodyLastRow: 57,
+    columns: {
+        leftLastCol: 22,
+        dividerCol: 24,
+        right: { promptCol: 26, ringCol: 27 },
+    },
     marker: { col: 1, widthCells: 1, heightCells: 0.5 },
+    promptCol: 4,
     ring: {
-        startCol: 4,
-        lastCol: 44,
+        col: 5,
         maxChoices: 8,
-        maxPitch: 8,
-        diameterCells: 0.8,
+        diameterCells: 0.6,
         strokeWidth: 1.5,
         innerRadiusFrac: 0.7,
     },
@@ -159,23 +195,25 @@ export function markerRect(row: number, L: LayoutSpec = LAYOUT): Rect {
     return { x: c.x - w / 2, y: c.y - h / 2, w, h };
 }
 
-/** Ring pitch in columns for a question with `count` rings. */
-export function ringPitch(count: number, L: LayoutSpec = LAYOUT): number {
-    if (!Number.isInteger(count) || count < 1 || count > L.ring.maxChoices) {
-        throw new RangeError(`ring count ${count} is outside 1–${L.ring.maxChoices}`);
-    }
-    if (count === 1) return 0;
-    return Math.min(L.ring.maxPitch, Math.floor((L.ring.lastCol - L.ring.startCol) / (count - 1)));
+/**
+ * Right edge for question text on grid row `row`: the right corner squares' column, or, beside
+ * the QR, one column short of the QR area.
+ */
+export function textRightEdge(row: number, L: LayoutSpec = LAYOUT): number {
+    return row < L.qrClearRow ? colX(L.qrArea.col1 - 1, L) : colX(L.cornerSquares[1].col1, L);
 }
 
-/** 1-based columns of each ring's centre cell. */
-export function ringCols(count: number, L: LayoutSpec = LAYOUT): number[] {
-    const pitch = ringPitch(count, L);
-    return Array.from({ length: count }, (_, i) => L.ring.startCol + i * pitch);
+/** Which bubble column a question uses: 0 for full width and the left column, 1 for the right column. */
+export type BubbleColumn = 0 | 1;
+
+/** The grid column holding the bubbles of bubble column `column`. */
+export function ringCol(column: BubbleColumn, L: LayoutSpec = LAYOUT): number {
+    return column ? L.columns.right.ringCol : L.ring.col;
 }
 
-export function ringCenters(count: number, row: number, L: LayoutSpec = LAYOUT): Point[] {
-    return ringCols(count, L).map((col) => cellCenter(col, row, L));
+/** Centre of the choice bubble on grid row `row` in bubble column `column`. */
+export function bubbleCenter(row: number, column: BubbleColumn = 0, L: LayoutSpec = LAYOUT): Point {
+    return cellCenter(ringCol(column, L), row, L);
 }
 
 export function ringRadius(L: LayoutSpec = LAYOUT): number {

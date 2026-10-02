@@ -1,6 +1,6 @@
 // Decodes every page of a generated fixture and compares the read marks with the simulated
 // students' intended answers. Usage: bun gen/check-pages.ts [--seed N] [--students N]
-// [--questions N] [--profiles a,b] [--debug dir]
+// [--questions N] [--profiles a,b] [--figures P] [--debug dir]
 import { mkdirSync, writeFileSync } from "node:fs";
 import { unzipSync } from "fflate";
 import { parseArgs } from "node:util";
@@ -16,6 +16,7 @@ const { values } = parseArgs({
         questions: { type: "string", default: "20" },
         profiles: { type: "string" },
         ambiguous: { type: "string", default: "0" },
+        figures: { type: "string", default: "0" },
         debug: { type: "string" },
     },
 });
@@ -25,6 +26,7 @@ const fx = await makeFixture({
     questions: Number(values.questions),
     profiles: values.profiles?.split(",") as Profile[] | undefined,
     ambiguousRate: Number(values.ambiguous),
+    figureRate: Number(values.figures),
 });
 const entries = unzipSync(fx.zip);
 if (values.debug) mkdirSync(values.debug, { recursive: true });

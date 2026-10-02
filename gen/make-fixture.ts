@@ -1,6 +1,7 @@
 // Writes a fixture zip, its answer key and a manifest to a directory.
 // Usage: bun gen/make-fixture.ts <outDir> [--seed N] [--students N] [--questions N] [--ambiguous P]
 //        [--profiles clean,scan,scan-flipped,photo] [--drop-page-of N] [--duplicate-page-of N] [--orphan]
+//        [--figures P]
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
@@ -18,6 +19,7 @@ const { values, positionals } = parseArgs({
         "drop-page-of": { type: "string" },
         "duplicate-page-of": { type: "string" },
         orphan: { type: "boolean", default: false },
+        figures: { type: "string", default: "0" },
     },
 });
 const out = positionals[0];
@@ -35,6 +37,7 @@ const fx = await makeFixture({
     dropPageOf: num(values["drop-page-of"]),
     duplicatePageOf: num(values["duplicate-page-of"]),
     orphan: values.orphan,
+    figureRate: Number(values.figures),
 });
 mkdirSync(out, { recursive: true });
 writeFileSync(join(out, "sheets.zip"), fx.zip);

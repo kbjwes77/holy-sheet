@@ -5,18 +5,27 @@ import { apply, fitAffine, fitHomography, fitHomographyRobust, invert, type Mat3
 import { scoreAnswers } from "../src/grade.ts";
 import { groupPages, type GroupablePage } from "../src/grouping.ts";
 import { parseKey } from "../src/key.ts";
-import { LAYOUT, ringCols, ringPitch } from "../src/layout.ts";
+import { LAYOUT, bubbleCenter, cellCenter, markerRect, ringRadius } from "../src/layout.ts";
 import { limitConcurrency, OpenRouterNameReader, parseNameReply } from "../src/ocr.ts";
 import { blankBaseline } from "../src/pipeline.ts";
 import { readZipImages, isPageImage, ZipError } from "../src/zip.ts";
 
 describe("layout", () => {
-    test("ring spacing matches the approved formula", () => {
-        expect([1, 2, 3, 4, 5, 6, 7, 8].map((n) => ringPitch(n))).toEqual([0, 8, 8, 8, 8, 8, 6, 5]);
-        expect(ringCols(8)).toEqual([4, 9, 14, 19, 24, 29, 34, 39]);
-        expect(ringCols(6).at(-1)).toBe(44);
-        for (let n = 1; n <= 8; n++) expect(Math.max(...ringCols(n))).toBeLessThanOrEqual(LAYOUT.ring.lastCol);
-        expect(() => ringPitch(9)).toThrow();
+    test("one bubble per choice row, in a fixed column clear of the markers", () => {
+        expect(bubbleCenter(20)).toEqual(cellCenter(LAYOUT.ring.col, 20));
+        const markerRight = markerRect(20).x + markerRect(20).w;
+        expect(bubbleCenter(20).x - ringRadius()).toBeGreaterThan(markerRight + LAYOUT.cellW);
+        // Neighbouring rows: bubbles must not touch.
+        expect(bubbleCenter(21).y - bubbleCenter(20).y).toBeGreaterThan(2 * ringRadius() + 5);
+    });
+    test("right-column bubbles sit in their own column, right of the divider and the left column's text", () => {
+        const C = LAYOUT.columns;
+        expect(bubbleCenter(20, 1)).toEqual(cellCenter(C.right.ringCol, 20));
+        expect(C.leftLastCol).toBeLessThan(C.dividerCol);
+        expect(C.dividerCol).toBeLessThan(C.right.promptCol);
+        expect(C.right.promptCol).toBeLessThan(C.right.ringCol);
+        // Far enough apart that the bubble search window (±0.35 of a cell) can't reach the other column.
+        expect(bubbleCenter(20, 1).x - bubbleCenter(20, 0).x).toBeGreaterThan(10 * LAYOUT.cellW);
     });
 });
 
@@ -111,7 +120,7 @@ describe("grouping", () => {
     const page = (pageNumber: number, totalPages = 2, firstQuestionIndex = (pageNumber - 1) * 5, questionsOnPage = 5): GroupablePage => ({
         file: `p${++n}.jpg`,
         reasons: [],
-        payload: { version: 1, totalPages, pageNumber, totalQuestions: 10, questionsOnPage, firstQuestionIndex, rows: [] },
+        payload: { version: 4, totalPages, pageNumber, totalQuestions: 10, questionsOnPage, firstQuestionIndex, choiceRows: [], columns: [] },
     });
     test("splits on page 1 and validates", () => {
         const groups = groupPages([page(1), page(2), page(1), page(2)]);

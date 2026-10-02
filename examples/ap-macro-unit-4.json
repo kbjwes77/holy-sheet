@@ -1,0 +1,101 @@
+{
+  "test": "AP Macroeconomics Unit 4: The Financial Sector - Bonds and Interest Rates",
+  "questions": [
+    {
+      "prompt": "Which of the following statements about bond prices and market interest rates are true?",
+      "choices": [
+        "Bond prices and market interest rates are inversely related.",
+        "When market interest rates rise, the prices of existing bonds fall.",
+        "When market interest rates fall, the prices of existing bonds fall.",
+        "A bond's face value changes each time market interest rates change."
+      ]
+    },
+    {
+      "prompt": "A bond has a $1,000 face value and a 5% coupon rate ($50 per year). If the market interest rate rises to 6%, which of the following are true?",
+      "choices": [
+        "The existing bond will sell at a discount from its face value.",
+        "The bond's coupon payment rises to $60 per year.",
+        "Investors prefer newly issued 6% bonds, so demand for the existing bond falls.",
+        "The existing bond will sell at a premium above its face value."
+      ]
+    },
+    {
+      "prompt": "Which of the following would shift the demand for loanable funds to the right?",
+      "choices": [
+        "Firms expect higher profits from new investment projects.",
+        "The government increases its budget deficit and borrows to finance it.",
+        "Households increase their saving.",
+        "Foreign investors increase their purchases of domestic financial assets.",
+        "The government runs a larger budget surplus."
+      ]
+    },
+    {
+      "prompt": "Which of the following would shift the supply of loanable funds to the right?",
+      "choices": [
+        "An increase in the private saving rate",
+        "An increase in capital inflows from foreign investors",
+        "A move from a budget deficit to a budget surplus",
+        "An increase in the expected profitability of investment"
+      ]
+    },
+    {
+      "prompt": "The nominal interest rate on a loan is 7% and expected inflation is 3%. Which of the following are true?",
+      "choices": [
+        "The expected real interest rate is approximately 4%.",
+        "The expected real interest rate is approximately 10%.",
+        "If expected inflation rises to 5% and the nominal rate stays at 7%, the expected real rate falls to approximately 2%.",
+        "The nominal interest rate equals the real interest rate plus expected inflation (approximately).",
+        "The real interest rate is unaffected by changes in expected inflation if the nominal rate is fixed."
+      ]
+    },
+    {
+      "prompt": "Suppose the Federal Reserve conducts an open market purchase of government bonds. Which of the following are likely results?",
+      "choices": [
+        "Bank reserves increase.",
+        "The money supply increases.",
+        "The nominal interest rate falls in the short run.",
+        "The price of government bonds falls.",
+        "The money supply curve shifts left."
+      ]
+    },
+    {
+      "prompt": "Which of the following actions by the Federal Reserve would tend to lower the federal funds rate?",
+      "choices": [
+        "Buying government securities on the open market",
+        "Lowering the discount rate",
+        "Lowering the interest rate paid on reserve balances",
+        "Selling government securities on the open market",
+        "Raising the reserve requirement"
+      ]
+    },
+    {
+      "prompt": "Which of the following correctly describe the concept of present value?",
+      "choices": [
+        "The present value of a future payment is less than its future value when the interest rate is positive.",
+        "A higher interest rate lowers the present value of a future payment.",
+        "The longer the wait until a payment is received, the lower its present value.",
+        "Present value is unaffected by the interest rate.",
+        "Present value is always greater than future value."
+      ]
+    },
+    {
+      "prompt": "Which of the following are consistent with the crowding-out effect?",
+      "choices": [
+        "Government deficit spending increases the demand for loanable funds.",
+        "The real interest rate rises as a result of government borrowing.",
+        "Private investment spending decreases.",
+        "The real interest rate falls as a result of government borrowing.",
+        "The supply of loanable funds increases enough to fully offset the new government borrowing."
+      ]
+    },
+    {
+      "prompt": "Which of the following statements about the risk, return, and liquidity of financial assets are correct?",
+      "choices": [
+        "Assets with higher risk generally must offer higher expected returns to attract investors.",
+        "Longer-term bonds generally have greater interest-rate-related price risk than shorter-term bonds.",
+        "Cash is the most liquid financial asset.",
+        "Stocks are more liquid than cash."
+      ]
+    }
+  ]
+}

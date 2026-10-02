@@ -1,8 +1,8 @@
-// Per-image pipeline: load → QR → register → markers → rings → fill → name crop.
+// Per-image pipeline: load → QR → register → markers → bubbles → fill → name crop.
 import { PayloadError, unpack, type PagePayload } from "./codec.ts";
 import { crop, encodePng, loadGray, pageToCanvas, type Gray } from "./image.ts";
-import { LAYOUT, type LayoutSpec, type Point, rangeRect } from "./layout.ts";
-import { fillAt, findRings, inkReference, ringKernels } from "./marks.ts";
+import { LAYOUT, type BubbleColumn, type LayoutSpec, type Point, rangeRect } from "./layout.ts";
+import { fillAt, findBubble, inkReference, ringKernels } from "./marks.ts";
 import { decodeQr } from "./qr.ts";
 import { register, type Registration } from "./registration.ts";
 
@@ -20,7 +20,10 @@ export type Verdict = "marked" | "blank" | "ambiguous";
 export interface QuestionRead {
     /** 0-based question index across the test. */
     index: number;
+    /** Grid row of the question's first (A) bubble. */
     row: number;
+    /** The bubble column its bubbles are in. */
+    column: BubbleColumn;
     choices: number;
     /** Marked choice indexes. */
     marked: number[];
@@ -39,11 +42,13 @@ export interface PageResult {
     registration?: Registration;
     /** Row-level problems to draw (canvas px). */
     rowErrors?: { y: number; text: string }[];
+    /** The entries of `reasons` that are only unclear marks, which `--review` asks about. */
+    ambiguous?: string[];
 }
 
 /**
  * The fill an unmarked ring reads on this page. Blur and low resolution bleed the ring outline
- * and its printed letter into the measured disk, by an amount that varies per capture. Most rings
+ * into the measured disk, by an amount that varies per capture. Most rings
  * on a page are blank, so the lower quartile estimates it (the minimum, when there are only a
  * few rings). It is capped so a page of mostly marked rings can't push real marks below threshold.
  */
@@ -94,10 +99,10 @@ export async function processPage(
     res.registration = reg;
     const { canvas, dark } = reg;
 
-    // Markers must match the QR row list exactly.
+    // Markers must match the QR's bubble rows exactly. A row with bubbles in both columns has one marker.
     const found = reg.markers.markers.map((m) => m.row);
-    const expected = payload.rows;
-    const sameRows = found.length === expected.length && [...expected].sort((a, b) => a - b).every((r, i) => r === found[i]);
+    const expected = [...new Set(payload.choiceRows.flat())].sort((a, b) => a - b);
+    const sameRows = found.length === expected.length && expected.every((r, i) => r === found[i]);
     if (!sameRows || reg.markers.misaligned.length) {
         const missing = expected.filter((r) => !found.includes(r));
         const extra = found.filter((r) => !expected.includes(r));
@@ -115,36 +120,40 @@ export async function processPage(
     const ink = Math.max(0.3, inkReference(dark, reg.markers.markers, canvas, L));
     const byRow = new Map(reg.markers.markers.map((m) => [m.row, m]));
     res.rowErrors = [];
-    const rows = payload.rows.map((row, i) => {
-        const marker = byRow.get(row)!;
-        const ringRow = findRings(dark, canvas, row, marker.center.y, k, L);
-        if (ringRow.error) {
-            res.reasons.push(`Q${payload.firstQuestionIndex + i + 1}: ${ringRow.error}`);
-            res.rowErrors!.push({ y: marker.center.y, text: ringRow.error });
-        }
-        return { row, i, ringRow, raw: ringRow.centers.map((center) => fillAt(dark, k, center) / ink) };
+    const qs = payload.choiceRows.map((rows, i) => {
+        const hits = rows.map((row, j) => {
+            const marker = byRow.get(row)!;
+            const hit = findBubble(dark, canvas, row, payload.columns[i]!, marker.center.y, k, L);
+            if (hit.error) {
+                res.reasons.push(`Q${payload.firstQuestionIndex + i + 1} ${String.fromCharCode(65 + j)}: ${hit.error}`);
+                res.rowErrors!.push({ y: marker.center.y, text: hit.error });
+            }
+            return { center: hit.center, error: hit.error, raw: fillAt(dark, k, hit.center) / ink };
+        });
+        return { rows, i, hits };
     });
-    const base = blankBaseline(rows.flatMap((r) => r.raw));
+    const base = blankBaseline(qs.flatMap((q) => q.hits.filter((h) => !h.error).map((h) => h.raw)));
 
     res.questions = [];
-    rows.forEach(({ row, i, ringRow, raw }) => {
-        const rings = ringRow.centers.map((center, j) => {
-            const fill = Math.max(0, (raw[j]! - base) / (1 - base));
+    qs.forEach(({ rows, i, hits }) => {
+        const rings = hits.map(({ center, raw }) => {
+            const fill = Math.max(0, (raw - base) / (1 - base));
             const verdict: Verdict = fill > th.markThreshold ? "marked" : fill < th.blankThreshold ? "blank" : "ambiguous";
             return { center, fill, verdict };
         });
-        const ambiguous = rings.flatMap((r, j) => (r.verdict === "ambiguous" ? [String.fromCharCode(65 + j)] : []));
-        if (!ringRow.error && ambiguous.length) {
-            res.reasons.push(
-                `Q${payload.firstQuestionIndex + i + 1}: ambiguous mark on ${ambiguous.join(", ")} (fill ${rings
-                    .filter((r) => r.verdict === "ambiguous")
-                    .map((r) => r.fill.toFixed(2))
-                    .join(", ")})`,
-            );
+        const ambiguous = rings.flatMap((r, j) => (r.verdict === "ambiguous" && !hits[j]!.error ? [String.fromCharCode(65 + j)] : []));
+        if (ambiguous.length) {
+            const reason = `Q${payload.firstQuestionIndex + i + 1}: ambiguous mark on ${ambiguous.join(", ")} (fill ${rings
+                .filter((r, j) => r.verdict === "ambiguous" && !hits[j]!.error)
+                .map((r) => r.fill.toFixed(2))
+                .join(", ")})`;
+            res.reasons.push(reason);
+            (res.ambiguous ??= []).push(reason);
         }
         res.questions!.push({
             index: payload.firstQuestionIndex + i,
-            row,
+            row: rows[0]!,
+            column: payload.columns[i]!,
             choices: rings.length,
             marked: rings.flatMap((r, j) => (r.verdict === "marked" ? [j] : [])),
             rings,

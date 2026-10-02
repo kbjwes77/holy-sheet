@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="darkreader-lock" />
+        <title>Grader</title>
+        <script>
+            // Follow the OS light/dark preference before first paint.
+            document.documentElement.dataset.bsTheme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        </script>
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+        <link rel="stylesheet" href="./app.css" />
+    </head>
+    <body>
+        <div class="alert alert-warning rounded-0 mb-0 d-none" id="file-warning" role="alert">
+            <i class="bi bi-exclamation-triangle me-1"></i>
+            The grader runs through its local server and can't be opened from disk. Run <code>bun run web</code> and open
+            <code>http://localhost:3000/grader</code>.
+        </div>
+        <script>
+            if (location.protocol === "file:") document.getElementById("file-warning").classList.remove("d-none");
+        </script>
+        <nav class="navbar border-bottom bg-body-tertiary">
+            <div class="container-xxl">
+                <span class="navbar-brand fw-semibold"><i class="bi bi-clipboard-check me-2 text-primary"></i>Grader</span>
+                <span class="navbar-text small text-body-secondary d-none d-md-inline me-auto">Grade scanned answer sheets</span>
+                <a class="btn btn-sm btn-outline-secondary" href="/"><i class="bi bi-ui-radios-grid me-1"></i>Sheet Generator</a>
+            </div>
+        </nav>
+
+        <main class="container-xxl py-4">
+            <div class="alert alert-warning d-none" id="config-warning" role="alert">
+                <i class="bi bi-exclamation-triangle me-1"></i>
+                Name reading isn't set up: <span id="config-missing"></span> must be set in <code>.env</code>. Restart
+                <code>bun run web</code> after adding them.
+            </div>
+
+            <div class="row g-4">
+                <!-- Input -->
+                <div class="col-lg-5">
+                    <div class="card shadow-sm mb-3">
+                        <div class="card-header d-flex align-items-center gap-2 flex-wrap">
+                            <span class="fw-semibold me-auto"><i class="bi bi-images me-1"></i>Scanned sheets</span>
+                            <input type="file" id="zip-input" accept=".zip,application/zip" hidden />
+                            <input type="file" id="images-input" accept="image/png,image/jpeg,.png,.jpg,.jpeg" multiple hidden />
+                            <div class="btn-group btn-group-sm">
+                                <button type="button" class="btn btn-outline-secondary" id="btn-zip"><i class="bi bi-file-earmark-zip"></i> .zip file</button>
+                                <button type="button" class="btn btn-outline-secondary" id="btn-images"><i class="bi bi-file-earmark-image"></i> Images</button>
+                                <button type="button" class="btn btn-outline-secondary" id="btn-clear-files" title="Clear"><i class="bi bi-x-lg"></i></button>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="drop-zone" id="drop-zone">
+                                <div class="file-box border rounded" id="file-box">
+                                    <div class="text-center text-body-secondary py-4" id="file-empty">
+                                        <i class="bi bi-cloud-arrow-up fs-2 d-block mb-2"></i>
+                                        Drop a <strong>.zip</strong> or <strong>PNG/JPG</strong> page images here,<br />or use the buttons above.
+                                    </div>
+                                    <ol class="list-group list-group-flush list-group-numbered small d-none" id="file-list"></ol>
+                                </div>
+                                <div class="drop-hint"><i class="bi bi-file-earmark-arrow-down"></i> Drop to add</div>
+                            </div>
+                            <div class="form-text mt-2" id="file-summary">
+                                Pages are graded in order: zip entries as stored, images by file name. Keep each student's pages together, page 1 first.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card shadow-sm mb-3">
+                        <div class="card-body">
+                            <label class="form-label fw-semibold" for="key-input"><i class="bi bi-key me-1"></i>Answer key</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control font-monospace" id="key-input" placeholder="e.g. A,AB,D" spellcheck="false" autocomplete="off" />
+                                <input type="file" id="key-file" accept=".txt,text/plain" hidden />
+                                <button type="button" class="btn btn-outline-secondary" id="btn-key-file"><i class="bi bi-folder2-open"></i> key.txt</button>
+                            </div>
+                            <div class="form-text">
+                                One entry per question, letters together for more than one answer. The Sheet Generator gives you this line. If you leave it
+                                empty, you'll be asked once the sheets are read.
+                            </div>
+
+                            <a class="link-secondary small d-inline-block mt-3" data-bs-toggle="collapse" href="#options" role="button" aria-expanded="false">
+                                <i class="bi bi-sliders me-1"></i>Options
+                            </a>
+                            <div class="collapse" id="options">
+                                <div class="row g-2 mt-1">
+                                    <div class="col-6">
+                                        <label class="form-label small mb-1" for="opt-mark">Mark threshold</label>
+                                        <input type="number" class="form-control form-control-sm" id="opt-mark" min="0" max="1" step="0.01" />
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="form-label small mb-1" for="opt-blank">Blank threshold</label>
+                                        <input type="number" class="form-control form-control-sm" id="opt-blank" min="0" max="1" step="0.01" />
+                                    </div>
+                                </div>
+                                <div class="form-text">Fill ratios: at or above the mark threshold reads as filled, at or below the blank one as empty; anything between is unclear and you'll be asked about it.</div>
+                                <div class="form-check mt-2">
+                                    <input class="form-check-input" type="checkbox" id="opt-debug" />
+                                    <label class="form-check-label small" for="opt-debug">Diagnostic images for every page (problem pages always get one)</label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-footer d-flex align-items-center gap-2 flex-wrap">
+                            <button type="button" class="btn btn-primary" id="btn-grade" disabled><i class="bi bi-play-fill me-1"></i>Grade</button>
+                            <button type="button" class="btn btn-outline-danger d-none" id="btn-cancel"><i class="bi bi-stop-fill me-1"></i>Cancel</button>
+                            <code class="small text-body-secondary text-break ms-auto" id="command-preview" title="The command this runs"></code>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-danger d-none" id="input-error" role="alert"></div>
+                </div>
+
+                <!-- Run + results -->
+                <div class="col-lg-7">
+                    <div class="card shadow-sm" id="empty-state">
+                        <div class="card-body text-center text-body-secondary py-5">
+                            <i class="bi bi-table display-4 d-block mb-3"></i>
+                            <p class="mb-1 fw-semibold">No results yet</p>
+                            <p class="mb-0 small">Add the scanned sheets, then choose <strong>Grade</strong>.</p>
+                        </div>
+                    </div>
+
+                    <div class="d-none" id="run">
+                        <div class="card shadow-sm mb-3">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center gap-2 mb-2">
+                                    <span class="spinner-border spinner-border-sm text-primary" id="run-spinner" aria-hidden="true"></span>
+                                    <i class="bi d-none" id="run-icon"></i>
+                                    <span class="fw-semibold" id="run-status"></span>
+                                </div>
+                                <div class="progress" role="progressbar" aria-label="Pages read" id="progress">
+                                    <div class="progress-bar" id="progress-bar" style="width: 0%"></div>
+                                </div>
+
+                                <form class="key-prompt border rounded p-3 mt-3 d-none" id="key-prompt">
+                                    <label class="form-label fw-semibold" for="prompt-input" id="prompt-label"></label>
+                                    <div class="input-group">
+                                        <input type="text" class="form-control font-monospace" id="prompt-input" placeholder="e.g. A,AB,D" spellcheck="false" autocomplete="off" />
+                                        <button type="submit" class="btn btn-primary" id="btn-send-key"><i class="bi bi-send me-1"></i>Grade with this key</button>
+                                    </div>
+                                    <div class="invalid-feedback d-block d-none" id="prompt-error"></div>
+                                </form>
+
+                                <details class="mt-3">
+                                    <summary class="small text-body-secondary">CLI output</summary>
+                                    <code class="d-block small text-body-secondary mt-2" id="run-command"></code>
+                                    <pre class="cli-log small border rounded p-2 mt-2 mb-0" id="cli-log"></pre>
+                                </details>
+                            </div>
+                        </div>
+
+                        <form class="card shadow-sm mb-3 border-primary d-none" id="review-card" novalidate>
+                            <div class="card-header d-flex align-items-center gap-2 flex-wrap">
+                                <span class="fw-semibold me-auto"><i class="bi bi-person-check me-1"></i>Check before grading</span>
+                                <span class="small text-body-secondary" id="review-counts"></span>
+                            </div>
+                            <div class="card-body small text-body-secondary py-2">
+                                Check each name against the handwriting, and pick the answer for any bubble too faint to call (click the bubble or
+                                its letter). <strong>Skip</strong> leaves a submission out of the grades.
+                            </div>
+                            <fieldset id="review-fieldset">
+                                <ul class="list-group list-group-flush" id="review-list"></ul>
+                            </fieldset>
+                            <div class="card-footer d-flex align-items-center gap-2 flex-wrap">
+                                <button type="submit" class="btn btn-primary" id="btn-finish-review"><i class="bi bi-check2-all me-1"></i>Grade with these</button>
+                                <span class="small text-danger" id="review-error"></span>
+                                <span class="small text-body-secondary ms-auto" id="review-summary"></span>
+                            </div>
+                        </form>
+
+                        <div class="alert d-none" id="result-alert" role="status"></div>
+
+                        <div class="card shadow-sm mb-3 d-none" id="results-card">
+                            <div class="card-header d-flex align-items-center gap-2 flex-wrap">
+                                <span class="fw-semibold me-auto"><i class="bi bi-table me-1"></i>Grades</span>
+                                <div class="btn-group btn-group-sm">
+                                    <button type="button" class="btn btn-outline-secondary" id="btn-copy-csv"><i class="bi bi-clipboard" id="copy-csv-icon"></i> Copy</button>
+                                    <button type="button" class="btn btn-success" id="btn-download-csv"><i class="bi bi-download"></i> grades.csv</button>
+                                </div>
+                            </div>
+                            <div class="card-body pb-0">
+                                <div class="d-flex flex-wrap gap-2 small mb-3" id="result-badges"></div>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table table-hover table-sm align-middle mb-0 grades-table" id="grades-table">
+                                    <thead></thead>
+                                    <tbody></tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div class="card shadow-sm mb-3 border-warning d-none" id="skipped-card">
+                            <div class="card-header fw-semibold"><i class="bi bi-exclamation-triangle text-warning me-1"></i><span id="skipped-title"></span></div>
+                            <ul class="list-group list-group-flush" id="skipped-list"></ul>
+                        </div>
+
+                        <div class="card shadow-sm mb-3 d-none" id="images-card">
+                            <div class="card-header d-flex align-items-center gap-2">
+                                <span class="fw-semibold me-auto"><i class="bi bi-bounding-box me-1"></i>Diagnostic images</span>
+                                <a class="btn btn-sm btn-outline-secondary" id="images-zip" download="diagnostics.zip"><i class="bi bi-download"></i> All (.zip)</a>
+                            </div>
+                            <div class="card-body">
+                                <div class="row row-cols-2 row-cols-md-3 g-3" id="images-grid"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+        <script type="module" src="./grader.ts"></script>
+    </body>
+</html>

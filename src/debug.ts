@@ -54,8 +54,9 @@ export async function renderDebug(page: PageResult): Promise<Uint8Array> {
         for (const r of q.rings) {
             const col = colors[r.verdict];
             parts.push(
-                `<circle cx="${f(r.center.x)}" cy="${f(r.center.y)}" r="15" fill="none" stroke="${col}" stroke-width="${r.verdict === "blank" ? 1.5 : 3}"/>` +
-                    `<text x="${f(r.center.x)}" y="${f(r.center.y + 28)}" font-family="Arial" font-size="11" text-anchor="middle" fill="${col}">${r.fill.toFixed(2)}</text>`,
+                // Fill value to the left of the bubble: bubble rows are too close to label below.
+                `<circle cx="${f(r.center.x)}" cy="${f(r.center.y)}" r="11" fill="none" stroke="${col}" stroke-width="${r.verdict === "blank" ? 1.5 : 3}"/>` +
+                    `<text x="${f(r.center.x - 15)}" y="${f(r.center.y + 4)}" font-family="Arial" font-size="11" text-anchor="end" fill="${col}">${r.fill.toFixed(2)}</text>`,
             );
         }
     }

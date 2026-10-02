@@ -1,8 +1,9 @@
 // Dummy tests with answer keys, and simulated students who fill them in.
-import { CHOICE_LETTERS, LAYOUT, rangeRect, ringCenters, ringRadius, colX, rowY } from "../src/layout.ts";
+import { CHOICE_LETTERS, LAYOUT, bubbleCenter, rangeRect, ringRadius, colX, rowY } from "../src/layout.ts";
 import { handwriting, markSvg, strayMark, type MarkStyle } from "./pencil.ts";
 import type { Rng } from "./rng.ts";
-import type { PageLayout, TestDef } from "./sheet.ts";
+import { prepareFigure, type Figure, type FigureDef } from "./figures.ts";
+import { bubbleColumnOf, figureMaxWidth, type PageLayout, type TestDef } from "./sheet.ts";
 
 export interface DummyTest {
     test: TestDef;
@@ -21,9 +22,47 @@ const STEMS = [
 ];
 const WORDS = ["energy", "pressure", "the government", "a reaction", "the slope", "temperature", "the author", "the market", "a force", "the population", "a ratio", "the cell", "the treaty", "the solution", "a variable"];
 
-function choiceText(rng: Rng): string {
-    const n = rng.int(1, 5);
+function choiceText(rng: Rng, short = false): string {
+    const n = short ? rng.int(1, 2) : rng.int(1, 5);
     return Array.from({ length: n }, () => rng.pick(WORDS)).join(" and ").replace(/^./, (c) => c.toUpperCase());
+}
+
+/**
+ * Figures for dummy tests, chosen to stress the grader: a graph with a solid black block and
+ * heavy lines, a wide table with shaded headers, and a small diagram. Widths vary per test.
+ */
+function dummyFigures(rng: Rng): Figure[] {
+    const w = () => +rng.range(1.2, 4).toFixed(2);
+    const defs: [string, FigureDef][] = [
+        [
+            "graph",
+            {
+                type: "svg",
+                width: w(),
+                caption: "Figure: supply and demand",
+                content:
+                    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 150"><rect x="20" y="10" width="40" height="40" fill="#000"/>` +
+                    `<path d="M20 10 V140 H195" fill="none" stroke="#000" stroke-width="4"/><path d="M30 20 L180 130 M30 130 L180 20" stroke="#000" stroke-width="3"/>` +
+                    `<text x="150" y="40" font-size="14">S</text><text x="150" y="125" font-size="14">D</text></svg>`,
+            },
+        ],
+        [
+            "table",
+            {
+                type: "table",
+                content:
+                    `<table><thead><tr><th>Item</th><th>2024</th><th>2025</th><th>Change</th></tr></thead><tbody>` +
+                    `<tr><td>Price</td><td>$1.20</td><td>$1.45</td><td>+20.8%</td></tr><tr><td>Quantity</td><td>500</td><td>430</td><td>-14.0%</td></tr>` +
+                    `<tr><td>r<sub>1</sub> <b>total</b></td><td>600</td><td>624</td><td>+4.0%</td></tr></tbody></table>`,
+            },
+        ],
+        ["diagram", { type: "svg", width: w(), content: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 40"><circle cx="20" cy="20" r="15" fill="#888"/><rect x="50" y="5" width="40" height="30" fill="none" stroke="#000" stroke-width="2"/></svg>` }],
+    ];
+    return defs.map(([id, def]) => {
+        const r = prepareFigure(id, def, figureMaxWidth());
+        if (!r.ok) throw new Error(r.errors.join("; "));
+        return r.figure;
+    });
 }
 
 /** Mostly 4–5 choices, some true/false, a few wide (6–8) and single-ring questions. */
@@ -39,8 +78,13 @@ function choiceCount(rng: Rng): number {
     return 1;
 }
 
-export function makeDummyTest(rng: Rng, questionCount: number, title = "Unit 4 Quiz"): DummyTest {
+/**
+ * `figureRate` is the chance a question shows one or two figures (0 leaves the rng sequence
+ * unchanged). `shortChoices` keeps choices to a word or two, so most questions print in columns.
+ */
+export function makeDummyTest(rng: Rng, questionCount: number, title = "Unit 4 Quiz", figureRate = 0, shortChoices = false): DummyTest {
     const key: number[][] = [];
+    const figures = figureRate > 0 ? dummyFigures(rng) : [];
     const questions = Array.from({ length: questionCount }, () => {
         const n = choiceCount(rng);
         const stem = rng.pick(STEMS).replace("{s}", rng.pick(SUBJECTS));
@@ -52,7 +96,10 @@ export function makeDummyTest(rng: Rng, questionCount: number, title = "Unit 4 Q
             answer = [...set].sort((a, b) => a - b);
         }
         key.push(answer);
-        return { prompt: stem, choices: Array.from({ length: n }, () => choiceText(rng)) };
+        const choices = Array.from({ length: n }, () => choiceText(rng, shortChoices));
+        if (!figures.length || !rng.chance(figureRate)) return { prompt: stem, choices };
+        const shown = rng.chance(0.3) ? [rng.pick(figures), rng.pick(figures)] : [rng.pick(figures)];
+        return { prompt: stem, choices, figures: [...new Set(shown)] };
     });
     return { test: { title, questions }, key };
 }
@@ -72,7 +119,6 @@ export interface SimStudent {
     name: string;
     period: string;
     date: string;
-    testName: string;
     responses: Response[];
     /** True if the sheet contains a mark that should be read as ambiguous. */
     hasAmbiguous: boolean;
@@ -127,7 +173,6 @@ export function makeStudent(rng: Rng, dummy: DummyTest, opts: StudentOptions): S
         name: `${rng.pick(FIRST)} ${rng.pick(LAST)}`,
         period: String(rng.int(1, 8)),
         date: `09/${String(rng.int(1, 30)).padStart(2, "0")}/26`,
-        testName: dummy.test.title,
         responses,
         hasAmbiguous,
     };
@@ -144,18 +189,20 @@ export function studentOverlay(student: SimStudent, dummy: DummyTest, page: Page
         };
         field(student.name, L.fields.name, 30);
         field(student.period, L.fields.period, 26);
-        field(student.testName, L.fields.testName, 22);
         field(student.date, L.fields.date, 18);
     }
     const r = ringRadius(L);
     for (const q of page.questions) {
-        const centers = ringCenters(dummy.test.questions[q.index]!.choices.length, q.ringRow, L);
-        for (const [choice, style] of student.responses[q.index]!.marks) parts.push(markSvg(centers[choice]!, r, style, rng));
+        for (const [choice, style] of student.responses[q.index]!.marks) {
+            parts.push(markSvg(bubbleCenter(q.choices[choice]!.row, bubbleColumnOf(q.column), L), r, style, rng));
+        }
     }
-    // Occasional doodles in the question text area.
+    // Occasional doodles in the question's text, kept clear of both bubble columns.
     if (rng.chance(0.4) && page.questions.length) {
         const q = rng.pick(page.questions);
-        parts.push(strayMark(colX(20, L), rowY(q.contentRow, L), 300, L.cellH * (q.ringRow - q.contentRow), rng));
+        const last = q.choices.at(-1)!;
+        const [from, to] = q.column === "right" ? [31, 43] : [8, 22];
+        parts.push(strayMark(colX(from, L), rowY(q.promptRow, L), colX(to, L) - colX(from, L), L.cellH * (last.row + last.lines.length - q.promptRow), rng));
     }
     return parts.join("");
 }

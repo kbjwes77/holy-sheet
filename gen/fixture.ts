@@ -18,6 +18,10 @@ export interface FixtureOptions {
     orphan?: boolean;
     /** Duplicate a page of this submission. */
     duplicatePageOf?: number;
+    /** Chance each question shows figures (graphs, tables) between its prompt and choices. */
+    figureRate?: number;
+    /** Choices of a word or two, so most questions print in two columns. */
+    shortChoices?: boolean;
 }
 
 export interface FixtureFile {
@@ -41,7 +45,7 @@ export interface Fixture {
 
 export async function makeFixture(o: FixtureOptions): Promise<Fixture> {
     const rng = new Rng(o.seed);
-    const dummy = makeDummyTest(rng, o.questions);
+    const dummy = makeDummyTest(rng, o.questions, undefined, o.figureRate, o.shortChoices);
     const profiles = o.profiles ?? ["clean", "scan", "scan-flipped", "photo"];
     const entries: Record<string, Uint8Array> = {};
     const files: FixtureFile[] = [];
