@@ -57,7 +57,7 @@ where they come out closest in height, any extra question going left. The right 
 higher than row 8, below the QR.
 
 Each question's number prints in white bold on a dark grey rectangle, with its prompt indented
-beside it.
+beside it and the prompt's first line on a light grey rectangle.
 
 Page 1's header is the test name (cols 4–35, rows 1–2: one line at 16 pt, or two smaller lines,
 down to 10 pt, when it wraps), the Name, Period and Date boxes (rows 4–6, labelled on row 3) and

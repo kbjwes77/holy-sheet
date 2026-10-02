@@ -143,9 +143,9 @@ describe("renderer text fitting", () => {
         expect(placed.choices[1]!.lines).toEqual(["short"]);
     });
 
-    test("question numbers print on a dark rectangle inside their prompt row, the prompt indented beside them", () => {
+    test("question numbers print on a dark rectangle inside their prompt row, the prompt indented beside them, its first line on a light one", () => {
         const pages = renderTest({ title: "T", questions: Array.from({ length: 12 }, (_, i) => q(`Prompt ${i + 1}`, ["a", "b"])) });
-        const rects = [...pages.map((p) => p.svg).join("").matchAll(/<rect x="([\d.]+)" y="([\d.]+)" width="([\d.]+)" height="([\d.]+)" fill="#404040"\/>/g)].map((m) =>
+        const rects = [...pages.map((p) => p.svg).join("").matchAll(/<rect x="([\d.]+)" y="([\d.]+)" width="([\d.]+)" height="([\d.]+)" fill="#222222"\/>/g)].map((m) =>
             m.slice(1).map(Number),
         );
         expect(rects).toHaveLength(12);
@@ -159,7 +159,12 @@ describe("renderer text fitting", () => {
         expect(y! + h!).toBeLessThan(rowY(pq.promptRow + 1));
         // Ends left of the bubbles' ring edge, as well as above the row the first bubble is on.
         expect(x! + w!).toBeLessThan(colX(LAYOUT.ring.col + 1) - LAYOUT.cellW / 2 - LAYOUT.cellW * 0.6 * 0.5);
-        expect(pages[0]!.svg).toContain(`fill="#fff">1</text>`);
+        expect(pages[0]!.svg).toContain(`fill="#FFFFFF">1</text>`);
+        // The first prompt line's light grey rectangle continues from the number's to past the text.
+        const bar = pages[0]!.svg.match(/<rect x="([\d.]+)" y="([\d.]+)" width="([\d.]+)" height="([\d.]+)" fill="#eeeeee"\/>/)!.slice(1).map(Number);
+        expect(bar[0]).toBeCloseTo(x! + w!, 1);
+        expect([bar[1], bar[3]]).toEqual([y, h]);
+        expect(bar[0]! + bar[2]!).toBeGreaterThan(x! + w! + 5 + textWidth("Prompt 1", 11, true));
         expect(pages[0]!.svg).toMatch(/>Prompt 1<\/text>/);
     });
 

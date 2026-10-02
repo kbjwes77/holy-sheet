@@ -93,10 +93,13 @@ const TITLE_LEADING = 1.2;
 const PAGE_LABEL_SIZE = 9;
 /** Question numbers print in light text on a dark grey rectangle, left of the prompt. */
 const NUMBER_SIZE = 12;
-const NUMBER_PAD = 3;
-const NUMBER_H = 14;
+const NUMBER_PAD = 5;
+const NUMBER_H = 15;
 /** Space between the number's rectangle and the prompt text; every prompt line starts after it. */
 const NUMBER_GAP = 5;
+/** The prompt's first line sits on a light grey rectangle, running on from the number's to just past the text. */
+const PROMPT_BAR_FILL = "#eeeeee";
+const PROMPT_BAR_PAD = 4;
 export const INSTRUCTIONS = "Fill in the bubble next to every correct answer. Some questions may have more than one correct answer.";
 
 /** Gap between figures side by side, and the space above and below a line of figures. */
@@ -593,8 +596,8 @@ export function renderTest(test: TestDef, opts: RenderOptions = {}): RenderedPag
             parts.push(`<line x1="${f(colX(L.promptCol, L))}" y1="${y}" x2="${f(x2)}" y2="${y}" stroke="#999" stroke-width="0.6"/>`);
         }
 
-        // Questions: the number in light text on a dark grey rectangle, the bold prompt beside
-        // it, then each choice on its own row with a bubble. Every bubble row
+        // Questions: the number in light text on a dark grey rectangle, the bold prompt beside it
+        // (its first line on a light grey one), then each choice on its own row with a bubble. Every bubble row
         // gets one timing marker in the marker column, whichever column its bubbles are in.
         const rr = ringRadius(L);
         const markerRows = new Set<number>();
@@ -603,10 +606,14 @@ export function renderTest(test: TestDef, opts: RenderOptions = {}): RenderedPag
             const g = geometry(q.column, L);
             const nw = numberWidth(q.index);
             const mid = rowY(q.promptRow, L) + L.cellH / 2;
-            parts.push(`<rect x="${f(g.promptX)}" y="${f(mid - NUMBER_H / 2)}" width="${f(nw)}" height="${NUMBER_H}" fill="#404040"/>`);
-            // Arial's digits are 0.716 em tall; this centres them in the rectangle.
-            text(g.promptX + nw / 2, mid + 0.358 * NUMBER_SIZE, String(q.index + 1), `font-size="${NUMBER_SIZE}" font-weight="bold" text-anchor="middle" fill="#fff"`);
             const px = g.promptX + promptIndent(q.index);
+            const barR = px + textWidth(q.promptLines[0] ?? "", TEXT_SIZE, true) + PROMPT_BAR_PAD;
+            parts.push(
+                `<rect x="${f(g.promptX + nw)}" y="${f(mid - NUMBER_H / 2)}" width="${f(barR - g.promptX - nw)}" height="${NUMBER_H}" fill="${PROMPT_BAR_FILL}"/>`,
+            );
+            parts.push(`<rect x="${f(g.promptX)}" y="${f(mid - NUMBER_H / 2)}" width="${f(nw)}" height="${NUMBER_H}" fill="#222222"/>`);
+            // Arial's digits are 0.716 em tall; this centres them in the rectangle.
+            text(g.promptX + nw / 2, mid + 0.358 * NUMBER_SIZE, String(q.index + 1), `font-size="${NUMBER_SIZE}" font-weight="900" text-anchor="middle" fill="#FFFFFF"`);
             q.promptLines.forEach((line, i) => text(px, baseline(q.promptRow + i), line, `font-size="${TEXT_SIZE}" font-weight="bold"`));
             // A figure can appear twice on a page (shared by two questions), so ids get a per-placement prefix.
             for (const pf of q.figures) parts.push(renderFigure(pf.figure, pf.x, pf.y, `p${page.pageNumber}f${++figureCount}-`));
