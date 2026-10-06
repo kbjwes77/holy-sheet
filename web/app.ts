@@ -40,6 +40,8 @@ interface Generated {
     pages: string[];
     /** With a separate answer sheet, how many of `pages` are its (at the end); null otherwise. */
     answerPages: number | null;
+    /** Blank pages printed between the question pages and the answer sheet. */
+    blankPages: number;
 }
 let current: Generated | null = null;
 
@@ -118,15 +120,17 @@ function generate(): void {
     showNotes(result.notes);
     let pages: string[];
     let answerPages: number | null = null;
+    let blankPages = 0;
     if (separate) {
         const s = renderSeparate(result.test);
-        pages = [...s.questionPages, ...s.answerPages.map((p) => p.svg)];
+        pages = [...s.questionPages, ...(s.blankPage ? [s.blankPage] : []), ...s.answerPages.map((p) => p.svg)];
+        blankPages = s.blankPage ? 1 : 0;
         answerPages = s.answerPages.length;
     } else {
         pages = renderTest(result.test).map((p) => p.svg);
     }
     const free = result.test.questions.filter((q) => q.lines !== undefined).length;
-    current = { source, test: result.test, key: result.key, gradable: !!result.grading, free, pages, answerPages };
+    current = { source, test: result.test, key: result.key, gradable: !!result.grading, free, pages, answerPages, blankPages };
     showOutput(current);
 }
 
@@ -149,7 +153,13 @@ function showOutput(g: Generated): void {
         badge("bi-list-ol", plural(n, "question")),
         ...(answers === null
             ? [badge("bi-files", `${plural(g.pages.length, "page")} per student`)]
-            : [badge("bi-files", `${plural(g.pages.length - answers, "question page")} + ${plural(answers, "answer sheet page")}`), badge("bi-upc-scan", `Scan ${plural(answers, "page")} per student`)]),
+            : [
+                  badge(
+                      "bi-files",
+                      `${plural(g.pages.length - answers - g.blankPages, "question page")}${g.blankPages ? ` + ${g.blankPages} blank` : ""} + ${plural(answers, "answer sheet page")}`,
+                  ),
+                  badge("bi-upc-scan", `Scan ${plural(answers, "page")} per student`),
+              ]),
         badge("bi-file-earmark", "US Letter"),
         ...(g.free ? [badge("bi-pencil", `${g.free} free response`)] : []),
         badge(g.gradable ? "bi-key" : "bi-key-fill", g.gradable ? "Answer key included" : "No answer key"),

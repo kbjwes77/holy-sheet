@@ -9,7 +9,7 @@ import { MAX_PAGES, MAX_QUESTIONS } from "../src/codec.ts";
 import type { GradingKey } from "../src/key.ts";
 import { CHOICE_LETTERS, LAYOUT } from "../src/layout.ts";
 import { FIGURE_ID, FIGURE_TYPES, MAX_FIGURE_CONTENT, prepareFigure, type Figure, type FigureType } from "./figures.ts";
-import { layoutAnswerSheet, layoutBooklet } from "./booklet.ts";
+import { blankPagesAfter, layoutAnswerSheet, layoutBooklet } from "./booklet.ts";
 import { figureMaxWidth, paginate, QuestionTooLongError, type TestDef } from "./sheet.ts";
 import { unprintable } from "./textwidth.ts";
 
@@ -363,7 +363,8 @@ export function parseSheetJson(text: string, opts: ParseOptions = {}): ParseResu
                 const message = `The answer sheet needs ${answerPages} pages; it can have at most ${MAX_PAGES}.`;
                 return { ok: false, errors: [{ path: "questions", where: "Questions", message }] };
             }
-            pageCount = layoutBooklet(test).length + answerPages;
+            const questionPages = layoutBooklet(test).length;
+            pageCount = questionPages + blankPagesAfter(questionPages) + answerPages;
         } else {
             pageCount = paginate(test).length;
         }

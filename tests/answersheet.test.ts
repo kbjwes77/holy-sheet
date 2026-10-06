@@ -132,13 +132,34 @@ describe("question pages", () => {
             expect(svg).toContain("Unit Test");
         }
         expect(s.questionPages[0]).toContain("answer sheet at the end");
-        const total = s.questionPages.length + s.answerPages.length;
+        const before = s.questionPages.length + (s.blankPage ? 1 : 0);
+        const total = before + s.answerPages.length;
         const [a] = s.answerPages;
         expect(a!.svg).toContain("crispEdges");
         expect(a!.svg).toContain("Name (first and last)");
-        expect(a!.svg).toContain(`Page ${s.questionPages.length + 1} of ${total}`);
+        expect(a!.svg).toContain(`Page ${before + 1} of ${total}`);
         expect(unpack(pack(a!.payload))).toEqual(a!.payload);
         expect(a!.payload.totalPages).toBe(s.answerPages.length);
+    });
+
+    test("a blank page follows an odd number of question pages, so double-sided the answer sheet starts its own sheet", () => {
+        for (const n of [1, 30, 60, 90, 120]) {
+            const test = { title: "Unit Test", questions: Array.from({ length: n }, () => q()) };
+            const s = renderSeparate(test);
+            const odd = s.questionPages.length % 2 === 1;
+            expect(s.blankPage !== null).toBe(odd);
+            const before = s.questionPages.length + (odd ? 1 : 0);
+            expect(before % 2).toBe(0);
+            const total = before + s.answerPages.length;
+            if (s.blankPage) {
+                expect(s.blankPage).toContain("intentionally left blank");
+                expect(s.blankPage).toContain(`Page ${before} of ${total}`);
+                expect(s.blankPage).not.toContain("crispEdges");
+            }
+            expect(s.answerPages[0]!.svg).toContain(`Page ${before + 1} of ${total}`);
+            // The QR's numbering is the answer sheet's own, unaffected by the blank page.
+            expect(s.answerPages[0]!.payload.pageNumber).toBe(1);
+        }
     });
 
     test("the parser checks the chosen mode's layout", () => {

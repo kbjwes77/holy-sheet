@@ -470,8 +470,24 @@ export interface RenderedAnswerPage {
 export interface SeparateSheets {
     /** The question pages, in order. */
     questionPages: string[];
+    /** A page left blank after an odd number of question pages, or null; see blankPagesAfter. */
+    blankPage: string | null;
     /** The answer sheet's pages, which follow them. */
     answerPages: RenderedAnswerPage[];
+}
+
+/**
+ * Blank pages to print between `questionPages` question pages and the answer sheet, so that
+ * printed double-sided the answer sheet starts on a sheet of its own: it can be handed out and
+ * scanned loose, without unstapling the questions.
+ */
+export const blankPagesAfter = (questionPages: number) => questionPages % 2;
+
+const BLANK_PAGE_NOTE = "This page is intentionally left blank.";
+
+function renderBlankPage(test: TestDef, pageNumber: number, totalPages: number, L: LayoutSpec): string {
+    const note = svgText(L.pageWidth / 2, L.pageHeight / 2, BLANK_PAGE_NOTE, `${INSTRUCTIONS_ATTRS} text-anchor="middle"`);
+    return pageSvg(note + footerSvg(test.title, `Page ${pageNumber} of ${totalPages}`, L), L);
 }
 
 export interface SeparateRenderOptions {
@@ -480,18 +496,20 @@ export interface SeparateRenderOptions {
     layout?: LayoutSpec;
 }
 
-/** Renders the question pages and then the answer sheet, numbered as one document. */
+/** Renders the question pages, a blank page if needed, then the answer sheet, numbered as one document. */
 export function renderSeparate(test: TestDef, opts: SeparateRenderOptions = {}): SeparateSheets {
     const L = opts.layout ?? LAYOUT;
     const booklet = layoutBooklet(test, L);
     const answers = layoutAnswerSheet(test, L);
     if (answers.length > MAX_PAGES) throw new RangeError(`the answer sheet needs ${answers.length} pages (max ${MAX_PAGES})`);
-    const total = booklet.length + answers.length;
+    const before = booklet.length + blankPagesAfter(booklet.length);
+    const total = before + answers.length;
     return {
         questionPages: booklet.map((p) => renderBookletPage(test, p, total, L)),
+        blankPage: before > booklet.length ? renderBlankPage(test, before, total, L) : null,
         answerPages: answers.map((page) => {
             const payload = answerPayloadFor(test, answers, page);
-            const body = renderAnswerPage(test, page, payload, `Page ${booklet.length + page.pageNumber} of ${total}`, L);
+            const body = renderAnswerPage(test, page, payload, `Page ${before + page.pageNumber} of ${total}`, L);
             return { page, payload, svg: pageSvg(body + (opts.overlay?.(page) ?? ""), L) };
         }),
     };

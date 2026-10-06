@@ -169,7 +169,11 @@ regenerates the shown sheet. The JSON format is the same either way.
   with as many blocks across as fit the widest question (3 for 8 choices, 5 for 5, 6 for 4).
   Each block holds a whole number of fives, as few as needed. Every other group of five rows sits
   on a light grey band.
-- **Pages.** "Page X of Y" counts all pages. The QR's page numbers count only answer sheet pages,
+- **Blank page.** After an odd number of question pages, a page marked "This page is
+  intentionally left blank." follows them. Printed double-sided, the answer sheet then starts on
+  a sheet of its own, so the questions can stay stapled while the answer sheet is handed out,
+  and later scanned, loose.
+- **Pages.** "Page X of Y" counts all pages, including the blank one. The QR's page numbers count only answer sheet pages,
   so a student's scan is just their answer sheet. Questions with equal choice counts encode as
   runs, so a test of 4-choice questions (up to 256) fits one answer page. The QR is capped at
   version 3 (1.0 mm modules, 42 bytes). With mixed choice counts that caps a page at 95
