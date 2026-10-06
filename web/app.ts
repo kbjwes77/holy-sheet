@@ -3,7 +3,8 @@
 import { jsPDF } from "jspdf";
 import "svg2pdf.js";
 import example from "../examples/ap-macro-unit-4.json";
-import { renderTest, type RenderedPage, type TestDef } from "../gen/sheet.ts";
+import { renderSeparate } from "../gen/booklet.ts";
+import { renderTest, type TestDef } from "../gen/sheet.ts";
 import { parseSheetJson, type ValidationIssue } from "../gen/testdef.ts";
 
 const MAX_FILE_BYTES = 2 * 1024 * 1024;
@@ -24,12 +25,21 @@ const stale = $("stale");
 const previews = $("previews");
 const printRoot = $("print-root");
 const keyLine = $<HTMLInputElement>("key-line");
+const answerSheet = $<HTMLInputElement>("answer-sheet");
+const ANSWER_SHEET_KEY = "sheet-generator.answer-sheet";
 
 interface Generated {
     source: string;
     test: TestDef;
     key: string | null;
-    pages: RenderedPage[];
+    /** Whether every question has an answer, so the grader can grade from the JSON. */
+    gradable: boolean;
+    /** Free-response questions in the test. */
+    free: number;
+    /** Every page's SVG, in print order. */
+    pages: string[];
+    /** With a separate answer sheet, how many of `pages` are its (at the end); null otherwise. */
+    answerPages: number | null;
 }
 let current: Generated | null = null;
 
@@ -98,15 +108,25 @@ function showNotes(notes: ValidationIssue[]): void {
 
 function generate(): void {
     const source = input.value;
-    const result = parseSheetJson(source);
+    const separate = answerSheet.checked;
+    const result = parseSheetJson(source, { answerSheet: separate });
     if (!result.ok) {
         showErrors(result.errors);
         return;
     }
     hideErrors();
     showNotes(result.notes);
-    const pages = renderTest(result.test);
-    current = { source, test: result.test, key: result.key, pages };
+    let pages: string[];
+    let answerPages: number | null = null;
+    if (separate) {
+        const s = renderSeparate(result.test);
+        pages = [...s.questionPages, ...s.answerPages.map((p) => p.svg)];
+        answerPages = s.answerPages.length;
+    } else {
+        pages = renderTest(result.test).map((p) => p.svg);
+    }
+    const free = result.test.questions.filter((q) => q.lines !== undefined).length;
+    current = { source, test: result.test, key: result.key, gradable: !!result.grading, free, pages, answerPages };
     showOutput(current);
 }
 
@@ -123,32 +143,50 @@ function showOutput(g: Generated): void {
 
     $("out-title").textContent = g.test.title;
     const n = g.test.questions.length;
+    const plural = (k: number, word: string) => `${k} ${word}${k === 1 ? "" : "s"}`;
+    const answers = g.answerPages;
     $("out-badges").replaceChildren(
-        badge("bi-list-ol", `${n} question${n === 1 ? "" : "s"}`),
-        badge("bi-files", `${g.pages.length} page${g.pages.length === 1 ? "" : "s"} per student`),
+        badge("bi-list-ol", plural(n, "question")),
+        ...(answers === null
+            ? [badge("bi-files", `${plural(g.pages.length, "page")} per student`)]
+            : [badge("bi-files", `${plural(g.pages.length - answers, "question page")} + ${plural(answers, "answer sheet page")}`), badge("bi-upc-scan", `Scan ${plural(answers, "page")} per student`)]),
         badge("bi-file-earmark", "US Letter"),
-        badge(g.key ? "bi-key" : "bi-key-fill", g.key ? "Answer key included" : "No answer key"),
+        ...(g.free ? [badge("bi-pencil", `${g.free} free response`)] : []),
+        badge(g.gradable ? "bi-key" : "bi-key-fill", g.gradable ? "Answer key included" : "No answer key"),
     );
+    $("print-help").classList.toggle("d-none", answers !== null);
+    $("print-help-separate").classList.toggle("d-none", answers === null);
 
+    // A letter key only for all multiple-choice tests; free-response ones grade from the JSON.
     $("key-group").classList.toggle("d-none", !g.key);
-    $("key-none").classList.toggle("d-none", !!g.key);
+    $("key-none").classList.toggle("d-none", g.gradable);
     keyLine.value = g.key ?? "";
-    $("key-help").textContent = g.key ? "Paste this line when the grader asks for the answer key." : "";
-    $("key-help").classList.toggle("d-none", !g.key);
+    const help = g.key
+        ? "Paste this line when the command-line grader asks for the answer key."
+        : g.gradable
+          ? "This test has free-response questions, so it's graded from its JSON (the grader's --test), not a key line."
+          : "";
+    $("key-help").textContent = help;
+    $("key-help").classList.toggle("d-none", !help);
+    $("test-help").textContent = g.gradable
+        ? "The web grader grades from this file."
+        : "The web grader needs this file with an answer for every question.";
 
+    const firstAnswer = answers === null ? Infinity : g.pages.length - answers;
     previews.replaceChildren(
-        ...g.pages.map((p) => {
+        ...g.pages.map((svg, i) => {
             const wrap = el("figure", "sheet-preview");
             const paper = el("div", "paper");
-            paper.innerHTML = p.svg;
-            wrap.append(paper, el("figcaption", "small text-body-secondary text-center mt-2", `Page ${p.page.pageNumber} of ${g.pages.length}`));
+            paper.innerHTML = svg;
+            const kind = answers === null ? "" : i >= firstAnswer ? " · Answer sheet (scanned)" : " · Questions";
+            wrap.append(paper, el("figcaption", "small text-body-secondary text-center mt-2", `Page ${i + 1} of ${g.pages.length}${kind}`));
             return wrap;
         }),
     );
     printRoot.replaceChildren(
-        ...g.pages.map((p) => {
+        ...g.pages.map((svg) => {
             const page = el("div", "print-page");
-            page.innerHTML = p.svg;
+            page.innerHTML = svg;
             return page;
         }),
     );
@@ -165,9 +203,9 @@ async function downloadPdf(): Promise<void> {
     try {
         const doc = new jsPDF({ unit: "pt", format: "letter", orientation: "portrait" });
         doc.setProperties({ title: current.test.title, creator: "Sheet Generator" });
-        for (const [i, p] of current.pages.entries()) {
+        for (const [i, page] of current.pages.entries()) {
             if (i > 0) doc.addPage("letter", "portrait");
-            const svg = new DOMParser().parseFromString(p.svg, "image/svg+xml").documentElement;
+            const svg = new DOMParser().parseFromString(page, "image/svg+xml").documentElement;
             await doc.svg(svg, { x: 0, y: 0, width: LETTER_PT.w, height: LETTER_PT.h });
         }
         download(`${slug(current.test.title)}.pdf`, doc.output("blob"));
@@ -233,6 +271,21 @@ function markStale(): void {
     if (current) stale.classList.toggle("d-none", input.value === current.source);
 }
 
+// The separate answer sheet setting is remembered in this browser; changing it regenerates a shown sheet.
+try {
+    answerSheet.checked = localStorage.getItem(ANSWER_SHEET_KEY) === "1";
+} catch {
+    // Storage unavailable (e.g. blocked for file:// pages): start off.
+}
+answerSheet.addEventListener("change", () => {
+    try {
+        localStorage.setItem(ANSWER_SHEET_KEY, answerSheet.checked ? "1" : "0");
+    } catch {
+        // Not remembered, but still applies now.
+    }
+    if (current) generate();
+});
+
 $("btn-generate").addEventListener("click", generate);
 $("btn-print").addEventListener("click", () => window.print());
 $("btn-pdf").addEventListener("click", () => void downloadPdf());
@@ -240,6 +293,10 @@ $("btn-copy-key").addEventListener("click", () => void copyKey());
 $("btn-copy-format").addEventListener("click", () => void copyFormatHelp());
 $("btn-download-key").addEventListener("click", () => {
     if (current?.key) download(`${slug(current.test.title)}-key.txt`, new Blob([`${current.key}\n`], { type: "text/plain" }));
+});
+// The JSON the sheets were generated from, as the web grader's test file.
+$("btn-download-test").addEventListener("click", () => {
+    if (current) download(`${slug(current.test.title)}.json`, new Blob([current.source], { type: "application/json" }));
 });
 
 $("btn-load").addEventListener("click", () => fileInput.click());

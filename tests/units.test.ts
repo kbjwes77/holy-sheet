@@ -4,9 +4,9 @@ import { csvRow } from "../src/csv.ts";
 import { apply, fitAffine, fitHomography, fitHomographyRobust, invert, type Mat3 } from "../src/geometry.ts";
 import { scoreAnswers } from "../src/grade.ts";
 import { groupPages, type GroupablePage } from "../src/grouping.ts";
-import { parseKey } from "../src/key.ts";
+import { choiceKey, parseKey } from "../src/key.ts";
 import { LAYOUT, bubbleCenter, cellCenter, markerRect, ringRadius } from "../src/layout.ts";
-import { limitConcurrency, OpenRouterNameReader, parseNameReply } from "../src/ocr.ts";
+import { limitConcurrency, OpenRouterReader, parseNameReply } from "../src/ocr.ts";
 import { blankBaseline } from "../src/pipeline.ts";
 import { readZipImages, isPageImage, ZipError } from "../src/zip.ts";
 
@@ -80,7 +80,7 @@ describe("key", () => {
 
 describe("grade", () => {
     test("exact set match only; percent to one decimal", () => {
-        const key = [[0], [0, 1], [3]];
+        const key = choiceKey([[0], [0, 1], [3]]);
         expect(scoreAnswers([[0], [0, 1], [3]], key)).toEqual({ score: 3, total: 3, percent: "100.0" });
         expect(scoreAnswers([[0], [0], []], key)).toEqual({ score: 1, total: 3, percent: "33.3" });
         expect(scoreAnswers([[0], [1, 0], [3, 2]], key)).toEqual({ score: 2, total: 3, percent: "66.7" });
@@ -184,7 +184,7 @@ describe("ocr", () => {
             if (calls < 3) return new Response("busy", { status: 429 });
             return Response.json({ choices: [{ message: { content: '{"name":"Jane Doe"}' } }] });
         }) as unknown as typeof fetch;
-        const r = new OpenRouterNameReader({ apiKey: "k", model: "test/model", fetch: fakeFetch, backoffMs: 1 });
+        const r = new OpenRouterReader({ apiKey: "k", model: "test/model", fetch: fakeFetch, backoffMs: 1 });
         expect(await r.readName(new Uint8Array([1, 2]))).toBe("Jane Doe");
         expect(calls).toBe(3);
     });
@@ -195,7 +195,7 @@ describe("ocr", () => {
             calls++;
             return new Response("bad key", { status: 401 });
         }) as unknown as typeof fetch;
-        const r = new OpenRouterNameReader({ apiKey: "k", model: "m", fetch: fakeFetch, backoffMs: 1 });
+        const r = new OpenRouterReader({ apiKey: "k", model: "m", fetch: fakeFetch, backoffMs: 1 });
         expect(r.readName(new Uint8Array())).rejects.toThrow(/401/);
         await Bun.sleep(5);
         expect(calls).toBe(1);

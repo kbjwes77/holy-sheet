@@ -1,7 +1,9 @@
 // Builds a zip of simulated student submissions with known expected results.
 import { zipSync } from "fflate";
 import { capture, type Profile } from "./distort.ts";
-import { expectedScore, keyToString, makeDummyTest, makeStudent, studentOverlay, type DummyTest, type SimStudent } from "./dummy.ts";
+import { renderSeparate } from "./booklet.ts";
+import type { GradingKey } from "../src/key.ts";
+import { answerSheetOverlay, dummyGradingKey, expectedScore, keyToString, makeDummyTest, makeStudent, studentOverlay, totalPoints, type DummyTest, type SimStudent } from "./dummy.ts";
 import { Rng } from "./rng.ts";
 import { renderTest } from "./sheet.ts";
 
@@ -22,6 +24,10 @@ export interface FixtureOptions {
     figureRate?: number;
     /** Choices of a word or two, so most questions print in two columns. */
     shortChoices?: boolean;
+    /** Chance each question is free response (a handwritten answer in a box). */
+    freeRate?: number;
+    /** Print a separate answer sheet; only its pages are scanned into the zip. */
+    answerSheet?: boolean;
 }
 
 export interface FixtureFile {
@@ -34,7 +40,10 @@ export interface FixtureFile {
 export interface Fixture {
     zip: Uint8Array;
     dummy: DummyTest;
+    /** The letter key line (multiple-choice tests only). */
     key: string;
+    /** The key as the grader takes it from a test JSON, with free-response answers and points. */
+    grading: GradingKey;
     students: SimStudent[];
     files: FixtureFile[];
     /** Expected CSV rows (student_name, score, total, percent) for submissions that should grade. */
@@ -45,7 +54,7 @@ export interface Fixture {
 
 export async function makeFixture(o: FixtureOptions): Promise<Fixture> {
     const rng = new Rng(o.seed);
-    const dummy = makeDummyTest(rng, o.questions, undefined, o.figureRate, o.shortChoices);
+    const dummy = makeDummyTest(rng, o.questions, undefined, o.figureRate, o.shortChoices, o.freeRate);
     const profiles = o.profiles ?? ["clean", "scan", "scan-flipped", "photo"];
     const entries: Record<string, Uint8Array> = {};
     const files: FixtureFile[] = [];
@@ -61,7 +70,9 @@ export async function makeFixture(o: FixtureOptions): Promise<Fixture> {
     for (let s = 0; s < o.students; s++) {
         const student = makeStudent(rng, dummy, { ability: rng.range(0.4, 0.95), ambiguousRate: o.ambiguousRate ?? 0 });
         students.push(student);
-        const pages = renderTest(dummy.test, { overlay: (page) => studentOverlay(student, dummy, page, rng) });
+        const pages = o.answerSheet
+            ? renderSeparate(dummy.test, { overlay: (page) => answerSheetOverlay(student, page, rng) }).answerPages
+            : renderTest(dummy.test, { overlay: (page) => studentOverlay(student, dummy, page, rng) });
         pageSets.push(pages.map((p) => ({ student: s, pageNumber: p.page.pageNumber, svg: p.svg })));
     }
 
@@ -90,10 +101,11 @@ export async function makeFixture(o: FixtureOptions): Promise<Fixture> {
         zip: zipSync(entries, { level: 0 }),
         dummy,
         key: keyToString(dummy.key),
+        grading: dummyGradingKey(dummy),
         students,
         files,
         expected: students.flatMap((st, i) =>
-            skipped.has(i) ? [] : [{ student: i, name: st.name, score: expectedScore(st, dummy), total: dummy.key.length }],
+            skipped.has(i) ? [] : [{ student: i, name: st.name, score: expectedScore(st, dummy), total: totalPoints(dummy) }],
         ),
         expectedSkipped: [...skipped].sort((a, b) => a - b),
     };

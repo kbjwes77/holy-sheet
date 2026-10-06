@@ -1,18 +1,38 @@
-// CLI: bun run grade.ts <sheets.zip> [--debug] [--review] [--mark <ratio>] [--blank <ratio>]
+// CLI: bun run grade.ts <sheets.zip> [--test <test.json>] [--debug] [--review] [--mark <ratio>] [--blank <ratio>]
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { parseArgs } from "node:util";
-import { CSV_HEADER, csvRow } from "./csv.ts";
+import { parseSheetJson } from "../gen/testdef.ts";
+import { csvHeader, csvRow, gradedRowFields } from "./csv.ts";
 import { renderDebug } from "./debug.ts";
-import { ask, KeyAbortError, LineReader, promptKey } from "./key.ts";
-import { OpenRouterNameReader, type NameReader } from "./ocr.ts";
+import { ask, checkKey, choiceKey, KeyAbortError, LineReader, promptKey, type GradingKey } from "./key.ts";
+import { OpenRouterReader, type NameReader, type ResponseGrader } from "./ocr.ts";
 import { DEFAULT_THRESHOLDS, type Thresholds } from "./pipeline.ts";
 import { debugImageName, debugWrittenLine, skippedHeader, skippedReasonLine } from "./report.ts";
 import { parseReviewReply, REVIEW_FILE, reviewPrompt, reviewStartLine, type ReviewDecision, type ReviewFile } from "./review.ts";
 import { FatalError, gradeZip, type RunOptions, type RunResult } from "./run.ts";
 import { ZipError } from "./zip.ts";
 
-const USAGE = "usage: bun run grade.ts <sheets.zip> [--debug] [--review] [--mark <ratio>] [--blank <ratio>]";
+const USAGE = "usage: bun run grade.ts <sheets.zip> [--test <test.json>] [--debug] [--review] [--mark <ratio>] [--blank <ratio>]";
+
+/** The grading key in a test's JSON, or why it can't be graded from it. */
+export function loadTestKey(path: string): { key: GradingKey } | { error: string } {
+    let text: string;
+    try {
+        text = readFileSync(path, "utf8");
+    } catch (e) {
+        return { error: `cannot read ${path}: ${(e as Error).message}` };
+    }
+    // The sheets were printed already; the layout needn't be checked again.
+    const parsed = parseSheetJson(text, { layout: false });
+    if (!parsed.ok) {
+        const shown = parsed.errors.slice(0, 5).map((e) => `${e.where}: ${e.message}`);
+        const more = parsed.errors.length > 5 ? `; and ${parsed.errors.length - 5} more` : "";
+        return { error: `${basename(path)} is not a valid test: ${shown.join("; ")}${more}` };
+    }
+    if (!parsed.grading) return { error: `${basename(path)} has no answers; give every question an "answer" to grade with it` };
+    return { key: parsed.grading };
+}
 
 function timestampDir(zipPath: string): string {
     const ts = new Date().toISOString().slice(0, 19).replace(/:/g, "-");
@@ -48,8 +68,9 @@ function reviewHooks(dir: string, thresholds: Thresholds, lines: LineReader, err
 }
 
 export interface CliDeps {
-    /** Overrides the OpenRouter reader (tests). */
+    /** Override the OpenRouter calls (tests). */
     nameReader?: NameReader;
+    responseGrader?: ResponseGrader;
     env?: Record<string, string | undefined>;
     stdout?: (s: string) => void;
     stderr?: (s: string) => void;
@@ -67,6 +88,7 @@ export async function main(argv: string[], deps: CliDeps = {}): Promise<number> 
             args: argv,
             allowPositionals: true,
             options: {
+                test: { type: "string" },
                 debug: { type: "boolean", default: false },
                 review: { type: "boolean", default: false },
                 mark: { type: "string" },
@@ -99,17 +121,41 @@ export async function main(argv: string[], deps: CliDeps = {}): Promise<number> 
         return 1;
     }
 
+    let testKey: GradingKey | undefined;
+    if (args.values.test !== undefined) {
+        const loaded = loadTestKey(args.values.test);
+        if ("error" in loaded) {
+            err(`fatal: ${loaded.error}\n`);
+            return 1;
+        }
+        testKey = loaded.key;
+    }
+
     let nameReader = deps.nameReader;
-    if (!nameReader) {
+    let responseGrader = deps.responseGrader;
+    if (!nameReader || !responseGrader) {
         const apiKey = env.OPENROUTER_API_KEY;
         const model = env.OPENROUTER_MODEL;
         const missing = [!apiKey && "OPENROUTER_API_KEY", !model && "OPENROUTER_MODEL"].filter(Boolean);
-        if (missing.length) {
+        if (missing.length && !nameReader) {
             err(`fatal: ${missing.join(" and ")} must be set (e.g. in .env)\n`);
             return 1;
         }
-        nameReader = new OpenRouterNameReader({ apiKey: apiKey!, model: model! });
+        // Tests may mock only names; free-response calls then go to OpenRouter only when it's set up.
+        const reader = missing.length ? undefined : new OpenRouterReader({ apiKey: apiKey!, model: model! });
+        nameReader ??= reader!;
+        responseGrader ??= reader;
     }
+
+    const getKey = async (maxChoices: number[], free: boolean[]): Promise<GradingKey> => {
+        if (testKey) {
+            const problem = checkKey(testKey, maxChoices, free);
+            if (problem) throw new FatalError(`${basename(args.values.test!)} doesn't match the sheets: ${problem}`);
+            return testKey;
+        }
+        if (free.some(Boolean)) throw new FatalError("the sheets have free-response questions; grade them with --test <test.json>, the test's JSON with every answer");
+        return choiceKey(await promptKey(maxChoices, lines, err));
+    };
 
     let zip: Uint8Array;
     try {
@@ -125,8 +171,9 @@ export async function main(argv: string[], deps: CliDeps = {}): Promise<number> 
     try {
         result = await gradeZip(zip, {
             nameReader,
+            ...(responseGrader ? { responseGrader } : {}),
             thresholds,
-            getKey: (maxChoices) => promptKey(maxChoices, lines, err),
+            getKey,
             onProgress: (m) => err(`${m}\n`),
             ...(args.values.review ? { review: reviewHooks(join(dir, "review"), thresholds, lines, err) } : {}),
         });
@@ -140,8 +187,8 @@ export async function main(argv: string[], deps: CliDeps = {}): Promise<number> 
         lines.dispose();
     }
 
-    out(csvRow(CSV_HEADER));
-    for (const r of result.rows) out(csvRow([r.name, r.score, r.total, r.percent]));
+    out(csvRow(csvHeader(result.free)));
+    for (const r of result.rows) out(csvRow(gradedRowFields(r, result.free)));
 
     for (const s of result.skipped) {
         err(skippedHeader(s.orphan, s.files));

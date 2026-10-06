@@ -60,7 +60,7 @@ describe("parseSheetJson", () => {
         expect(e).toContain("questions[0].prompt: Must not be empty.");
         expect(e).toContain("questions[0].choices: Expected 2–8 choices, got 1.");
         expect(e).toContain(`questions[1].options: Unknown key "options". Did you mean "choices"?`);
-        expect(e).toContain(`questions[1].choices: Missing "choices".`);
+        expect(e).toContain(`questions[1].choices: Missing "choices". A question without choices needs "type": "Free Response".`);
         expect(e).toContain("questions[2].choices[1]: Must not be empty.");
         expect(e).toContain("questions[2].choices[2]: Expected text, got a number.");
         expect(e).toContain(`questions[3].answer: "C" is not a choice (this question has A–B).`);

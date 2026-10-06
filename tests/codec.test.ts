@@ -154,8 +154,8 @@ describe("codec", () => {
 
     test("rejects an unknown version, and says when a sheet uses an older layout", () => {
         const bytes = pack(base);
-        bytes[0] = (bytes[0]! & 0x0f) | 0x50;
-        expect(() => unpack(bytes)).toThrow(/version 5/);
+        bytes[0] = (bytes[0]! & 0x0f) | 0x80;
+        expect(() => unpack(bytes)).toThrow(/version 8/);
         bytes[0] = (bytes[0]! & 0x0f) | 0x30;
         expect(() => unpack(bytes)).toThrow(/older layout/);
     });

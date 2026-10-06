@@ -1,10 +1,11 @@
 // HTTP bridge that lets the web grader page drive the grader CLI. Each upload becomes a job: the
-// zip is written to a fresh temp directory and `bun grade.ts <zip> [flags]` runs on it as a
-// subprocess, exactly as from a terminal. The CLI's stderr streams to the page as server-sent
+// zip (and the test's JSON, when uploaded too) is written to a fresh temp directory and
+// `bun grade.ts <zip> [--test <json>] [flags]` runs on it as a subprocess, exactly as from a
+// terminal. The CLI's stderr streams to the page as server-sent
 // events (progress, the key and review prompts, skipped submissions), the page's replies are
 // written to its stdin, and its stdout (the CSV) goes to the page when it exits. Diagnostic
 // images and review crops the CLI writes next to the zip are served from there.
-import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join, relative, resolve, sep } from "node:path";
 import { zipSync } from "fflate";
@@ -48,15 +49,19 @@ export interface GraderApiOptions {
 const OCR_VARS = ["OPENROUTER_API_KEY", "OPENROUTER_MODEL"] as const;
 const RATIO = /^(?:\d+(?:\.\d*)?|\.\d+)$/;
 
-/** Upload name → a safe file name ending in .zip (shown in the CLI's summary line). */
-function zipName(raw: string | null): string {
+/** Upload name → a safe file name ending in `ext` (the zip's is shown in the CLI's summary line). */
+function safeName(raw: string | null, ext: string, fallback: string): string {
     const base = basename((raw ?? "").replace(/\\/g, "/"))
         .replace(/[^\w.\- ]+/g, "_")
         .replace(/^\.+/, "")
         .slice(0, 100);
-    if (!base) return "sheets.zip";
-    return /\.zip$/i.test(base) ? base : `${base}.zip`;
+    if (!base) return fallback;
+    return base.toLowerCase().endsWith(ext) ? base : `${base}${ext}`;
 }
+const zipName = (raw: string | null) => safeName(raw, ".zip", "sheets.zip");
+
+/** The most test JSON accepted: figures can be large, but not this large. */
+const MAX_TEST_BYTES = 8 * 1024 * 1024;
 
 const json = (body: unknown, status = 200) => Response.json(body, { status });
 const fail = (status: number, error: string) => json({ error }, status);
@@ -140,10 +145,31 @@ export function createGraderApi(o: GraderApiOptions) {
         emit(job, { type: "review", thresholds: file.thresholds, items: file.items });
     }
 
+    /**
+     * Starts a job. The body is the zip, or a multipart form with the zip (`zip`) and the test's
+     * JSON (`test`), which the CLI then grades with (`--test`).
+     */
     async function create(req: Request): Promise<Response> {
         if (!sameOrigin(req)) return fail(403, "cross-origin request refused");
         const url = new URL(req.url);
-        const zip = new Uint8Array(await req.arrayBuffer());
+        let zip: Uint8Array;
+        let test: { name: string; bytes: Uint8Array } | null = null;
+        if ((req.headers.get("content-type") ?? "").startsWith("multipart/form-data")) {
+            let form: FormData;
+            try {
+                form = await req.formData();
+            } catch {
+                return fail(400, "the upload isn't a valid form");
+            }
+            const z = form.get("zip");
+            const t = form.get("test");
+            if (!(z instanceof Blob)) return fail(400, "no zip uploaded");
+            zip = new Uint8Array(await z.arrayBuffer());
+            if (t instanceof Blob) {
+                if (t.size > MAX_TEST_BYTES) return fail(400, "the test JSON is too large");
+                test = { name: safeName(t instanceof File ? t.name : null, ".json", "test.json"), bytes: new Uint8Array(await t.arrayBuffer()) };
+            } else if (t !== null) return fail(400, "the test JSON must be a file");
+        } else zip = new Uint8Array(await req.arrayBuffer());
         if (!zip.length) return fail(400, "no zip uploaded");
 
         const name = zipName(url.searchParams.get("name"));
@@ -160,6 +186,13 @@ export function createGraderApi(o: GraderApiOptions) {
         const dir = mkdtempSync(join(tmpdir(), "quiznotes-grade-"));
         const zipPath = join(dir, name);
         writeFileSync(zipPath, zip);
+        if (test) {
+            // In a folder of its own, so its name can't collide with the zip's.
+            mkdirSync(join(dir, "test"));
+            const testPath = join(dir, "test", test.name);
+            writeFileSync(testPath, test.bytes);
+            args.unshift("--test", testPath);
+        }
         const proc = Bun.spawn([...command, zipPath, ...args], {
             cwd: o.root,
             env: { ...env },
@@ -170,7 +203,9 @@ export function createGraderApi(o: GraderApiOptions) {
         const id = crypto.randomUUID();
         const job: Job = { id, dir, proc, events: [], listeners: new Set(), awaitingInput: false, waitingAt: null, cancelled: false, done: false, images: [] };
         jobs.set(id, job);
-        emit(job, { type: "start", command: ["bun run grade.ts", ...[name, ...args].map((a) => (/\s/.test(a) ? `"${a}"` : a))].join(" ") });
+        // The command as the user would type it: the test by its own name, not its temp path.
+        const shown = test ? ["--test", test.name, ...args.slice(2)] : args;
+        emit(job, { type: "start", command: ["bun run grade.ts", ...[name, ...shown].map((a) => (/\s/.test(a) ? `"${a}"` : a))].join(" ") });
         void run(job).catch((e) => {
             job.done = true;
             emit(job, { type: "log", text: `fatal: web grader: ${(e as Error).message}` });

@@ -1,7 +1,7 @@
-// Per-image pipeline: load → QR → register → markers → bubbles → fill → name crop.
-import { PayloadError, unpack, type PagePayload } from "./codec.ts";
+// Per-image pipeline: load → QR → register → markers → bubbles → fill → name and answer-box crops.
+import { PayloadError, answerBlock, unpack, type PagePayload } from "./codec.ts";
 import { crop, encodePng, loadGray, pageToCanvas, type Gray } from "./image.ts";
-import { LAYOUT, type BubbleColumn, type LayoutSpec, type Point, rangeRect } from "./layout.ts";
+import { LAYOUT, type BubbleColumn, type LayoutSpec, type Point, type Rect, answerBubbleCenter, answerRingRadius, bubbleCenter, rangeRect, responseBoxRect } from "./layout.ts";
 import { fillAt, findBubble, inkReference, ringKernels } from "./marks.ts";
 import { decodeQr } from "./qr.ts";
 import { register, type Registration } from "./registration.ts";
@@ -22,7 +22,7 @@ export interface QuestionRead {
     index: number;
     /** Grid row of the question's first (A) bubble. */
     row: number;
-    /** The bubble column its bubbles are in. */
+    /** The bubble column its bubbles are in (0 on an answer sheet). */
     column: BubbleColumn;
     choices: number;
     /** Marked choice indexes. */
@@ -37,6 +37,8 @@ export interface PageResult {
     questions?: QuestionRead[];
     /** PNG of the Name box (page 1 only). */
     nameCrop?: Uint8Array;
+    /** PNG of each free-response box on the page, by 0-based question index across the test. */
+    responses?: { index: number; png: Uint8Array }[];
     /** For diagnostic images. */
     source?: Gray;
     registration?: Registration;
@@ -116,14 +118,18 @@ export async function processPage(
         return res;
     }
 
-    const k = ringKernels(canvas, L);
+    // An answer sheet's bubbles sit side by side on the question's row, and are bigger.
+    const grid = payload.answerGrid;
+    const k = ringKernels(canvas, L, grid ? answerRingRadius(L) : undefined);
+    const expectedAt = (i: number, j: number, row: number) =>
+        grid ? answerBubbleCenter(answerBlock(payload, i), j, row, grid.slots, L) : bubbleCenter(row, payload.columns[i]!, L);
     const ink = Math.max(0.3, inkReference(dark, reg.markers.markers, canvas, L));
     const byRow = new Map(reg.markers.markers.map((m) => [m.row, m]));
     res.rowErrors = [];
     const qs = payload.choiceRows.map((rows, i) => {
         const hits = rows.map((row, j) => {
             const marker = byRow.get(row)!;
-            const hit = findBubble(dark, canvas, row, payload.columns[i]!, marker.center.y, k, L);
+            const hit = findBubble(dark, canvas, row, expectedAt(i, j, row), marker.center.y, k, L);
             if (hit.error) {
                 res.reasons.push(`Q${payload.firstQuestionIndex + i + 1} ${String.fromCharCode(65 + j)}: ${hit.error}`);
                 res.rowErrors!.push({ y: marker.center.y, text: hit.error });
@@ -136,6 +142,7 @@ export async function processPage(
 
     res.questions = [];
     qs.forEach(({ rows, i, hits }) => {
+        if (payload.boxes?.[i]) return;
         const rings = hits.map(({ center, raw }) => {
             const fill = Math.max(0, (raw - base) / (1 - base));
             const verdict: Verdict = fill > th.markThreshold ? "marked" : fill < th.blankThreshold ? "blank" : "ambiguous";
@@ -160,12 +167,15 @@ export async function processPage(
         });
     });
 
-    if (payload.pageNumber === 1) {
-        const r = rangeRect(L.fields.name, L);
-        const pad = 6;
-        const a = pageToCanvas(canvas, { x: r.x - pad, y: r.y - pad });
-        const b = pageToCanvas(canvas, { x: r.x + r.w + pad, y: r.y + r.h + pad });
-        res.nameCrop = await encodePng(crop(reg.rectified, a.x, a.y, b.x - a.x, b.y - a.y));
+    const cropRect = async (r: Rect, padX: number, padY = padX) => {
+        const a = pageToCanvas(canvas, { x: r.x - padX, y: r.y - padY });
+        const b = pageToCanvas(canvas, { x: r.x + r.w + padX, y: r.y + r.h + padY });
+        return encodePng(crop(reg.rectified, a.x, a.y, b.x - a.x, b.y - a.y));
+    };
+    if (payload.pageNumber === 1) res.nameCrop = await cropRect(rangeRect(L.fields.name, L), 6);
+    // Little room above a box: its question's prompt can end on the row just above it.
+    for (const [i, box] of (payload.boxes ?? []).entries()) {
+        if (box) (res.responses ??= []).push({ index: payload.firstQuestionIndex + i, png: await cropRect(responseBoxRect(box.row, box.rows, L), 5, 2) });
     }
     return res;
 }

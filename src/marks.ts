@@ -1,6 +1,6 @@
 // Timing-track markers, choice bubbles and fill measurement on the rectified darkness map.
 import { blobs, canvasToPage, pageToCanvas, type Canvas, type FloatMap } from "./image.ts";
-import { LAYOUT, type BubbleColumn, type LayoutSpec, type Point, bubbleCenter, colX, markerRect, ringRadius, rowY } from "./layout.ts";
+import { LAYOUT, type LayoutSpec, type Point, colX, markerRect, ringRadius, rowY } from "./layout.ts";
 
 /** Darkness above this counts as ink when finding printed features. */
 export const INK = 0.4;
@@ -77,8 +77,9 @@ export interface RingKernels {
     radius: number;
 }
 
-export function ringKernels(c: Canvas, L: LayoutSpec = LAYOUT): RingKernels {
-    const r = ringRadius(L) * c.scale;
+/** Kernels for rings of `radius` page units (the question pages' bubbles by default). */
+export function ringKernels(c: Canvas, L: LayoutSpec = LAYOUT, radius = ringRadius(L)): RingKernels {
+    const r = radius * c.scale;
     const half = Math.max(1.5, (L.ring.strokeWidth * c.scale) / 2 + 1);
     return {
         ring: annulus(r - half, r + half),
@@ -104,15 +105,15 @@ export interface BubbleHit {
 export const RING_PRESENT = 0.2;
 
 /**
- * Finds the printed bubble on grid row `row` in bubble column `column`: it sits at a fixed grid
- * column, so this only refines its centre locally (absorbing paper curl the homography can't
- * model) and checks that an outline is there. `y` is the row centre from the row's timing marker
- * (canvas px). The search window stays well inside half a row, so it can't lock onto the bubble
- * above or below, and the two bubble columns are far apart.
+ * Finds the printed bubble on grid row `row` whose centre should be at `expected` (page units):
+ * it sits at a fixed position, so this only refines its centre locally (absorbing paper curl the
+ * homography can't model) and checks that an outline is there. `y` is the row centre from the
+ * row's timing marker (canvas px). The search window stays well inside half a row, so it can't
+ * lock onto the bubble above or below, and inside half the space to the bubbles beside it.
  */
-export function findBubble(dark: FloatMap, c: Canvas, row: number, column: BubbleColumn, y: number, k: RingKernels, L: LayoutSpec = LAYOUT): BubbleHit {
+export function findBubble(dark: FloatMap, c: Canvas, row: number, expected: Point, y: number, k: RingKernels, L: LayoutSpec = LAYOUT): BubbleHit {
     const s = c.scale;
-    const e = pageToCanvas(c, bubbleCenter(row, column, L));
+    const e = pageToCanvas(c, expected);
     const x0 = Math.round(e.x);
     const y0 = Math.round(y);
     const dxMax = Math.round(0.35 * L.cellW * s);

@@ -3,7 +3,51 @@ import { createInterface } from "node:readline";
 import { CHOICE_LETTERS } from "./layout.ts";
 import { keyErrorLine, keyPrompt } from "./report.ts";
 
+/** A letter key line, parsed: the correct choices per question. */
 export type Key = number[][];
+
+export interface ChoiceKey {
+    type: "choice";
+    /** Correct choice indexes, ascending. */
+    answer: number[];
+    points: number;
+}
+
+/** A free-response question, as the grading model sees it. */
+export interface FreeKey {
+    type: "free";
+    prompt: string;
+    /** The model solution. */
+    answer: string;
+    rubric?: string;
+    points: number;
+}
+
+export type KeyEntry = ChoiceKey | FreeKey;
+/** What each question is worth and how it's graded: from a letter key, or from the test's JSON. */
+export type GradingKey = KeyEntry[];
+
+/** A letter key as a grading key: every question multiple choice, worth 1 point. */
+export function choiceKey(key: Key): GradingKey {
+    return key.map((answer) => ({ type: "choice", answer, points: 1 }));
+}
+
+/**
+ * Checks a grading key against what the sheets show: the question count, which questions are
+ * free response (`free`), and that every key letter has a bubble (`maxChoices`).
+ */
+export function checkKey(key: GradingKey, maxChoices: readonly number[], free: readonly boolean[]): string | null {
+    if (key.length !== maxChoices.length) return `the test has ${key.length} questions, but the sheets have ${maxChoices.length}`;
+    for (const [i, e] of key.entries()) {
+        if (free[i] && e.type !== "free") return `question ${i + 1} is free response on the sheets, but multiple choice in the test`;
+        if (!free[i] && e.type === "free") return `question ${i + 1} is multiple choice on the sheets, but free response in the test`;
+        if (e.type === "choice") {
+            const out = e.answer.find((c) => c >= maxChoices[i]!);
+            if (out !== undefined) return `question ${i + 1}: answer "${CHOICE_LETTERS[out]}" is out of range; the sheets have ${maxChoices[i]} choice(s)`;
+        }
+    }
+    return null;
+}
 
 export class KeyAbortError extends Error {
     override name = "KeyAbortError";
@@ -82,7 +126,7 @@ export async function ask<T extends object>(
     }
 }
 
-/** Prompts until a valid key is entered. */
+/** Prompts until a valid letter key is entered. */
 export async function promptKey(maxChoices: readonly number[], lines: LineReader, write: (s: string) => void): Promise<Key> {
     const parsed = await ask<{ key: Key }>(lines, write, keyPrompt(maxChoices.length), (line) => parseKey(line, maxChoices), "no answer key given (stdin closed)");
     return parsed.key;

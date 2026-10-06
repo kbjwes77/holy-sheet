@@ -1,11 +1,15 @@
-// Parses and strictly validates the sheet JSON the web generator accepts:
+// Parses and strictly validates the sheet JSON the web generator (and the grader's --test) accepts:
 //   { "test": "...",
-//     "questions": [ { "prompt": "...", "figures"?: ["id", ...], "choices": ["...", ...], "answer"?: "AC" } ],
+//     "questions": [
+//       { "type"?: "Multiple Choice", "prompt": "...", "figures"?: ["id", ...], "choices": ["...", ...], "answer"?: "AC", "points"?: 2 },
+//       { "type": "Free Response", "prompt": "...", "figures"?: [...], "answer": "<model answer>", "rubric"?: "...", "lines"?: 3, "points"?: 4 } ],
 //     "figures"?: { "id": { "type": "svg" | "table", "content": "<svg>…</svg>", "width"?: inches, "caption"?: "..." } } }
 // Every problem is collected (not just the first), each with a JSON path and a readable location.
 import { MAX_PAGES, MAX_QUESTIONS } from "../src/codec.ts";
+import type { GradingKey } from "../src/key.ts";
 import { CHOICE_LETTERS, LAYOUT } from "../src/layout.ts";
 import { FIGURE_ID, FIGURE_TYPES, MAX_FIGURE_CONTENT, prepareFigure, type Figure, type FigureType } from "./figures.ts";
+import { layoutAnswerSheet, layoutBooklet } from "./booklet.ts";
 import { figureMaxWidth, paginate, QuestionTooLongError, type TestDef } from "./sheet.ts";
 import { unprintable } from "./textwidth.ts";
 
@@ -13,6 +17,13 @@ export const MIN_CHOICES = 2;
 export const MAX_CHOICES = LAYOUT.ring.maxChoices;
 export const MAX_TEST_NAME = 200;
 export const MAX_TEXT = 2000;
+export const MULTIPLE_CHOICE = "Multiple Choice";
+export const FREE_RESPONSE = "Free Response";
+export const QUESTION_TYPES = [MULTIPLE_CHOICE, FREE_RESPONSE];
+/** A free-response question's writing lines when it gives none, and the most it may ask for. */
+export const DEFAULT_LINES = 3;
+export const MAX_LINES = 20;
+export const MAX_POINTS = 100;
 
 export interface ValidationIssue {
     /** JSON path, e.g. `questions[2].choices[4]`; empty for whole-document problems. */
@@ -26,8 +37,10 @@ export type ParseResult =
     | {
           ok: true;
           test: TestDef;
-          /** Grader key line (e.g. `A,AB,D`) when every question has an answer, else null. */
+          /** Grader key line (e.g. `A,AB,D`) when every question has an answer and none is free response, else null. */
           key: string | null;
+          /** How each question is graded and what it's worth, when every question has an answer, else null. */
+          grading: GradingKey | null;
           pageCount: number;
           /** Non-blocking remarks, e.g. a figure no question uses. */
           notes: ValidationIssue[];
@@ -35,7 +48,7 @@ export type ParseResult =
     | { ok: false; errors: ValidationIssue[] };
 
 const ROOT_KEYS = ["test", "questions", "figures"];
-const QUESTION_KEYS = ["prompt", "figures", "choices", "answer"];
+const QUESTION_KEYS = ["type", "prompt", "figures", "choices", "answer", "points", "rubric", "lines"];
 const FIGURE_KEYS = ["type", "content", "width", "caption"];
 const ALIASES: Record<string, string> = {
     title: "test",
@@ -50,6 +63,14 @@ const ALIASES: Record<string, string> = {
     answers: "answer",
     correct: "answer",
     key: "answer",
+    solution: "answer",
+    point: "points",
+    score: "points",
+    weight: "points",
+    criteria: "rubric",
+    rows: "lines",
+    qtype: "type",
+    questiontype: "type",
     figure: "figures",
     image: "figures",
     images: "figures",
@@ -111,7 +132,14 @@ function describeSyntaxError(text: string, err: unknown): string {
     return `${msg} (line ${line}, column ${col})`;
 }
 
-export function parseSheetJson(text: string): ParseResult {
+export interface ParseOptions {
+    /** Lay the test out as question pages plus a separate answer sheet (see booklet.ts). */
+    answerSheet?: boolean;
+    /** False skips laying the test out (the grader, reading a test already printed); `pageCount` is then 0. */
+    layout?: boolean;
+}
+
+export function parseSheetJson(text: string, opts: ParseOptions = {}): ParseResult {
     const errors: ValidationIssue[] = [];
     const add = (path: string, where: string, message: string) => errors.push({ path, where, message });
 
@@ -129,7 +157,8 @@ export function parseSheetJson(text: string): ParseResult {
         };
     }
 
-    const checkText = (v: unknown, path: string, where: string, max: number): v is string => {
+    /** `printed` text must use only characters the sheet's font has; text only the grader reads needn't. */
+    const checkText = (v: unknown, path: string, where: string, max: number, printed = true): v is string => {
         if (typeof v !== "string") {
             add(path, where, `Expected text, got ${typeName(v)}.`);
             return false;
@@ -139,6 +168,7 @@ export function parseSheetJson(text: string): ParseResult {
             return false;
         }
         if (v.length > max) add(path, where, `Too long: ${v.length} characters (max ${max}).`);
+        if (!printed) return true;
         const list = unprintable(v);
         if (list) add(path, where, `Contains ${list}, which can't be printed with the sheet's font.`);
         return true;
@@ -191,7 +221,8 @@ export function parseSheetJson(text: string): ParseResult {
     }
     const used = new Set<string>();
 
-    const answers: (string | null)[] = [];
+    /** Per question: whether it has an answer, and what the grader needs to grade it. */
+    const parsed: { answer: string | null; free: boolean; points: number; rubric?: string; lines: number }[] = [];
     if (!("questions" in doc)) add("questions", "Questions", `Missing "questions".`);
     else if (!Array.isArray(doc.questions)) add("questions", "Questions", `Expected an array, got ${typeName(doc.questions)}.`);
     else if (doc.questions.length === 0) add("questions", "Questions", "Must contain at least 1 question.");
@@ -201,13 +232,19 @@ export function parseSheetJson(text: string): ParseResult {
         doc.questions.forEach((q, i) => {
             const path = `questions[${i}]`;
             const where = `Question ${i + 1}`;
+            const entry: (typeof parsed)[number] = { answer: null, free: false, points: 1, lines: DEFAULT_LINES };
+            parsed.push(entry);
             if (!isObject(q)) {
                 add(path, where, `Expected an object with "prompt" and "choices", got ${typeName(q)}.`);
-                answers.push(null);
                 return;
             }
             for (const k of Object.keys(q)) {
                 if (!QUESTION_KEYS.includes(k)) add(`${path}.${k}`, where, `Unknown key "${k}".${suggest(k, QUESTION_KEYS)}`);
+            }
+            if ("type" in q) {
+                const t = typeof q.type === "string" ? QUESTION_TYPES.find((name) => name.toLowerCase() === (q.type as string).trim().toLowerCase()) : undefined;
+                if (t) entry.free = t === FREE_RESPONSE;
+                else add(`${path}.type`, where, `"type" must be "${MULTIPLE_CHOICE}" or "${FREE_RESPONSE}", got ${JSON.stringify(q.type)}.`);
             }
             if (!("prompt" in q)) add(`${path}.prompt`, where, `Missing "prompt".`);
             else checkText(q.prompt, `${path}.prompt`, `${where}, prompt`, MAX_TEXT);
@@ -230,8 +267,33 @@ export function parseSheetJson(text: string): ParseResult {
                 }
             }
 
+            if ("points" in q) {
+                const p = q.points;
+                if (typeof p !== "number" || !Number.isInteger(p) || p < 1 || p > MAX_POINTS) {
+                    add(`${path}.points`, `${where}, points`, `"points" must be a whole number from 1 to ${MAX_POINTS}, got ${JSON.stringify(p)}.`);
+                } else entry.points = p;
+            }
+
+            if (entry.free) {
+                const freeOnly = `on a "${FREE_RESPONSE}" question; it has a writing box instead.`;
+                if ("choices" in q) add(`${path}.choices`, where, `"choices" isn't allowed ${freeOnly}`);
+                if ("lines" in q) {
+                    const n = q.lines;
+                    if (typeof n !== "number" || !Number.isInteger(n) || n < 1 || n > MAX_LINES) {
+                        add(`${path}.lines`, `${where}, lines`, `"lines" must be a whole number from 1 to ${MAX_LINES}, got ${JSON.stringify(n)}.`);
+                    } else entry.lines = n;
+                }
+                if ("rubric" in q && checkText(q.rubric, `${path}.rubric`, `${where}, rubric`, MAX_TEXT, false)) entry.rubric = q.rubric.trim();
+                if (!("answer" in q)) add(`${path}.answer`, where, `Missing "answer" (the model answer the grader compares the student's answer with).`);
+                else if (checkText(q.answer, `${path}.answer`, `${where}, answer`, MAX_TEXT, false)) entry.answer = q.answer.trim();
+                return;
+            }
+
+            const mcOnly = (k: string) => add(`${path}.${k}`, where, `"${k}" is only for "${FREE_RESPONSE}" questions; add "type": "${FREE_RESPONSE}" or remove it.`);
+            if ("lines" in q) mcOnly("lines");
+            if ("rubric" in q) mcOnly("rubric");
             let choiceCount = 0;
-            if (!("choices" in q)) add(`${path}.choices`, where, `Missing "choices".`);
+            if (!("choices" in q)) add(`${path}.choices`, where, `Missing "choices". A question without choices needs "type": "${FREE_RESPONSE}".`);
             else if (!Array.isArray(q.choices)) add(`${path}.choices`, where, `"choices" must be an array, got ${typeName(q.choices)}.`);
             else if (q.choices.length < MIN_CHOICES || q.choices.length > MAX_CHOICES) {
                 add(`${path}.choices`, where, `Expected ${MIN_CHOICES}–${MAX_CHOICES} choices, got ${q.choices.length}.`);
@@ -242,16 +304,14 @@ export function parseSheetJson(text: string): ParseResult {
                 );
             }
 
-            if (!("answer" in q)) {
-                answers.push(null);
-                return;
-            }
+            if (!("answer" in q)) return;
             const a = q.answer;
             const apath = `${path}.answer`;
             const awhere = `${where}, answer`;
-            answers.push("");
+            entry.answer = "";
             if (typeof a !== "string" || !/^[A-Za-z]+$/.test(a.trim())) {
-                add(apath, awhere, `Expected choice letters such as "B" or "AC", got ${typeof a === "string" ? JSON.stringify(a) : typeName(a)}.`);
+                const hint = typeof a === "string" && /\s/.test(a.trim()) ? ` For a written answer, add "type": "${FREE_RESPONSE}".` : "";
+                add(apath, awhere, `Expected choice letters such as "B" or "AC", got ${typeof a === "string" ? JSON.stringify(a) : typeName(a)}.${hint}`);
                 return;
             }
             const letters = [...new Set(a.trim().toUpperCase())].sort();
@@ -261,53 +321,82 @@ export function parseSheetJson(text: string): ParseResult {
                 const out = letters.filter((l) => !allowed.includes(l));
                 if (out.length) add(apath, awhere, `"${out.join("")}" is not a choice (this question has ${allowed[0]}–${allowed.at(-1)}).`);
             }
-            answers[answers.length - 1] = letters.join("");
+            entry.answer = letters.join("");
         });
 
-        const given = answers.filter((a) => a !== null).length;
-        if (given > 0 && given < answers.length) {
-            const missing = answers.flatMap((a, i) => (a === null ? [i + 1] : []));
+        // Free-response questions always have an answer, so a test with one needs every answer.
+        const given = parsed.filter((a) => a.answer !== null).length;
+        if (given > 0 && given < parsed.length) {
+            const missing = parsed.flatMap((a, i) => (a.answer === null ? [i + 1] : []));
             const shown = missing.length > 12 ? `${missing.slice(0, 12).join(", ")}, …` : missing.join(", ");
+            const why = parsed.some((a) => a.free) ? " (a test with free-response questions is graded from this file, so it needs every answer)" : "";
             add(
                 "questions[].answer",
                 "Answers",
-                `${given} of ${answers.length} questions have an "answer"; give one for every question or none. Missing: ${shown}.`,
+                `${given} of ${parsed.length} questions have an "answer"; give one for every question or none${why}. Missing: ${shown}.`,
             );
         }
     }
 
     if (errors.length) return { ok: false, errors };
 
-    const raw = doc as { test: string; questions: { prompt: string; choices: string[]; figures?: string[] }[] };
+    const raw = doc as { test: string; questions: { prompt: string; choices?: string[]; figures?: string[] }[] };
     const test: TestDef = {
         title: raw.test.trim(),
-        questions: raw.questions.map((q) => ({
+        questions: raw.questions.map((q, i) => ({
             prompt: q.prompt.trim(),
-            choices: q.choices.map((c) => c.trim()),
+            choices: parsed[i]!.free ? [] : q.choices!.map((c) => c.trim()),
             ...(q.figures?.length ? { figures: q.figures.map((id) => figures.get(id)!) } : {}),
+            ...(parsed[i]!.free ? { lines: parsed[i]!.lines } : {}),
         })),
     };
     const notes: ValidationIssue[] = figureIds
         .filter((id) => !used.has(id))
         .map((id) => ({ path: `figures.${id}`, where: `Figure "${id}"`, message: "Isn't used by any question, so it isn't printed." }));
-    let pageCount: number;
+    let pageCount = 0;
     try {
-        pageCount = paginate(test).length;
+        if (opts.layout === false) {
+            // Not laid out.
+        } else if (opts.answerSheet) {
+            const answerPages = layoutAnswerSheet(test).length;
+            if (answerPages > MAX_PAGES) {
+                const message = `The answer sheet needs ${answerPages} pages; it can have at most ${MAX_PAGES}.`;
+                return { ok: false, errors: [{ path: "questions", where: "Questions", message }] };
+            }
+            pageCount = layoutBooklet(test).length + answerPages;
+        } else {
+            pageCount = paginate(test).length;
+        }
     } catch (e) {
         if (!(e instanceof QuestionTooLongError)) throw e;
         const i = e.index;
+        if (e.fits === "column") {
+            const message = "Too long to fit in one column of a question page; shorten the prompt or choices, or make its figures smaller.";
+            return { ok: false, errors: [{ path: `questions[${i}]`, where: `Question ${i + 1}`, message }] };
+        }
         const rows = LAYOUT.bodyLastRow - LAYOUT.firstRowContinued + 1;
         const message = e.figureRows
             ? `Too long to fit on one page: its figures take ${e.figureRows} of a page's ${rows} rows. Make them smaller ("width") or shorten the prompt or choices.`
-            : "Too long to fit on one page; shorten the prompt or choices.";
+            : test.questions[i]!.lines
+              ? 'Too long to fit on one page; shorten the prompt or give it fewer "lines".'
+              : "Too long to fit on one page; shorten the prompt or choices.";
         return { ok: false, errors: [{ path: `questions[${i}]`, where: `Question ${i + 1}`, message }] };
     }
-    if (pageCount > MAX_PAGES) {
+    // Only scanned pages carry a page number in their QR; question pages are never scanned.
+    if (!opts.answerSheet && pageCount > MAX_PAGES) {
         return {
             ok: false,
             errors: [{ path: "questions", where: "Questions", message: `Needs ${pageCount} pages; a sheet can have at most ${MAX_PAGES}.` }],
         };
     }
-    const key = answers.every((a) => a !== null) ? (answers as string[]).join(",") : null;
-    return { ok: true, test, key, pageCount, notes };
+    const answered = parsed.every((a) => a.answer !== null);
+    const key = answered && !parsed.some((a) => a.free) ? parsed.map((a) => a.answer).join(",") : null;
+    const grading: GradingKey | null = answered
+        ? parsed.map((a, i) =>
+              a.free
+                  ? { type: "free", prompt: test.questions[i]!.prompt, answer: a.answer!, ...(a.rubric ? { rubric: a.rubric } : {}), points: a.points }
+                  : { type: "choice", answer: [...a.answer!].map((l) => CHOICE_LETTERS.indexOf(l)), points: a.points },
+          )
+        : null;
+    return { ok: true, test, key, grading, pageCount, notes };
 }

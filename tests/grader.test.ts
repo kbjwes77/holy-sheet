@@ -3,11 +3,12 @@ import { describe, expect, test } from "bun:test";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { expectedScore, keyToString } from "../gen/dummy.ts";
+import { expectedScore, keyToString, mockPoints, totalPoints } from "../gen/dummy.ts";
+import { paginate } from "../gen/sheet.ts";
 import { makeFixture } from "../gen/fixture.ts";
 import { csvRow, parseCsv } from "../src/csv.ts";
 import { debugImageName, keyErrorLine, keyPrompt, StderrParser, summarizeStderr, type StderrEvent } from "../src/report.ts";
-import { duplicateNames, parseReviewReply, reviewPrompt, reviewReply, reviewStartLine, type AnswerItem, type NameItem, type ReviewItem } from "../src/review.ts";
+import { duplicateNames, parseReviewReply, reviewPrompt, reviewReply, reviewStartLine, type AnswerItem, type NameItem, type ResponseItem, type ReviewItem } from "../src/review.ts";
 import { createGraderApi, type JobEvent } from "../web/grader-api.ts";
 
 describe("csv parsing", () => {
@@ -351,6 +352,88 @@ describe("grader server", () => {
                 const img = await fetch(url(`/api/grader/jobs/${id}/review/${items[1]!.image}`));
                 expect(img.headers.get("content-type")).toBe("image/png");
                 expect((await fetch(url(`/api/grader/jobs/${id}/review/review.json`))).status).toBe(404);
+            } finally {
+                stop();
+                rmSync(dir, { recursive: true, force: true });
+            }
+        },
+        300_000,
+    );
+
+    test(
+        "a test JSON uploaded with the zip grades written answers; review settles their points",
+        async () => {
+            const fx = await makeFixture({ seed: 46, students: 2, questions: 8, freeRate: 0.4, profiles: ["scan"] });
+            const free = fx.dummy.free!.flatMap((f, i) => (f ? [i] : []));
+            expect(free.length).toBeGreaterThan(0);
+            const dir = mkdtempSync(join(tmpdir(), "grader-web-"));
+            const names = Object.fromEntries(fx.files.filter((f) => f.pageNumber === 1).map((f) => [f.name, fx.students[f.student]!.name]));
+            // Each written answer, by the file of the page its box is on.
+            const pages = paginate(fx.dummy.test);
+            const responses: Record<string, string> = {};
+            for (const f of fx.files) {
+                for (const q of pages[f.pageNumber - 1]!.questions) if (q.box) responses[`${f.name}|${q.index}`] = fx.students[f.student]!.responses[q.index]!.text ?? "";
+            }
+            writeFileSync(join(dir, "names.json"), JSON.stringify(names));
+            writeFileSync(join(dir, "responses.json"), JSON.stringify(responses));
+            const testJson = JSON.stringify({
+                test: fx.dummy.test.title,
+                questions: fx.dummy.test.questions.map((q, i) =>
+                    fx.dummy.free![i]
+                        ? { type: "Free Response", prompt: q.prompt, answer: fx.dummy.free![i]!.answer, points: fx.dummy.free![i]!.points, lines: q.lines }
+                        : { prompt: q.prompt, choices: q.choices, answer: fx.dummy.key[i]!.map((c) => "ABCDEFGH"[c]).join("") },
+                ),
+            });
+
+            const { url, stop } = serve(
+                createGraderApi({
+                    root,
+                    command: [process.execPath, join(import.meta.dir, "helpers", "mock-ocr-cli.ts")],
+                    env: { ...process.env, MOCK_NAMES: join(dir, "names.json"), MOCK_RESPONSES: join(dir, "responses.json") },
+                }),
+            );
+            try {
+                const form = new FormData();
+                form.append("zip", new Blob([fx.zip as BlobPart]), "p2.zip");
+                form.append("test", new File([testJson], "unit 4.json", { type: "application/json" }));
+                const created = await fetch(url("/api/grader/jobs?name=p2.zip&review=1"), { method: "POST", body: form });
+                expect(created.status).toBe(201);
+                const { id } = (await created.json()) as { id: string };
+                let items: ReviewItem[] = [];
+                const events = await readEvents(await fetch(url(`/api/grader/jobs/${id}/events`)), async (e) => {
+                    expect(e.type).not.toBe("prompt"); // the key comes from the JSON
+                    if (e.type === "review") items = e.items;
+                    if (e.type !== "reviewPrompt") return;
+                    const item = items.find((i) => i.id === e.item)!;
+                    // Full marks for every written answer; everything else as read.
+                    const reply = item.kind === "response" ? String(item.maxPoints) : item.kind === "answer" ? reviewReply({ answer: item.marked }) : "";
+                    expect((await fetch(url(`/api/grader/jobs/${id}/input?at=${e.item}`), { method: "POST", body: reply })).status).toBe(204);
+                });
+                expect(events[0]).toEqual({ type: "start", command: 'bun run grade.ts p2.zip --test "unit 4.json" --review' });
+                const written = items.filter((i): i is ResponseItem => i.kind === "response");
+                expect(written).toHaveLength(free.length * fx.students.length);
+                for (const w of written) expect(w.text).toBe(responses[`${w.file}|${w.question - 1}`]!);
+                // Review crops of the answer boxes are served.
+                const img = await fetch(url(`/api/grader/jobs/${id}/review/${written[0]!.image}`));
+                expect(img.headers.get("content-type")).toBe("image/png");
+
+                const done = events.at(-1) as Extract<JobEvent, { type: "done" }>;
+                expect(done.exitCode).toBe(0);
+                const [header, ...rows] = parseCsv(done.csv);
+                expect(header).toEqual(["student_name", "score", "total", "percent", ...free.flatMap((i) => [`q${i + 1}_points`, `q${i + 1}_response`, `q${i + 1}_feedback`])]);
+                const total = totalPoints(fx.dummy);
+                rows.forEach((row, k) => {
+                    const s = fx.students[k]!;
+                    const mcScore = expectedScore(s, fx.dummy) - free.reduce((n, i) => n + mockPoints(s.responses[i]!.text ?? "", fx.dummy.free![i]!.points), 0);
+                    const full = free.reduce((n, i) => n + fx.dummy.free![i]!.points, 0);
+                    expect(row.slice(0, 3)).toEqual([s.name, String(mcScore + full), String(total)]);
+                    free.forEach((i, j) => expect(row[4 + 3 * j]).toBe(String(fx.dummy.free![i]!.points)));
+                });
+
+                // An upload without the zip, or with a test that isn't a file, is refused.
+                const bad = new FormData();
+                bad.append("test", new File([testJson], "t.json"));
+                expect((await fetch(url("/api/grader/jobs"), { method: "POST", body: bad })).status).toBe(400);
             } finally {
                 stop();
                 rmSync(dir, { recursive: true, force: true });

@@ -8,7 +8,7 @@ import { unzipSync } from "fflate";
 import { keyToString } from "../gen/dummy.ts";
 import { makeFixture, type Fixture } from "../gen/fixture.ts";
 import { main } from "../src/cli.ts";
-import { parseKey } from "../src/key.ts";
+import { choiceKey, parseKey } from "../src/key.ts";
 import type { NameReader } from "../src/ocr.ts";
 import { paginate } from "../gen/sheet.ts";
 import { processPage } from "../src/pipeline.ts";
@@ -30,7 +30,7 @@ function mockReader(fx: Fixture): NameReader {
 const keyFor = (fx: Fixture) => async (maxChoices: number[]) => {
     const parsed = parseKey(fx.key, maxChoices);
     if (!("key" in parsed)) throw new Error(parsed.error);
-    return parsed.key;
+    return choiceKey(parsed.key);
 };
 
 describe("synthetic sheets", () => {

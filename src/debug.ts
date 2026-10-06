@@ -50,13 +50,17 @@ export async function renderDebug(page: PageResult): Promise<Uint8Array> {
     }
     for (const p of reg.markers.misaligned) parts.push(`<circle cx="${f(p.x)}" cy="${f(p.y)}" r="12" fill="none" stroke="#d00" stroke-width="3"/>`);
     const colors = { marked: "#0a0", blank: "#999", ambiguous: "#f60" } as const;
+    // An answer sheet's bubbles sit side by side, so its fill values go above them, smaller.
+    const across = !!page.payload?.answerGrid;
     for (const q of page.questions ?? []) {
         for (const r of q.rings) {
             const col = colors[r.verdict];
+            const label = across
+                ? `<text x="${f(r.center.x)}" y="${f(r.center.y - 15)}" font-family="Arial" font-size="8" text-anchor="middle" fill="${col}">${r.fill.toFixed(2)}</text>`
+                : // Fill value to the left of the bubble: bubble rows are too close to label below.
+                  `<text x="${f(r.center.x - 15)}" y="${f(r.center.y + 4)}" font-family="Arial" font-size="11" text-anchor="end" fill="${col}">${r.fill.toFixed(2)}</text>`;
             parts.push(
-                // Fill value to the left of the bubble: bubble rows are too close to label below.
-                `<circle cx="${f(r.center.x)}" cy="${f(r.center.y)}" r="11" fill="none" stroke="${col}" stroke-width="${r.verdict === "blank" ? 1.5 : 3}"/>` +
-                    `<text x="${f(r.center.x - 15)}" y="${f(r.center.y + 4)}" font-family="Arial" font-size="11" text-anchor="end" fill="${col}">${r.fill.toFixed(2)}</text>`,
+                `<circle cx="${f(r.center.x)}" cy="${f(r.center.y)}" r="${across ? 13 : 11}" fill="none" stroke="${col}" stroke-width="${r.verdict === "blank" ? 1.5 : 3}"/>` + label,
             );
         }
     }

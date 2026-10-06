@@ -151,6 +151,26 @@
     max-height: 4.5rem;
     background: #fff;
 }
+/* A written answer's box: full width, so the handwriting stays legible. */
+.review-response-crop {
+    display: block;
+    width: 100%;
+    height: auto;
+    background: #fff;
+}
+.review-transcript q {
+    font-style: italic;
+}
+.free-cell summary {
+    cursor: pointer;
+    list-style-position: inside;
+}
+.free-detail {
+    max-width: 22rem;
+    min-width: 12rem;
+    white-space: normal;
+    margin-top: 0.25rem;
+}
 .review-question {
     position: relative;
     display: inline-block;

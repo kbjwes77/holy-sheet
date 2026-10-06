@@ -70,16 +70,17 @@
 
                     <div class="card shadow-sm mb-3">
                         <div class="card-body">
-                            <label class="form-label fw-semibold" for="key-input"><i class="bi bi-key me-1"></i>Answer key</label>
+                            <label class="form-label fw-semibold" for="btn-test-file"><i class="bi bi-key me-1"></i>Test</label>
                             <div class="input-group">
-                                <input type="text" class="form-control font-monospace" id="key-input" placeholder="e.g. A,AB,D" spellcheck="false" autocomplete="off" />
-                                <input type="file" id="key-file" accept=".txt,text/plain" hidden />
-                                <button type="button" class="btn btn-outline-secondary" id="btn-key-file"><i class="bi bi-folder2-open"></i> key.txt</button>
+                                <span class="form-control text-truncate text-body-secondary" id="test-name">No test chosen</span>
+                                <input type="file" id="test-file" accept=".json,application/json" hidden />
+                                <button type="button" class="btn btn-outline-secondary" id="btn-test-file"><i class="bi bi-folder2-open"></i> test.json</button>
                             </div>
-                            <div class="form-text">
-                                One entry per question, letters together for more than one answer. The Sheet Generator gives you this line. If you leave it
-                                empty, you'll be asked once the sheets are read.
+                            <div class="form-text" id="test-summary">
+                                The test's JSON from the Sheet Generator, with an <code>answer</code> for every question. The grader takes the answer key,
+                                each question's points and the free-response model answers from it.
                             </div>
+                            <ul class="small text-danger mb-0 mt-1 ps-3 d-none" id="test-errors"></ul>
 
                             <a class="link-secondary small d-inline-block mt-3" data-bs-toggle="collapse" href="#options" role="button" aria-expanded="false">
                                 <i class="bi bi-sliders me-1"></i>Options
@@ -118,7 +119,7 @@
                         <div class="card-body text-center text-body-secondary py-5">
                             <i class="bi bi-table display-4 d-block mb-3"></i>
                             <p class="mb-1 fw-semibold">No results yet</p>
-                            <p class="mb-0 small">Add the scanned sheets, then choose <strong>Grade</strong>.</p>
+                            <p class="mb-0 small">Add the scanned sheets and the test, then choose <strong>Grade</strong>.</p>
                         </div>
                     </div>
 
@@ -134,15 +135,6 @@
                                     <div class="progress-bar" id="progress-bar" style="width: 0%"></div>
                                 </div>
 
-                                <form class="key-prompt border rounded p-3 mt-3 d-none" id="key-prompt">
-                                    <label class="form-label fw-semibold" for="prompt-input" id="prompt-label"></label>
-                                    <div class="input-group">
-                                        <input type="text" class="form-control font-monospace" id="prompt-input" placeholder="e.g. A,AB,D" spellcheck="false" autocomplete="off" />
-                                        <button type="submit" class="btn btn-primary" id="btn-send-key"><i class="bi bi-send me-1"></i>Grade with this key</button>
-                                    </div>
-                                    <div class="invalid-feedback d-block d-none" id="prompt-error"></div>
-                                </form>
-
                                 <details class="mt-3">
                                     <summary class="small text-body-secondary">CLI output</summary>
                                     <code class="d-block small text-body-secondary mt-2" id="run-command"></code>
@@ -157,8 +149,8 @@
                                 <span class="small text-body-secondary" id="review-counts"></span>
                             </div>
                             <div class="card-body small text-body-secondary py-2">
-                                Check each name against the handwriting, and pick the answer for any bubble too faint to call (click the bubble or
-                                its letter). <strong>Skip</strong> leaves a submission out of the grades.
+                                Check each name against the handwriting, pick the answer for any bubble too faint to call (click the bubble or
+                                its letter), and check the points each written answer was given. <strong>Skip</strong> leaves a submission out of the grades.
                             </div>
                             <fieldset id="review-fieldset">
                                 <ul class="list-group list-group-flush" id="review-list"></ul>

@@ -10,6 +10,24 @@ export function csvRow(fields: readonly (string | number)[]): string {
 
 export const CSV_HEADER = ["student_name", "score", "total", "percent"] as const;
 
+/** Columns per free-response question (1-based `n`): its points, the transcript and the grading reason. */
+export const freeColumns = (n: number) => [`q${n}_points`, `q${n}_response`, `q${n}_feedback`];
+export const FREE_COLUMN_RE = /^q(\d+)_(points|response|feedback)$/;
+
+/** The header: the summary columns, then each free-response question's (0-based indexes in `free`). */
+export function csvHeader(free: readonly number[]): string[] {
+    return [...CSV_HEADER, ...free.flatMap((i) => freeColumns(i + 1))];
+}
+
+/** A graded student's fields under `csvHeader(free)`. */
+export function gradedRowFields(
+    r: { name: string; score: number; total: number; percent: string; responses: readonly { index: number; points: number; text: string; feedback: string }[] },
+    free: readonly number[],
+): (string | number)[] {
+    const by = new Map(r.responses.map((x) => [x.index, x]));
+    return [r.name, r.score, r.total, r.percent, ...free.flatMap((i) => (by.has(i) ? [by.get(i)!.points, by.get(i)!.text, by.get(i)!.feedback] : ["", "", ""]))];
+}
+
 /** Parses RFC 4180 CSV (CRLF or LF line ends) into rows of fields. A trailing newline adds no row. */
 export function parseCsv(text: string): string[][] {
     const rows: string[][] = [];

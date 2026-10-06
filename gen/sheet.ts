@@ -1,19 +1,22 @@
 // Reference sheet generator: test definition → one SVG per page, built only from LayoutSpec
 // and the codec. The browser generator should produce the same geometry.
 import QRCode from "qrcode";
-import { pack, payloadByteLength, type PagePayload, FORMAT_VERSION } from "../src/codec.ts";
+import { pack, payloadByteLength, type PagePayload, FORMAT_VERSION, FREE_FORMAT_VERSION } from "../src/codec.ts";
 import {
     CHOICE_LETTERS,
     LAYOUT,
     type BubbleColumn,
+    type CellRange,
     type LayoutSpec,
     bubbleCenter,
     colX,
     markerRect,
     qrSymbolRect,
     rangeRect,
+    responseBoxRect,
     ringRadius,
     rowY,
+    ROWS_PER_LINE,
     textRightEdge,
 } from "../src/layout.ts";
 import { renderFigure, type Figure } from "./figures.ts";
@@ -21,11 +24,19 @@ import { textWidth, truncate, wrapWidth } from "./textwidth.ts";
 
 export interface QuestionDef {
     prompt: string;
-    /** Choice texts, one bubble each (1–8). */
+    /** Choice texts, one bubble each (1–8); none for a free-response question. */
     choices: string[];
     /** Figures printed between the prompt and the choices, in order. */
     figures?: Figure[];
+    /**
+     * Makes it a free-response question: a full-width box with this many handwriting lines
+     * (ROWS_PER_LINE grid rows each) instead of choices.
+     */
+    lines?: number;
 }
+
+/** Whether a question is free response (a writing box) rather than multiple choice. */
+export const isFree = (q: QuestionDef): boolean => q.lines !== undefined;
 
 export interface TestDef {
     title: string;
@@ -56,8 +67,15 @@ export interface PlacedQuestion {
     promptLines: string[];
     /** Figures fill whole rows between the prompt and the first choice, or sit beside them (see `placeBeside`). */
     figures: PlacedFigure[];
-    /** One per choice, A first, each starting on its own bubble row. */
+    /** One per choice, A first, each starting on its own bubble row. None for a free-response question. */
     choices: PlacedChoice[];
+    /** A free-response question's writing box, full width over grid rows [row, row + rows). */
+    box?: { row: number; rows: number };
+}
+
+/** The row of a question's first bubble, or of its writing box. */
+export function answerStartRow(q: PlacedQuestion): number {
+    return q.box ? q.box.row : q.choices[0]!.row;
 }
 
 /** The hairline between a band's columns, over grid rows [fromRow, toRow). */
@@ -77,8 +95,8 @@ export interface PageLayout {
     sectionBreaks: number[];
 }
 
-const FONT = "Arial, Helvetica, sans-serif";
-const TEXT_SIZE = 11;
+export const FONT = "Arial, Helvetica, sans-serif";
+export const TEXT_SIZE = 11;
 /** Width of the "A)" label column; choice text starts after it. */
 const CHOICE_LABEL_W = 16;
 /** Gap between the bubble's column and the choice label, in page units. */
@@ -101,6 +119,14 @@ const NUMBER_GAP = 5;
 const PROMPT_BAR_FILL = "#eeeeee";
 const PROMPT_BAR_PAD = 4;
 export const INSTRUCTIONS = "Fill in the bubble next to every correct answer. Some questions may have more than one correct answer.";
+/** Page 1's instructions on a test with free-response questions. */
+export const FREE_INSTRUCTIONS = "Fill in the bubble next to every correct answer; some questions have more than one. Write other answers in their boxes.";
+export const INSTRUCTIONS_ATTRS = `font-size="10" font-style="italic" fill="#333"`;
+
+/** Baseline of page 1's instructions line. */
+export function instructionsBaseline(L: LayoutSpec = LAYOUT): number {
+    return rowY(L.instructionsRow, L) + L.cellH * 0.72 + 1;
+}
 
 /** Gap between figures side by side, and the space above and below a line of figures. */
 const FIGURE_GAP = 15;
@@ -152,12 +178,12 @@ function choiceLabelX(column: QuestionColumn, L: LayoutSpec): number {
 }
 
 /** Width of question `index`'s number rectangle: one- and two-digit numbers share a width. */
-function numberWidth(index: number): number {
+export function numberWidth(index: number): number {
     return Math.max(textWidth(String(index + 1), NUMBER_SIZE, true), textWidth("00", NUMBER_SIZE, true)) + 2 * NUMBER_PAD;
 }
 
 /** Where question `index`'s prompt text starts, right of its number. */
-function promptIndent(index: number): number {
+export function promptIndent(index: number): number {
     return numberWidth(index) + NUMBER_GAP;
 }
 
@@ -169,6 +195,8 @@ export class QuestionTooLongError extends RangeError {
         readonly index: number,
         /** Rows its figures take. */
         readonly figureRows: number,
+        /** What it doesn't fit: a scanned page, or a column of a question page (separate answer sheet). */
+        readonly fits: "page" | "column" = "page",
     ) {
         super(`question ${index + 1} is too long`);
     }
@@ -227,6 +255,11 @@ function placeStacked(q: QuestionDef, index: number, column: QuestionColumn, row
     if (!figs) return null;
     const placed: PlacedQuestion = { index, column, promptRow: row, promptLines, figures: figs.placed, choices: [] };
     let at = figs.end;
+    if (isFree(q)) {
+        // The box is full width, so it starts below the QR.
+        placed.box = { row: Math.max(at, L.qrClearRow), rows: q.lines! * ROWS_PER_LINE };
+        return { placed, end: placed.box.row + placed.box.rows };
+    }
     const textX = choiceLabelX(column, L) + CHOICE_LABEL_W;
     for (const c of q.choices) {
         const start = at;
@@ -245,9 +278,11 @@ const BESIDE_GAP = 2 * FIGURE_GAP;
  * prompt and the choices: the figures flush right, in lines no wider than a column, and the prompt
  * and choices in the width left of them (the full width again below them). The figures start
  * level with the prompt, or at the first full-width row when the rows beside the QR are taken.
- * Null when it has no figures, one is wider than a column, or a choice would wrap.
+ * Null when it has no figures, one is wider than a column, a choice would wrap, or it is free
+ * response (its box takes the full width).
  */
 function placeBeside(q: QuestionDef, index: number, row: number, L: LayoutSpec): Placement | null {
+    if (isFree(q)) return null;
     const figs = q.figures ?? [];
     const colW = textRightEdge(L.qrClearRow, L) - colX(L.columns.right.promptCol, L);
     if (!figs.length || figs.some((fig) => fig.boxW > colW + 0.5)) return null;
@@ -329,9 +364,13 @@ class Packer {
         return p;
     }
 
-    /** Whether a question prints in a column: its figures fit one and none of its choices wrap there. */
+    /**
+     * Whether a question prints in a column: its figures fit one and none of its choices wrap
+     * there. Free-response questions never do; their box is full width.
+     */
     fitsColumn(index: number): boolean {
         let n = this.narrow.get(index);
+        if (n === undefined && isFree(this.test.questions[index]!)) this.narrow.set(index, (n = false));
         if (n === undefined) {
             const p = this.place(index, "left", this.L.qrClearRow);
             this.narrow.set(index, (n = !!p && p.placed.choices.every((c) => c.lines.length === 1)));
@@ -350,7 +389,7 @@ class Packer {
         for (let row = top; row <= firstBubble; row++) {
             const p = this.place(index, column, row);
             if (!p) return null;
-            if (p.placed.choices[0]!.row >= firstBubble && (!best || p.end <= best.end)) best = p;
+            if (answerStartRow(p.placed) >= firstBubble && (!best || p.end <= best.end)) best = p;
         }
         return best;
     }
@@ -425,7 +464,7 @@ class Packer {
             row = best.end;
         }
         if (row - 1 > L.bodyLastRow) return null;
-        if (payloadByteLength(questions.length, dividers.length > 0) > MAX_PAYLOAD_BYTES) return null;
+        if (payloadByteLength(questions.length, dividers.length > 0, questions.filter((q) => q.box).length) > MAX_PAYLOAD_BYTES) return null;
         return { questions, dividers, sectionBreaks };
     }
 }
@@ -436,8 +475,12 @@ class Packer {
  * prompt above it beside the corner square. A question that fits no page throws QuestionTooLongError.
  */
 export function paginate(test: TestDef, L: LayoutSpec = LAYOUT): PageLayout[] {
+    // A page with a free-response box uses QR format 6, where one choice can't be encoded.
+    const minChoices = test.questions.some(isFree) ? 2 : 1;
     test.questions.forEach((q, index) => {
-        if (q.choices.length < 1 || q.choices.length > L.ring.maxChoices) {
+        if (isFree(q)) {
+            if (q.choices.length || !Number.isInteger(q.lines) || q.lines! < 1) throw new RangeError(`free-response question ${index + 1} needs whole lines and no choices`);
+        } else if (q.choices.length < minChoices || q.choices.length > L.ring.maxChoices) {
             throw new RangeError(`question ${index + 1} has ${q.choices.length} choices`);
         }
     });
@@ -459,7 +502,8 @@ export function paginate(test: TestDef, L: LayoutSpec = LAYOUT): PageLayout[] {
         const fresh = packer.layoutPage(ids, startOf(pages.length + 1));
         if (!fresh) {
             const p = placeStacked(test.questions[index]!, index, "full", L.firstRowContinued, L)!.placed;
-            throw new QuestionTooLongError(index, p.choices[0]!.row - p.promptRow - p.promptLines.length);
+            const figureRows = p.figures.length ? Math.max(...p.figures.map((pf) => Math.ceil((pf.y + pf.figure.boxH - rowY(p.promptRow + p.promptLines.length, L)) / L.cellH))) : 0;
+            throw new QuestionTooLongError(index, p.box ? figureRows : answerStartRow(p) - p.promptRow - p.promptLines.length);
         }
         current = fresh;
     });
@@ -468,8 +512,9 @@ export function paginate(test: TestDef, L: LayoutSpec = LAYOUT): PageLayout[] {
 }
 
 export function payloadFor(test: TestDef, pages: PageLayout[], page: PageLayout): PagePayload {
+    const free = page.questions.some((q) => q.box);
     return {
-        version: FORMAT_VERSION,
+        version: free ? FREE_FORMAT_VERSION : FORMAT_VERSION,
         totalPages: pages.length,
         pageNumber: page.pageNumber,
         totalQuestions: test.questions.length,
@@ -477,14 +522,113 @@ export function payloadFor(test: TestDef, pages: PageLayout[], page: PageLayout)
         firstQuestionIndex: page.questions[0]?.index ?? 0,
         choiceRows: page.questions.map((q) => q.choices.map((c) => c.row)),
         columns: page.questions.map((q) => bubbleColumnOf(q.column)),
+        ...(free ? { boxes: page.questions.map((q) => q.box ?? null) } : {}),
     };
 }
 
-function esc(s: string): string {
+const BOX_STROKE = "#555";
+/** The faint rules between a box's handwriting lines. */
+const BOX_RULE = "#c4c4c4";
+
+/** A free-response writing box over grid rows [row, row + rows), with a faint rule between lines. */
+export function responseBoxSvg(row: number, rows: number, L: LayoutSpec = LAYOUT): string {
+    const r = responseBoxRect(row, rows, L);
+    let out = `<rect x="${f(r.x)}" y="${f(r.y)}" width="${f(r.w)}" height="${f(r.h)}" fill="none" stroke="${BOX_STROKE}" stroke-width="1"/>`;
+    for (let k = ROWS_PER_LINE; k < rows; k += ROWS_PER_LINE) {
+        const y = f(rowY(row + k, L));
+        out += `<line x1="${f(r.x + 6)}" y1="${y}" x2="${f(r.x + r.w - 6)}" y2="${y}" stroke="${BOX_RULE}" stroke-width="0.6"/>`;
+    }
+    return out;
+}
+
+export function esc(s: string): string {
     return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-const f = (n: number) => +n.toFixed(2);
+export const f = (n: number) => +n.toFixed(2);
+
+/** An SVG text element in the sheet font. */
+export function svgText(x: number, y: number, s: string, attrs = ""): string {
+    return `<text x="${f(x)}" y="${f(y)}" font-family="${FONT}" ${attrs}>${esc(s)}</text>`;
+}
+
+/**
+ * Question `index`'s number in light text on a dark grey rectangle from `x`, centred on `mid`,
+ * and the light grey bar behind its prompt's first line (`firstLine`, at `x + promptIndent(index)`).
+ */
+export function numberBadge(index: number, x: number, mid: number, firstLine: string): string {
+    const nw = numberWidth(index);
+    const barR = x + promptIndent(index) + textWidth(firstLine, TEXT_SIZE, true) + PROMPT_BAR_PAD;
+    return (
+        `<rect x="${f(x + nw)}" y="${f(mid - NUMBER_H / 2)}" width="${f(barR - x - nw)}" height="${NUMBER_H}" fill="${PROMPT_BAR_FILL}"/>` +
+        `<rect x="${f(x)}" y="${f(mid - NUMBER_H / 2)}" width="${f(nw)}" height="${NUMBER_H}" fill="#222222"/>` +
+        // Arial's digits are 0.716 em tall; this centres them in the rectangle.
+        svgText(x + nw / 2, mid + 0.358 * NUMBER_SIZE, String(index + 1), `font-size="${NUMBER_SIZE}" font-weight="900" text-anchor="middle" fill="#FFFFFF"`)
+    );
+}
+
+export function cornerSquaresSvg(L: LayoutSpec = LAYOUT): string {
+    return L.cornerSquares
+        .map((c) => {
+            const r = rangeRect(c, L);
+            return `<rect x="${f(r.x)}" y="${f(r.y)}" width="${f(r.w)}" height="${f(r.h)}" fill="#000"/>`;
+        })
+        .join("");
+}
+
+/** One timing marker per row in `rows`. */
+export function markersSvg(rows: Iterable<number>, L: LayoutSpec = LAYOUT): string {
+    let out = "";
+    for (const row of rows) {
+        const m = markerRect(row, L);
+        out += `<rect x="${f(m.x)}" y="${f(m.y)}" width="${f(m.w)}" height="${f(m.h)}" fill="#000"/>`;
+    }
+    return out;
+}
+
+/** The test name, bottom-aligned in the title area. */
+export function titleSvg(title: string, L: LayoutSpec = LAYOUT): string {
+    const ta = rangeRect(L.titleArea, L);
+    const t = titleLayout(title, ta.w);
+    return t.lines
+        .map((line, i) => svgText(ta.x, ta.y + ta.h - 3 - (t.lines.length - 1 - i) * t.size * TITLE_LEADING, line, `font-size="${t.size}" font-weight="bold"`))
+        .join("");
+}
+
+/** Page 1's handwritten fields, side by side under the title. */
+export function fieldsSvg(L: LayoutSpec = LAYOUT): string {
+    const box = (label: string, range: CellRange) => {
+        const r = rangeRect(range, L);
+        return (
+            svgText(r.x, r.y - 4, label, `font-size="9" fill="#444"`) +
+            `<rect x="${f(r.x)}" y="${f(r.y)}" width="${f(r.w)}" height="${f(r.h)}" fill="none" stroke="#666" stroke-width="1"/>`
+        );
+    };
+    return box("Name (first and last)", L.fields.name) + box("Period", L.fields.period) + box("Date", L.fields.date);
+}
+
+/**
+ * The footer, between the bottom corner squares: the full test name centred, and `label` (e.g.
+ * "Page X of Y") right-aligned. The name stays clear of the label on both sides, so it stays centred.
+ */
+export function footerSvg(title: string, label: string, L: LayoutSpec = LAYOUT): string {
+    const footL = colX(L.cornerSquares[3].col2 + 2, L);
+    const footR = colX(L.cornerSquares[2].col1 - 1, L);
+    const footY = rowY(L.rows, L) + 3;
+    const labelRoom = textWidth(label, PAGE_LABEL_SIZE) + 12;
+    return (
+        svgText((footL + footR) / 2, footY, truncate(title, footR - footL - 2 * labelRoom, FOOTER_SIZE), `font-size="${FOOTER_SIZE}" text-anchor="middle" fill="#555"`) +
+        svgText(footR, footY, label, `font-size="${PAGE_LABEL_SIZE}" text-anchor="end"`)
+    );
+}
+
+/** A whole page's SVG document around `body`. */
+export function pageSvg(body: string, L: LayoutSpec = LAYOUT): string {
+    return (
+        `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${L.pageWidth}" height="${L.pageHeight}" viewBox="0 0 ${L.pageWidth} ${L.pageHeight}">` +
+        `<rect width="100%" height="100%" fill="#fff"/>${body}</svg>`
+    );
+}
 
 export function qrSvg(bytes: Uint8Array, L: LayoutSpec = LAYOUT): string {
     // A plain Uint8Array (not Buffer) keeps this usable in the browser bundle.
@@ -535,54 +679,19 @@ export function renderTest(test: TestDef, opts: RenderOptions = {}): RenderedPag
     return pages.map((page) => {
         const payload = payloadFor(test, pages, page);
         const parts: string[] = [];
-        const text = (x: number, y: number, s: string, attrs = "") =>
-            parts.push(`<text x="${f(x)}" y="${f(y)}" font-family="${FONT}" ${attrs}>${esc(s)}</text>`);
+        const text = (x: number, y: number, s: string, attrs = "") => parts.push(svgText(x, y, s, attrs));
         const baseline = (r: number) => rowY(r, L) + L.cellH * 0.72;
 
-        // Corner squares
-        for (const c of L.cornerSquares) {
-            const r = rangeRect(c, L);
-            parts.push(`<rect x="${f(r.x)}" y="${f(r.y)}" width="${f(r.w)}" height="${f(r.h)}" fill="#000"/>`);
-        }
-        // QR
-        parts.push(qrSvg(pack(payload), L));
+        parts.push(cornerSquaresSvg(L), qrSvg(pack(payload), L));
 
         // Page 1 header: the test name, bottom-aligned in the title area, the handwritten fields
         // side by side under it, then the marking instructions. Later pages use that space for
         // questions.
         if (page.pageNumber === 1) {
-            const ta = rangeRect(L.titleArea, L);
-            const title = titleLayout(test.title, ta.w);
-            title.lines.forEach((line, i) =>
-                text(ta.x, ta.y + ta.h - 3 - (title.lines.length - 1 - i) * title.size * TITLE_LEADING, line, `font-size="${title.size}" font-weight="bold"`),
-            );
-
-            const box = (label: string, range: (typeof L.fields)["name"]) => {
-                const r = rangeRect(range, L);
-                text(r.x, r.y - 4, label, `font-size="9" fill="#444"`);
-                parts.push(
-                    `<rect x="${f(r.x)}" y="${f(r.y)}" width="${f(r.w)}" height="${f(r.h)}" fill="none" stroke="#666" stroke-width="1"/>`,
-                );
-            };
-            box("Name (first and last)", L.fields.name);
-            box("Period", L.fields.period);
-            box("Date", L.fields.date);
-            text(colX(L.promptCol, L), baseline(L.instructionsRow) + 1, INSTRUCTIONS, `font-size="10" font-style="italic" fill="#333"`);
+            parts.push(titleSvg(test.title, L), fieldsSvg(L));
+            text(colX(L.promptCol, L), instructionsBaseline(L), test.questions.some(isFree) ? FREE_INSTRUCTIONS : INSTRUCTIONS, INSTRUCTIONS_ATTRS);
         }
-        // Footer, between the bottom corner squares: the full test name centred, and "Page X of
-        // Y" right-aligned. The name stays clear of the label on both sides, so it stays centred.
-        const footL = colX(L.cornerSquares[3].col2 + 2, L);
-        const footR = colX(L.cornerSquares[2].col1 - 1, L);
-        const footY = rowY(L.rows, L) + 3;
-        const label = `Page ${page.pageNumber} of ${pages.length}`;
-        const labelRoom = textWidth(label, PAGE_LABEL_SIZE) + 12;
-        text(
-            (footL + footR) / 2,
-            footY,
-            truncate(test.title, footR - footL - 2 * labelRoom, FOOTER_SIZE),
-            `font-size="${FOOTER_SIZE}" text-anchor="middle" fill="#555"`,
-        );
-        text(footR, footY, label, `font-size="${PAGE_LABEL_SIZE}" text-anchor="end"`);
+        parts.push(footerSvg(test.title, `Page ${page.pageNumber} of ${pages.length}`, L));
 
         // A hairline between the columns of each two-column band.
         const dividerX = colX(L.columns.dividerCol, L) + L.cellW / 2;
@@ -604,19 +713,12 @@ export function renderTest(test: TestDef, opts: RenderOptions = {}): RenderedPag
         let figureCount = 0;
         for (const q of page.questions) {
             const g = geometry(q.column, L);
-            const nw = numberWidth(q.index);
-            const mid = rowY(q.promptRow, L) + L.cellH / 2;
             const px = g.promptX + promptIndent(q.index);
-            const barR = px + textWidth(q.promptLines[0] ?? "", TEXT_SIZE, true) + PROMPT_BAR_PAD;
-            parts.push(
-                `<rect x="${f(g.promptX + nw)}" y="${f(mid - NUMBER_H / 2)}" width="${f(barR - g.promptX - nw)}" height="${NUMBER_H}" fill="${PROMPT_BAR_FILL}"/>`,
-            );
-            parts.push(`<rect x="${f(g.promptX)}" y="${f(mid - NUMBER_H / 2)}" width="${f(nw)}" height="${NUMBER_H}" fill="#222222"/>`);
-            // Arial's digits are 0.716 em tall; this centres them in the rectangle.
-            text(g.promptX + nw / 2, mid + 0.358 * NUMBER_SIZE, String(q.index + 1), `font-size="${NUMBER_SIZE}" font-weight="900" text-anchor="middle" fill="#FFFFFF"`);
+            parts.push(numberBadge(q.index, g.promptX, rowY(q.promptRow, L) + L.cellH / 2, q.promptLines[0] ?? ""));
             q.promptLines.forEach((line, i) => text(px, baseline(q.promptRow + i), line, `font-size="${TEXT_SIZE}" font-weight="bold"`));
             // A figure can appear twice on a page (shared by two questions), so ids get a per-placement prefix.
             for (const pf of q.figures) parts.push(renderFigure(pf.figure, pf.x, pf.y, `p${page.pageNumber}f${++figureCount}-`));
+            if (q.box) parts.push(responseBoxSvg(q.box.row, q.box.rows, L));
             const x = choiceLabelX(q.column, L);
             q.choices.forEach((c, i) => {
                 markerRows.add(c.row);
@@ -626,15 +728,9 @@ export function renderTest(test: TestDef, opts: RenderOptions = {}): RenderedPag
                 c.lines.forEach((line, k) => text(x + CHOICE_LABEL_W, baseline(c.row + k), line, `font-size="${TEXT_SIZE}"`));
             });
         }
-        for (const row of markerRows) {
-            const m = markerRect(row, L);
-            parts.push(`<rect x="${f(m.x)}" y="${f(m.y)}" width="${f(m.w)}" height="${f(m.h)}" fill="#000"/>`);
-        }
+        parts.push(markersSvg(markerRows, L));
 
         if (opts.overlay) parts.push(opts.overlay(page));
-        const svg =
-            `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${L.pageWidth}" height="${L.pageHeight}" viewBox="0 0 ${L.pageWidth} ${L.pageHeight}">` +
-            `<rect width="100%" height="100%" fill="#fff"/>${parts.join("")}</svg>`;
-        return { page, payload, svg };
+        return { page, payload, svg: pageSvg(parts.join(""), L) };
     });
 }

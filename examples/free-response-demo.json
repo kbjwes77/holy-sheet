@@ -1,0 +1,43 @@
+{
+  "test": "Chemistry Unit 3: Molecular Shape",
+  "questions": [
+    {
+      "prompt": "How many valence electrons does an oxygen atom have?",
+      "choices": ["2", "4", "6", "8"],
+      "answer": "C"
+    },
+    {
+      "prompt": "Which molecule has a linear shape?",
+      "choices": ["H2O", "CO2", "NH3", "CH4"],
+      "answer": "B"
+    },
+    {
+      "type": "Free Response",
+      "prompt": "Explain why a molecule of water (H2O) has a bent molecular shape rather than a linear shape, despite having only two covalent bonds.",
+      "answer": "Water has a bent shape because the two lone pairs of electrons on the central oxygen atom exert a strong repulsive force that pushes the two hydrogen-oxygen covalent bonds closer together.",
+      "rubric": "1 point: names the two lone pairs on the oxygen atom. 1 point: explains that their repulsion pushes the bonds together into a bent shape.",
+      "points": 2
+    },
+    {
+      "prompt": "Which statements about VSEPR theory are true?",
+      "choices": ["Electron pairs repel each other", "Lone pairs take up less space than bonding pairs", "It predicts molecular shape", "It only applies to ionic compounds"],
+      "answer": "AC"
+    },
+    {
+      "prompt": "What is the approximate bond angle in methane (CH4)?",
+      "choices": ["90°", "104.5°", "109.5°", "120°", "180°"],
+      "answer": "C"
+    },
+    {
+      "type": "Free Response",
+      "prompt": "Name the molecular shape of ammonia (NH3).",
+      "answer": "Trigonal pyramidal.",
+      "lines": 1
+    },
+    {
+      "prompt": "Which molecule is polar?",
+      "choices": ["CO2", "CH4", "H2O", "CCl4"],
+      "answer": "C"
+    }
+  ]
+}

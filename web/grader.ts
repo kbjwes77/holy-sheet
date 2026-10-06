@@ -1,12 +1,26 @@
 // Grader UI: a front end for the grading CLI. The sheets go to the local server as one zip
-// (picked images are zipped here, in file-name order), the server runs `bun run grade.ts` on it
-// (web/grader-api.ts) with --review and streams the CLI's stderr back. This page answers the
-// CLI's key prompt and review prompts (names and unclear marks) and renders its CSV as a table.
+// (picked images are zipped here, in file-name order) with the test's JSON, the server runs
+// `bun run grade.ts --test` on them (web/grader-api.ts) with --review and streams the CLI's
+// stderr back. This page answers the CLI's review prompts (names, unclear marks and written
+// answers' points) and renders its CSV as a table.
 import { zipSync } from "fflate";
-import { CSV_HEADER, parseCsv } from "../src/csv.ts";
+import { parseSheetJson } from "../gen/testdef.ts";
+import { CSV_HEADER, FREE_COLUMN_RE, parseCsv } from "../src/csv.ts";
+import type { GradingKey } from "../src/key.ts";
 import { CHOICE_LETTERS } from "../src/layout.ts";
 import { debugImageName, summarizeStderr, type Skipped } from "../src/report.ts";
-import { duplicateNames, parseReviewReply, reviewReply, type AnswerItem, type NameItem, type ReviewDecision, type ReviewItem, type ReviewThresholds, type Verdict } from "../src/review.ts";
+import {
+    duplicateNames,
+    parseReviewReply,
+    reviewReply,
+    type AnswerItem,
+    type NameItem,
+    type ResponseItem,
+    type ReviewDecision,
+    type ReviewItem,
+    type ReviewThresholds,
+    type Verdict,
+} from "../src/review.ts";
 import type { JobEvent } from "./grader-api.ts";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -40,7 +54,8 @@ let input: Input | null = null;
 
 const IMAGE = /\.(jpe?g|png)$/i;
 const byName = (a: File, b: File) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" });
-const keyInput = $<HTMLInputElement>("key-input");
+/** The chosen test JSON, once it validates with an answer for every question. */
+let test: { file: File; key: GradingKey } | null = null;
 const optMark = $<HTMLInputElement>("opt-mark");
 const optBlank = $<HTMLInputElement>("opt-blank");
 const optDebug = $<HTMLInputElement>("opt-debug");
@@ -97,6 +112,40 @@ function uploadName(): string {
     return input?.kind === "zip" ? input.file.name : "sheets.zip";
 }
 
+/** Reads and checks a test JSON; only one with an answer for every question can grade. */
+async function chooseTest(f: File): Promise<void> {
+    test = null;
+    const errors = $("test-errors");
+    const fail = (lines: string[]) => {
+        errors.replaceChildren(...lines.map((l) => el("li", "", l)));
+        show(errors, true);
+        $("test-summary").textContent = "";
+    };
+    $("test-name").textContent = f.name;
+    $("test-name").classList.remove("text-body-secondary");
+    show(errors, false);
+    if (f.size > 8 * 1024 * 1024) fail(["That file is too large to be a test."]);
+    else {
+        const parsed = parseSheetJson(await f.text(), { layout: false });
+        if (!parsed.ok) fail([...parsed.errors.slice(0, 6).map((e) => `${e.where}: ${e.message}`), ...(parsed.errors.length > 6 ? [`…and ${parsed.errors.length - 6} more`] : [])]);
+        else if (!parsed.grading) fail([`This test has no answers. Give every question an "answer" in the Sheet Generator, then save its JSON again.`]);
+        else {
+            test = { file: f, key: parsed.grading };
+            const free = parsed.grading.filter((k) => k.type === "free").length;
+            const points = parsed.grading.reduce((n, k) => n + k.points, 0);
+            $("test-summary").textContent = [
+                `“${parsed.test.title}”`,
+                plural(parsed.grading.length, "question"),
+                free && `${free} free response`,
+                `${plural(points, "point")} in all`,
+            ]
+                .filter(Boolean)
+                .join(" · ");
+        }
+    }
+    updateCommand();
+}
+
 /** The chosen CLI options, as typed (the CLI validates them; grade() pre-checks the range). */
 function cliOptions(): { mark: string; blank: string; debug: boolean } {
     const mark = optMark.value.trim();
@@ -107,13 +156,14 @@ function cliOptions(): { mark: string; blank: string; debug: boolean } {
 function updateCommand(): void {
     const o = cliOptions();
     const name = uploadName();
-    const parts = ["bun run grade.ts", /\s/.test(name) ? `"${name}"` : name];
+    const q = (s: string) => (/\s/.test(s) ? `"${s}"` : s);
+    const parts = ["bun run grade.ts", q(name), "--test", q(test?.file.name ?? "test.json")];
     if (o.mark) parts.push("--mark", o.mark);
     if (o.blank) parts.push("--blank", o.blank);
     if (o.debug) parts.push("--debug");
     parts.push("--review");
     $("command-preview").textContent = parts.join(" ");
-    $<HTMLButtonElement>("btn-grade").disabled = !input || running;
+    $<HTMLButtonElement>("btn-grade").disabled = !input || !test || running;
 }
 
 async function zipBytes(): Promise<Uint8Array> {
@@ -131,15 +181,10 @@ let running = false;
 let jobId: string | null = null;
 let source: EventSource | null = null;
 let log: string[] = [];
-let keyToSend: string | null = null;
-let lastKey = "";
 
 const runStatus = $("run-status");
 const progressBar = $("progress-bar");
 const cliLog = $("cli-log");
-const promptForm = $<HTMLFormElement>("key-prompt");
-const promptInput = $<HTMLInputElement>("prompt-input");
-const promptError = $("prompt-error");
 
 function status(text: string, state: "busy" | "ok" | "warn" | "error" | "idle" = "busy"): void {
     runStatus.textContent = text;
@@ -164,27 +209,26 @@ function appendLog(text: string): void {
 function setRunning(on: boolean): void {
     running = on;
     show($("btn-cancel"), on);
-    for (const id of ["btn-zip", "btn-images", "btn-clear-files"]) $<HTMLButtonElement>(id).disabled = on;
+    for (const id of ["btn-zip", "btn-images", "btn-clear-files", "btn-test-file"]) $<HTMLButtonElement>(id).disabled = on;
     updateCommand();
 }
 
 function resetResults(): void {
     for (const id of ["result-alert", "results-card", "skipped-card", "images-card", "review-card"]) show($(id), false);
     review = null;
-    show(promptForm, false);
     cliLog.textContent = "";
     $("run-command").textContent = "";
     log = [];
-    promptInput.value = "";
-    lastKey = "";
-    promptQuestions = null;
 }
 
-function upload(bytes: Uint8Array, params: URLSearchParams): Promise<string> {
+/** Uploads the zip and the test JSON as one form. */
+function upload(bytes: Uint8Array, testFile: File, params: URLSearchParams): Promise<string> {
     return new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.open("POST", `/api/grader/jobs?${params}`);
-        xhr.setRequestHeader("content-type", "application/zip");
+        const form = new FormData();
+        form.append("zip", new Blob([bytes as BlobPart], { type: "application/zip" }), uploadName());
+        form.append("test", testFile, testFile.name);
         xhr.upload.onprogress = (e) => {
             if (!e.lengthComputable) return;
             status(`Uploading ${kb(e.loaded)} of ${kb(e.total)}…`);
@@ -199,12 +243,13 @@ function upload(bytes: Uint8Array, params: URLSearchParams): Promise<string> {
             else reject(new Error(body.error ?? `upload failed (HTTP ${xhr.status})`));
         };
         xhr.onerror = () => reject(new Error("couldn't reach the grader server. Is `bun run web` still running?"));
-        xhr.send(new Blob([bytes as BlobPart], { type: "application/zip" }));
+        xhr.send(form);
     });
 }
 
 async function grade(): Promise<void> {
-    if (!input || running) return;
+    if (!input || !test || running) return;
+    const testFile = test.file;
     inputError(null);
     const o = cliOptions();
     for (const [flag, v] of [["Mark", o.mark], ["Blank", o.blank]] as const) {
@@ -214,7 +259,6 @@ async function grade(): Promise<void> {
     show($("empty-state"), false);
     show($("run"));
     setRunning(true);
-    keyToSend = keyInput.value.trim() || null;
     status(input.kind === "images" ? "Zipping images…" : "Reading the zip…");
     progress(0, true);
     try {
@@ -224,7 +268,7 @@ async function grade(): Promise<void> {
         if (o.blank) params.set("blank", o.blank);
         if (o.debug) params.set("debug", "1");
         params.set("review", "1");
-        jobId = await upload(bytes, params);
+        jobId = await upload(bytes, testFile, params);
     } catch (e) {
         setRunning(false);
         status(`Couldn't start grading: ${(e as Error).message}`, "error");
@@ -255,31 +299,6 @@ async function sendReply(at: string, line: string): Promise<boolean> {
     return false;
 }
 
-async function sendKey(key: string): Promise<void> {
-    lastKey = key;
-    $<HTMLButtonElement>("btn-send-key").disabled = true;
-    status("Checking the key…");
-    if (!(await sendReply("key", key))) {
-        $<HTMLButtonElement>("btn-send-key").disabled = false;
-        status("Couldn't send the key", "error");
-    }
-}
-
-function showPrompt(questions: number | null, error: string | null): void {
-    if (questions !== null) $("prompt-label").textContent = `The sheets are read. Enter the answer key for ${plural(questions, "question")}:`;
-    if (!promptInput.value) promptInput.value = lastKey || keyInput.value;
-    promptError.textContent = error ?? "";
-    show(promptError, !!error);
-    promptInput.classList.toggle("is-invalid", !!error);
-    $<HTMLButtonElement>("btn-send-key").disabled = false;
-    show(promptForm);
-    promptInput.focus();
-    status("Waiting for the answer key", "busy");
-    show($("run-spinner"), false);
-}
-
-let promptQuestions: number | null = null;
-
 function onEvent(e: JobEvent): void {
     switch (e.type) {
         case "start":
@@ -292,31 +311,20 @@ function onEvent(e: JobEvent): void {
             if (s.pages && s.decoded < s.pages) {
                 status(`Reading pages: ${s.decoded} of ${s.pages}`);
                 progress(s.decoded / s.pages, false);
-            } else if (s.pages && s.decoded === s.pages && !promptQuestions) {
-                status("Pages read");
-                progress(1, false);
+            } else if (s.pages && s.decoded === s.pages) {
+                status("Reading names and written answers…");
+                progress(1, true);
             }
             return;
         }
         case "prompt":
-            progress(1, false);
-            promptQuestions = e.questions;
+            // The key comes from the test JSON, so the CLI never asks for one; stop if it does.
             appendLog(`Answer key for ${e.questions} questions: …`);
-            if (keyToSend) {
-                const k = keyToSend;
-                keyToSend = null; // only once: if it's rejected, the user fixes it in the prompt
-                void sendKey(k);
-            } else showPrompt(e.questions, null);
+            status("The grader asked for an answer key it should have read from the test", "error");
+            cancel();
             return;
         case "keyError":
-            appendLog(`  ${e.text}`);
-            showPrompt(promptQuestions, `The grader rejected the key: ${e.text}`);
-            return;
         case "keyAccepted":
-            show(promptForm, false);
-            appendLog(`  (key: ${lastKey})`);
-            status("Reading names…");
-            progress(1, true);
             return;
         case "review":
             startReview(e.thresholds, e.items);
@@ -332,7 +340,6 @@ function onEvent(e: JobEvent): void {
             source?.close();
             source = null;
             setRunning(false);
-            show(promptForm, false);
             show($("review-card"), false);
             progress(1, false);
             showResults(e);
@@ -352,6 +359,8 @@ function cancel(): void {
 interface SubmissionReview {
     name: NameItem;
     answers: AnswerItem[];
+    /** Written answers, each with the points box the user can change. */
+    responses: { item: ResponseItem; input: HTMLInputElement }[];
     skip: boolean;
     nameInput: HTMLInputElement;
     dupNote: HTMLElement;
@@ -378,9 +387,10 @@ function startReview(thresholds: ReviewThresholds, items: ReviewItem[]): void {
     const subs: SubmissionReview[] = [];
     const chosen = new Map<number, Set<number>>();
     for (const item of items) {
-        // Each submission's name item comes before its answer items. renderSubmission fills in
+        // Each submission's name item comes before its other items. renderSubmission fills in
         // the elements.
-        if (item.kind === "name") subs[item.submission] = { name: item, answers: [], skip: false } as unknown as SubmissionReview;
+        if (item.kind === "name") subs[item.submission] = { name: item, answers: [], responses: [], skip: false } as unknown as SubmissionReview;
+        else if (item.kind === "response") subs[item.submission]!.responses.push({ item, input: null as unknown as HTMLInputElement });
         else {
             subs[item.submission]!.answers.push(item);
             chosen.set(item.id, new Set(item.marked));
@@ -388,8 +398,11 @@ function startReview(thresholds: ReviewThresholds, items: ReviewItem[]): void {
     }
     review = { thresholds, subs, total: items.length, chosen, replies: null, waiting: null };
     reviewList.replaceChildren(...subs.map(renderSubmission));
-    const answers = items.length - subs.length;
-    $("review-counts").textContent = [plural(subs.length, "name"), answers && plural(answers, "unclear answer")].filter(Boolean).join(" · ");
+    const answers = items.filter((i) => i.kind === "answer").length;
+    const written = items.filter((i) => i.kind === "response").length;
+    $("review-counts").textContent = [plural(subs.length, "name"), answers && plural(answers, "unclear answer"), written && plural(written, "written answer")]
+        .filter(Boolean)
+        .join(" · ");
     reviewError.textContent = "";
     $<HTMLFieldSetElement>("review-fieldset").disabled = false;
     $<HTMLButtonElement>("btn-finish-review").disabled = false;
@@ -398,7 +411,8 @@ function startReview(thresholds: ReviewThresholds, items: ReviewItem[]): void {
     progress(1, false);
     status("Waiting for your review", "busy");
     show($("run-spinner"), false);
-    (subs.find((s) => s.name.ocr === null)?.nameInput ?? $("btn-finish-review")).focus({ preventScroll: true });
+    const firstEmpty = subs.find((s) => s.name.ocr === null)?.nameInput ?? subs.flatMap((s) => s.responses).find((r) => r.item.points === null)?.input;
+    (firstEmpty ?? $("btn-finish-review")).focus({ preventScroll: true });
     $("review-card").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
@@ -452,9 +466,56 @@ function renderSubmission(sub: SubmissionReview): HTMLElement {
     inputCol.append(input, ocrNote, sub.dupNote);
     row.append(imgCol, inputCol);
     body.append(row);
-    for (const item of sub.answers) body.append(renderAnswer(item));
+    // Unclear answers and written answers, in question order.
+    const parts = [
+        ...sub.answers.map((item) => ({ question: item.question, render: () => renderAnswer(item) })),
+        ...sub.responses.map((r) => ({ question: r.item.question, render: () => renderResponse(r) })),
+    ].sort((a, b) => a.question - b.question);
+    for (const p of parts) body.append(p.render());
     li.append(head, body);
     return li;
+}
+
+function renderResponse(r: SubmissionReview["responses"][number]): HTMLElement {
+    const { item } = r;
+    const box = el("div", "review-answer");
+    box.dataset.item = String(item.id);
+    const title = el("div", "small mb-1");
+    title.append(el("span", "fw-semibold", `Question ${item.question}`), el("span", "text-body-secondary", ` · written answer · ${item.file}`));
+
+    const img = el("img", "review-response-crop border rounded");
+    img.src = reviewImageUrl(item.image);
+    img.alt = `Written answer to question ${item.question} on ${item.file}`;
+    img.addEventListener("error", () => img.replaceWith(el("span", "small text-body-secondary", "No image of the answer box")));
+
+    const row = el("div", "row g-2 align-items-start mt-1");
+    const textCol = el("div", "col-sm-9 small");
+    if (item.text === null) textCol.append(el("div", "text-danger", `Couldn't read the answer: ${item.error ?? "unknown error"}`));
+    else {
+        const read = el("div", "review-transcript");
+        read.append(el("span", "text-body-secondary", "Read as: "), item.text ? el("q", "", item.text) : el("em", "text-body-secondary", "(blank)"));
+        textCol.append(read);
+        if (!item.legible) textCol.append(el("div", "text-warning-emphasis", "Some of the writing couldn't be read; check it against the image."));
+        if (item.points !== null && item.feedback) textCol.append(el("div", "text-body-secondary mt-1", item.feedback));
+        if (item.points === null && item.error) textCol.append(el("div", "text-danger mt-1", `Not graded: ${item.error}`));
+    }
+    const pointsCol = el("div", "col-sm-3");
+    const group = el("div", "input-group input-group-sm");
+    const input = el("input", "form-control text-end font-monospace");
+    input.type = "number";
+    input.min = "0";
+    input.max = String(item.maxPoints);
+    input.step = "1";
+    input.value = item.points === null ? "" : String(item.points);
+    input.placeholder = "?";
+    input.ariaLabel = `Points for question ${item.question} on ${item.file}`;
+    input.addEventListener("input", () => input.classList.remove("is-invalid"));
+    r.input = input;
+    group.append(input, el("span", "input-group-text", `/ ${item.maxPoints}`));
+    pointsCol.append(group, el("div", "form-text", item.points === null ? "Give the points" : "Points awarded"));
+    row.append(textCol, pointsCol);
+    box.append(title, img, row);
+    return box;
 }
 
 function renderAnswer(item: AnswerItem): HTMLElement {
@@ -562,23 +623,28 @@ function reviewReplies(): Map<number, string> | null {
     const replies = new Map<number, string>();
     let firstBad: HTMLElement | null = null;
     for (const s of review!.subs) {
-        const decisions: [ReviewItem, ReviewDecision][] = s.skip
-            ? [[s.name, { skip: true }]]
-            : [[s.name, { name: s.nameInput.value }], ...s.answers.map((a): [ReviewItem, ReviewDecision] => [a, { answer: [...review!.chosen.get(a.id)!].sort((x, y) => x - y) }])];
-        for (const [item, d] of decisions) {
-            const reply = reviewReply(d);
-            // An empty reply keeps the OCR'd name at the CLI's prompt; here an empty box is an error.
-            const empty = "name" in d && !d.name.trim();
+        const decisions: [ReviewItem, ReviewDecision | string, HTMLElement][] = s.skip
+            ? [[s.name, { skip: true }, s.nameInput]]
+            : [
+                  [s.name, { name: s.nameInput.value }, s.nameInput],
+                  ...s.answers.map((a): [ReviewItem, ReviewDecision, HTMLElement] => [a, { answer: [...review!.chosen.get(a.id)!].sort((x, y) => x - y) }, s.li]),
+                  // The points box's text is the reply; the CLI checks it like a typed one.
+                  ...s.responses.map((r): [ReviewItem, string, HTMLElement] => [r.item, r.input.value.trim(), r.input]),
+              ];
+        for (const [item, d, field] of decisions) {
+            const reply = typeof d === "string" ? d : reviewReply(d);
+            // An empty reply keeps the OCR'd name (or the awarded points) at the CLI's prompt; here an empty box is an error.
+            const empty = typeof d === "string" ? !d : "name" in d && !d.name.trim();
             if (empty || "error" in parseReviewReply(item, reply)) {
-                if (item.kind === "name") s.nameInput.classList.add("is-invalid");
-                firstBad ??= item.kind === "name" ? s.nameInput : s.li;
+                if (item.kind !== "answer") field.classList.add("is-invalid");
+                firstBad ??= field;
                 continue;
             }
             replies.set(item.id, reply);
         }
     }
     if (firstBad) {
-        reviewError.textContent = "Every submission needs a name, or skip it.";
+        reviewError.textContent = "Every submission needs a name and points for each written answer (a whole number up to its points), or skip it.";
         firstBad.focus();
         return null;
     }
@@ -617,7 +683,7 @@ async function answerReview(item: number): Promise<void> {
 
 function onReviewError(item: number, text: string): void {
     unlockReview();
-    const where = review?.subs.find((s) => s.name.id === item || s.answers.some((a) => a.id === item));
+    const where = review?.subs.find((s) => s.name.id === item || s.answers.some((a) => a.id === item) || s.responses.some((r) => r.item.id === item));
     reviewError.textContent = `The grader rejected this: ${text}`;
     where?.li.scrollIntoView({ behavior: "smooth", block: "center" });
 }
@@ -676,9 +742,13 @@ interface Row {
     total: number;
     percent: number;
     percentText: string;
+    /** Per free-response question, in column order: points, transcript and the grading reason. */
+    free: { points: string; text: string; feedback: string }[];
 }
 let rows: Row[] = [];
-let sort: { key: keyof Row; dir: 1 | -1 } = { key: "name", dir: 1 };
+/** The free-response questions' numbers (1-based), in column order. */
+let freeQuestions: number[] = [];
+let sort: { key: Exclude<keyof Row, "free">; dir: 1 | -1 } = { key: "name", dir: 1 };
 
 function renderTable(csv: string): void {
     let parsed: string[][];
@@ -690,16 +760,24 @@ function renderTable(csv: string): void {
     }
     const [header, ...body] = parsed;
     if (!header) return;
-    if (header.join() !== CSV_HEADER.join()) {
+    // The summary columns, then three per free-response question.
+    const extra = header.slice(CSV_HEADER.length);
+    freeQuestions = [];
+    for (let i = 0; i + 2 < extra.length; i += 3) {
+        const m = FREE_COLUMN_RE.exec(extra[i]!);
+        if (m && m[2] === "points") freeQuestions.push(Number(m[1]));
+    }
+    if (header.slice(0, CSV_HEADER.length).join() !== CSV_HEADER.join() || extra.length !== 3 * freeQuestions.length) {
         alertBox("danger", "bi-x-octagon", `Unexpected CSV header: ${header.join(",")}`);
         return;
     }
-    rows = body.map(([name = "", score = "", total = "", percent = ""]) => ({
+    rows = body.map(([name = "", score = "", total = "", percent = "", ...rest]) => ({
         name,
         score: Number(score),
         total: Number(total),
         percent: Number(percent),
         percentText: percent,
+        free: freeQuestions.map((_, k) => ({ points: rest[3 * k] ?? "", text: rest[3 * k + 1] ?? "", feedback: rest[3 * k + 2] ?? "" })),
     }));
     show($("results-card"));
     const pct = rows.map((r) => r.percent);
@@ -709,12 +787,12 @@ function renderTable(csv: string): void {
         ...(rows.length
             ? [badge("bi-bar-chart", `Average ${avg.toFixed(1)}%`), badge("bi-arrows-expand", `Range ${Math.min(...pct).toFixed(1)}–${Math.max(...pct).toFixed(1)}%`)]
             : []),
-        badge("bi-list-ol", rows[0] ? `${plural(rows[0].total, "question")}` : "No rows"),
+        badge("bi-list-ol", rows[0] ? `Out of ${plural(rows[0].total, "point")}` : "No rows"),
     );
     renderRows();
 }
 
-const COLUMNS: { key: keyof Row; label: string; numeric: boolean }[] = [
+const COLUMNS: { key: Exclude<keyof Row, "free">; label: string; numeric: boolean }[] = [
     { key: "name", label: "Student", numeric: false },
     { key: "score", label: "Score", numeric: true },
     { key: "total", label: "Total", numeric: true },
@@ -738,6 +816,12 @@ function renderRows(): void {
         th.ariaSort = sort.key === c.key ? (sort.dir === 1 ? "ascending" : "descending") : "none";
         tr.append(th);
     }
+    for (const n of freeQuestions) {
+        const th = el("th", "text-end text-nowrap", `Q${n}`);
+        th.scope = "col";
+        th.title = `Free-response question ${n}: points awarded (open a cell for the answer as read and the grading reason)`;
+        tr.append(th);
+    }
     table.tHead!.replaceChildren(tr);
 
     const sorted = [...rows].sort((a, b) => {
@@ -759,6 +843,18 @@ function renderRows(): void {
             bar.append(meter, el("span", "font-monospace", `${r.percentText}%`));
             pct.append(bar);
             row.append(pct);
+            r.free.forEach((x, k) => {
+                const td = el("td", "text-end free-cell");
+                const details = el("details");
+                details.append(el("summary", "font-monospace", x.points || "–"));
+                const more = el("div", "free-detail text-start small");
+                more.append(el("div", "", x.text ? `“${x.text}”` : "(blank)"));
+                if (x.feedback) more.append(el("div", "text-body-secondary mt-1", x.feedback));
+                details.append(more);
+                details.title = `Question ${freeQuestions[k]}`;
+                td.append(details);
+                row.append(td);
+            });
             return row;
         }),
     );
@@ -830,7 +926,7 @@ async function copyCsv(): Promise<void> {
 
 const zipInput = $<HTMLInputElement>("zip-input");
 const imagesInput = $<HTMLInputElement>("images-input");
-const keyFile = $<HTMLInputElement>("key-file");
+const testFile = $<HTMLInputElement>("test-file");
 
 $("btn-zip").addEventListener("click", () => zipInput.click());
 $("btn-images").addEventListener("click", () => imagesInput.click());
@@ -845,27 +941,15 @@ $("btn-clear-files").addEventListener("click", () => {
     inputError(null);
     renderInput();
 });
-$("btn-key-file").addEventListener("click", () => keyFile.click());
-keyFile.addEventListener("change", async () => {
-    const f = keyFile.files?.[0];
-    keyFile.value = "";
-    if (!f) return;
-    if (f.size > 64 * 1024) return inputError("That key file is too large.");
-    keyInput.value = (await f.text()).split(/\r?\n/).find((l) => l.trim())?.trim() ?? "";
+$("btn-test-file").addEventListener("click", () => testFile.click());
+testFile.addEventListener("change", () => {
+    const f = testFile.files?.[0];
+    testFile.value = "";
+    if (f) void chooseTest(f);
 });
 for (const o of [optMark, optBlank, optDebug]) o.addEventListener("input", updateCommand);
 $("btn-grade").addEventListener("click", () => void grade());
 $("btn-cancel").addEventListener("click", cancel);
-promptForm.addEventListener("submit", (e) => {
-    e.preventDefault();
-    const k = promptInput.value.trim();
-    if (!k) {
-        promptInput.classList.add("is-invalid");
-        return;
-    }
-    promptInput.classList.remove("is-invalid");
-    void sendKey(k);
-});
 $("review-card").addEventListener("submit", (e) => {
     e.preventDefault();
     finishReview();
@@ -895,7 +979,13 @@ dropZone.addEventListener("drop", (e) => {
     e.preventDefault();
     dragDepth = 0;
     dropZone.classList.remove("dragging");
-    if (!running && e.dataTransfer?.files.length) addFiles([...e.dataTransfer.files]);
+    if (running || !e.dataTransfer?.files.length) return;
+    // A .json dropped with the sheets is the test.
+    const files = [...e.dataTransfer.files];
+    const json = files.find((f) => /\.json$/i.test(f.name));
+    if (json) void chooseTest(json);
+    const rest = files.filter((f) => f !== json);
+    if (rest.length) addFiles(rest);
 });
 
 window.addEventListener("beforeunload", (e) => {

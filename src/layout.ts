@@ -88,6 +88,24 @@ export interface LayoutSpec {
         /** Fill is measured inside this fraction of the ring radius. */
         innerRadiusFrac: number;
     };
+    /**
+     * A separate answer sheet: one row per question from ANSWER_FIRST_ROW, its bubbles side by
+     * side, in blocks spread evenly from `firstCol` to `lastCol` (see `answerGridGeometry`).
+     * Its bubbles are bigger than the question pages', to hold a printed letter.
+     */
+    answer: {
+        firstCol: number;
+        lastCol: number;
+        diameterCells: number;
+        /** Centre-to-centre distance of a row's bubbles, in cell widths. */
+        pitchCells: number;
+        /** Room for the question number, right-aligned before a block's first bubble, in page units. */
+        numberW: number;
+        numberGap: number;
+        /** The narrowest space between blocks, in cell widths. */
+        blockGapCells: number;
+        maxBlocks: number;
+    };
 }
 
 const PAGE_W = 850;
@@ -138,6 +156,16 @@ export const LAYOUT: LayoutSpec = {
         diameterCells: 0.6,
         strokeWidth: 1.5,
         innerRadiusFrac: 0.7,
+    },
+    answer: {
+        firstCol: 3,
+        lastCol: 44,
+        diameterCells: 0.72,
+        pitchCells: 1.2,
+        numberW: 22,
+        numberGap: 6,
+        blockGapCells: 1,
+        maxBlocks: 6,
     },
 };
 
@@ -219,5 +247,57 @@ export function bubbleCenter(row: number, column: BubbleColumn = 0, L: LayoutSpe
 export function ringRadius(L: LayoutSpec = LAYOUT): number {
     return (L.ring.diameterCells * L.cellW) / 2;
 }
+
+export function answerRingRadius(L: LayoutSpec = LAYOUT): number {
+    return (L.answer.diameterCells * L.cellW) / 2;
+}
+
+export interface AnswerGridGeometry {
+    /** Blocks across the page. */
+    blocks: number;
+    /** Width of a block's number and bubbles. */
+    blockW: number;
+    /** Left edge of block `b` (0-based): where its numbers' room starts. */
+    blockX(b: number): number;
+    /** Centre x of bubble `j` (0 = A) in block `b`. */
+    bubbleX(b: number, j: number): number;
+}
+
+/**
+ * Where an answer sheet's blocks go when a row holds up to `slots` bubbles: as many blocks as fit
+ * between `answer.firstCol` and `answer.lastCol` (at most `answer.maxBlocks`), each centred in an
+ * equal share of that width.
+ */
+export function answerGridGeometry(slots: number, L: LayoutSpec = LAYOUT): AnswerGridGeometry {
+    const A = L.answer;
+    const r = answerRingRadius(L);
+    const pitch = A.pitchCells * L.cellW;
+    const left = colX(A.firstCol, L);
+    const width = colX(A.lastCol + 1, L) - left;
+    const gap = A.blockGapCells * L.cellW;
+    const blockW = A.numberW + A.numberGap + (slots - 1) * pitch + 2 * r;
+    const blocks = Math.max(1, Math.min(A.maxBlocks, Math.floor((width + gap) / (blockW + gap))));
+    const share = width / blocks;
+    const blockX = (b: number) => left + b * share + (share - blockW) / 2;
+    return { blocks, blockW, blockX, bubbleX: (b, j) => blockX(b) + A.numberW + A.numberGap + r + j * pitch };
+}
+
+/** Centre of bubble `j` of a question in block `block` on an answer sheet page, on grid row `row`. */
+export function answerBubbleCenter(block: number, j: number, row: number, slots: number, L: LayoutSpec = LAYOUT): Point {
+    const g = answerGridGeometry(slots, L);
+    return { x: g.bubbleX(block, j), y: rowY(row, L) + L.cellH / 2 };
+}
+
+/**
+ * The page rectangle of a free-response box over grid rows [row, row + rows): full width, from
+ * the prompt column to the right corner squares' column.
+ */
+export function responseBoxRect(row: number, rows: number, L: LayoutSpec = LAYOUT): Rect {
+    const x = colX(L.promptCol, L);
+    return { x, y: rowY(row, L), w: colX(L.cornerSquares[1].col1, L) - x, h: rows * L.cellH };
+}
+
+/** Grid rows per handwriting line of a free-response box. */
+export const ROWS_PER_LINE = 2;
 
 export const CHOICE_LETTERS = "ABCDEFGH";

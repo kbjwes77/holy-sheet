@@ -1,6 +1,7 @@
-// Review (`--review`): instead of skipping a submission for an unclear bubble or an unreadable
-// name, the CLI asks. Every graded submission's name is confirmed too, since a misread name
-// silently files a score under the wrong student. The CLI writes each item's crop and
+// Review (`--review`): instead of skipping a submission for an unclear bubble, an unreadable
+// name or a written answer that couldn't be read or graded, the CLI asks. Every graded
+// submission's name and written answers' points are confirmed too, since a misread name silently
+// files a score under the wrong student. The CLI writes each item's crop and
 // review.json, then prompts once per item on stderr, like the key prompt. The web grader shows the
 // items as a form and answers the prompts. Browser-safe: no Node imports.
 import { CHOICE_LETTERS } from "./layout.ts";
@@ -41,7 +42,25 @@ export interface AnswerItem extends ItemBase {
     rings: { x: number; y: number; r: number }[];
 }
 
-export type ReviewItem = NameItem | AnswerItem;
+/** A free-response answer: its transcript and the points the grading model gave it. */
+export interface ResponseItem extends ItemBase {
+    kind: "response";
+    file: string;
+    /** 1-based question number. */
+    question: number;
+    /** What the question is worth. */
+    maxPoints: number;
+    /** The transcript, or null when transcription failed (then `error` says why). */
+    text: string | null;
+    /** False when the transcriber couldn't read all of the writing. */
+    legible: boolean;
+    /** The points awarded and why, or null when grading didn't happen or failed. */
+    points: number | null;
+    feedback: string;
+    error?: string;
+}
+
+export type ReviewItem = NameItem | AnswerItem | ResponseItem;
 
 export type Verdict = "marked" | "ambiguous" | "blank";
 
@@ -56,7 +75,7 @@ export interface ReviewFile {
     items: ReviewItem[];
 }
 
-export type ReviewDecision = { skip: true } | { name: string } | { answer: number[] };
+export type ReviewDecision = { skip: true } | { name: string } | { answer: number[] } | { points: number };
 
 export const REVIEW_FILE = "review.json";
 export const SKIP = "-";
@@ -74,6 +93,15 @@ export function reviewPrompt(item: ReviewItem, total: number): string {
         return item.ocr !== null
             ? `${head} name on [${files}] read as "${clean(item.ocr)}" (Enter keeps it, ${SKIP} skips the submission) > `
             : `${head} name on [${files}] couldn't be read: ${clean(item.error ?? "")} (type it, ${SKIP} skips the submission) > `;
+    }
+    if (item.kind === "response") {
+        const of = `of ${item.maxPoints}`;
+        const read = item.text === null ? `couldn't be read: ${clean(item.error ?? "")}` : `read as "${clean(item.text)}"${item.legible ? "" : " (partly illegible)"}`;
+        const graded =
+            item.points !== null
+                ? `, graded ${item.points}/${item.maxPoints}${item.feedback ? `: ${clean(item.feedback)}` : ""} (Enter keeps it, a number ${of} replaces it`
+                : `${item.text !== null && item.error ? `, not graded: ${clean(item.error)}` : ""} (type the points ${of}`;
+        return `${head} Q${item.question} on ${item.file}: ${read}${graded}, ${SKIP} skips the submission) > `;
     }
     const marked = item.marked.length ? letters(item.marked) : "nothing";
     const unclear = item.unclear.map((c) => `${CHOICE_LETTERS[c]} (${item.fills[c]!.toFixed(2)})`).join(", ");
@@ -95,6 +123,14 @@ export function parseReviewReply(item: ReviewItem, line: string): ReviewParse {
         if (item.ocr) return { decision: { name: item.ocr } };
         return { error: `type the student's name, or ${SKIP} to skip the submission` };
     }
+    if (item.kind === "response") {
+        if (!text && item.points !== null) return { decision: { points: item.points } };
+        const n = Number(text);
+        if (!text || !Number.isInteger(n) || n < 0 || n > item.maxPoints) {
+            return { error: `type the points, a whole number from 0 to ${item.maxPoints}, or ${SKIP} to skip the submission` };
+        }
+        return { decision: { points: n } };
+    }
     if (text.toLowerCase() === NO_ANSWER) return { decision: { answer: [] } };
     if (!text) return { error: `type the answer's letters, ${NO_ANSWER}, or ${SKIP} to skip the submission` };
     const set = new Set<number>();
@@ -110,6 +146,7 @@ export function parseReviewReply(item: ReviewItem, line: string): ReviewParse {
 export function reviewReply(decision: ReviewDecision): string {
     if ("skip" in decision) return SKIP;
     if ("name" in decision) return decision.name;
+    if ("points" in decision) return String(decision.points);
     return decision.answer.length ? letters(decision.answer) : NO_ANSWER;
 }
 

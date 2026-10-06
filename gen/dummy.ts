@@ -1,5 +1,7 @@
 // Dummy tests with answer keys, and simulated students who fill them in.
-import { CHOICE_LETTERS, LAYOUT, bubbleCenter, rangeRect, ringRadius, colX, rowY } from "../src/layout.ts";
+import type { GradingKey } from "../src/key.ts";
+import { CHOICE_LETTERS, LAYOUT, ROWS_PER_LINE, answerRingRadius, bubbleCenter, rangeRect, responseBoxRect, ringRadius, colX, rowY } from "../src/layout.ts";
+import type { AnswerPageLayout } from "./booklet.ts";
 import { handwriting, markSvg, strayMark, type MarkStyle } from "./pencil.ts";
 import type { Rng } from "./rng.ts";
 import { prepareFigure, type Figure, type FigureDef } from "./figures.ts";
@@ -7,8 +9,28 @@ import { bubbleColumnOf, figureMaxWidth, type PageLayout, type TestDef } from ".
 
 export interface DummyTest {
     test: TestDef;
-    /** Correct choice indexes per question. */
+    /** Correct choice indexes per question (empty for a free-response one). */
     key: number[][];
+    /** Per question, its free-response model answer and points, or null for multiple choice. */
+    free?: ({ answer: string; points: number } | null)[];
+}
+
+/** Short answers simulated students write (short enough for one line of a box). */
+const WRITTEN = ["Lone pairs push the bonds together", "Because of electron repulsion", "It has two lone pairs", "The bonds repel", "Trigonal pyramidal", "I don't know"];
+
+/** What the mock grader awards a written answer: a stand-in for the model, the same every time. */
+export function mockPoints(text: string, max: number): number {
+    let h = 0;
+    for (const ch of text) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+    return text ? h % (max + 1) : 0;
+}
+
+/** The dummy test as the grader's key: questions worth 1 point, free-response ones their points. */
+export function dummyGradingKey(dummy: DummyTest): GradingKey {
+    return dummy.test.questions.map((q, i) => {
+        const f = dummy.free?.[i];
+        return f ? { type: "free", prompt: q.prompt, answer: f.answer, points: f.points } : { type: "choice", answer: dummy.key[i]!, points: 1 };
+    });
 }
 
 const SUBJECTS = ["photosynthesis", "the water cycle", "plate tectonics", "the French Revolution", "linear equations", "cell division", "supply and demand", "the Pythagorean theorem", "chemical bonding", "the Bill of Rights", "Newton's laws", "ecosystems", "the Industrial Revolution", "probability", "figurative language"];
@@ -81,12 +103,21 @@ function choiceCount(rng: Rng): number {
 /**
  * `figureRate` is the chance a question shows one or two figures (0 leaves the rng sequence
  * unchanged). `shortChoices` keeps choices to a word or two, so most questions print in columns.
+ * `freeRate` is the chance a question is free response (0 leaves the rng sequence unchanged);
+ * with any, multiple-choice questions have at least 2 choices.
  */
-export function makeDummyTest(rng: Rng, questionCount: number, title = "Unit 4 Quiz", figureRate = 0, shortChoices = false): DummyTest {
+export function makeDummyTest(rng: Rng, questionCount: number, title = "Unit 4 Quiz", figureRate = 0, shortChoices = false, freeRate = 0): DummyTest {
     const key: number[][] = [];
+    const free: DummyTest["free"] = [];
     const figures = figureRate > 0 ? dummyFigures(rng) : [];
     const questions = Array.from({ length: questionCount }, () => {
-        const n = choiceCount(rng);
+        if (freeRate > 0 && rng.chance(freeRate)) {
+            key.push([]);
+            free.push({ answer: "The two lone pairs on oxygen repel the bonding pairs, bending the molecule.", points: rng.int(1, 4) });
+            return { prompt: `Explain ${rng.pick(SUBJECTS)} in a sentence.`, choices: [], lines: rng.int(1, 4) };
+        }
+        free.push(null);
+        const n = freeRate > 0 ? Math.max(2, choiceCount(rng)) : choiceCount(rng);
         const stem = rng.pick(STEMS).replace("{s}", rng.pick(SUBJECTS));
         const multi = stem.startsWith("Select all") && n >= 3;
         let answer = [rng.int(0, n - 1)];
@@ -101,7 +132,7 @@ export function makeDummyTest(rng: Rng, questionCount: number, title = "Unit 4 Q
         const shown = rng.chance(0.3) ? [rng.pick(figures), rng.pick(figures)] : [rng.pick(figures)];
         return { prompt: stem, choices, figures: [...new Set(shown)] };
     });
-    return { test: { title, questions }, key };
+    return { test: { title, questions }, key, ...(freeRate > 0 ? { free } : {}) };
 }
 
 export function keyToString(key: number[][]): string {
@@ -113,6 +144,8 @@ export interface Response {
     chosen: number[];
     /** Drawn marks per choice index (chosen and otherwise). */
     marks: Map<number, MarkStyle>;
+    /** A free-response question's handwritten answer ("" for blank). */
+    text?: string;
 }
 
 export interface SimStudent {
@@ -140,6 +173,7 @@ const GOOD_STYLES: MarkStyle[] = ["solid", "solid", "solid", "sloppy", "scribble
 
 export function makeStudent(rng: Rng, dummy: DummyTest, opts: StudentOptions): SimStudent {
     const responses: Response[] = dummy.test.questions.map((q, qi) => {
+        if (dummy.free?.[qi]) return { chosen: [], marks: new Map(), text: rng.chance(0.15) ? "" : rng.pick(WRITTEN) };
         const n = q.choices.length;
         const marks = new Map<number, MarkStyle>();
         let chosen: number[];
@@ -159,7 +193,7 @@ export function makeStudent(rng: Rng, dummy: DummyTest, opts: StudentOptions): S
     });
     let hasAmbiguous = false;
     if (rng.chance(opts.ambiguousRate ?? 0)) {
-        const r = rng.pick(responses.filter((r) => r.marks.size < 8));
+        const r = rng.pick(responses.filter((r, i) => r.marks.size < 8 && !dummy.free?.[i]));
         const n = dummy.test.questions[responses.indexOf(r)]!.choices.length;
         const free = Array.from({ length: n }, (_, i) => i).filter((i) => !r.marks.has(i));
         if (free.length) {
@@ -178,28 +212,56 @@ export function makeStudent(rng: Rng, dummy: DummyTest, opts: StudentOptions): S
     };
 }
 
+/** The student's handwriting in page 1's fields. */
+function fieldsOverlay(student: SimStudent, rng: Rng): string {
+    const L = LAYOUT;
+    const field = (text: string, range: typeof L.fields.name, size: number) => {
+        const r = rangeRect(range, L);
+        return handwriting(text, { x: r.x + rng.range(6, 20), y: r.y + r.h - rng.range(10, 16) }, size, rng);
+    };
+    return field(student.name, L.fields.name, 30) + field(student.period, L.fields.period, 26) + field(student.date, L.fields.date, 18);
+}
+
+/** A written answer on the first line of the box from grid row `row`. */
+function boxOverlay(text: string | undefined, row: number, rng: Rng): string {
+    if (!text) return "";
+    const r = responseBoxRect(row, 1);
+    return handwriting(text, { x: r.x + rng.range(8, 24), y: rowY(row + ROWS_PER_LINE) - rng.range(5, 9) }, 20, rng);
+}
+
+/** SVG overlay drawing the student's handwriting and pencil marks on one page of a separate answer sheet. */
+export function answerSheetOverlay(student: SimStudent, page: AnswerPageLayout, rng: Rng): string {
+    const parts: string[] = [];
+    if (page.pageNumber === 1) parts.push(fieldsOverlay(student, rng));
+    const r = answerRingRadius(LAYOUT);
+    for (const q of page.questions) {
+        for (const [choice, style] of student.responses[q.index]!.marks) parts.push(markSvg(q.centers[choice]!, r, style, rng));
+    }
+    for (const b of page.boxes) parts.push(boxOverlay(student.responses[b.index]!.text, b.row, rng));
+    // An occasional doodle under the last row, clear of the bubbles and boxes.
+    const last = Math.max(...page.questions.map((q) => q.row), ...page.boxes.map((b) => b.row + b.rows));
+    if (rng.chance(0.4) && last + 3 <= LAYOUT.bodyLastRow) {
+        parts.push(strayMark(colX(8), rowY(last + 2), colX(30) - colX(8), (LAYOUT.bodyLastRow - last - 2) * LAYOUT.cellH, rng));
+    }
+    return parts.join("");
+}
+
 /** SVG overlay drawing the student's handwriting and pencil marks on one page. */
 export function studentOverlay(student: SimStudent, dummy: DummyTest, page: PageLayout, rng: Rng): string {
     const L = LAYOUT;
     const parts: string[] = [];
-    if (page.pageNumber === 1) {
-        const field = (text: string, range: typeof L.fields.name, size: number) => {
-            const r = rangeRect(range, L);
-            parts.push(handwriting(text, { x: r.x + rng.range(6, 20), y: r.y + r.h - rng.range(10, 16) }, size, rng));
-        };
-        field(student.name, L.fields.name, 30);
-        field(student.period, L.fields.period, 26);
-        field(student.date, L.fields.date, 18);
-    }
+    if (page.pageNumber === 1) parts.push(fieldsOverlay(student, rng));
     const r = ringRadius(L);
     for (const q of page.questions) {
+        if (q.box) parts.push(boxOverlay(student.responses[q.index]!.text, q.box.row, rng));
         for (const [choice, style] of student.responses[q.index]!.marks) {
             parts.push(markSvg(bubbleCenter(q.choices[choice]!.row, bubbleColumnOf(q.column), L), r, style, rng));
         }
     }
-    // Occasional doodles in the question's text, kept clear of both bubble columns.
-    if (rng.chance(0.4) && page.questions.length) {
-        const q = rng.pick(page.questions);
+    // Occasional doodles in a multiple-choice question's text, kept clear of both bubble columns.
+    const withChoices = page.questions.filter((q) => q.choices.length);
+    if (rng.chance(0.4) && withChoices.length) {
+        const q = rng.pick(withChoices);
         const last = q.choices.at(-1)!;
         const [from, to] = q.column === "right" ? [31, 43] : [8, 22];
         parts.push(strayMark(colX(from, L), rowY(q.promptRow, L), colX(to, L) - colX(from, L), L.cellH * (last.row + last.lines.length - q.promptRow), rng));
@@ -207,10 +269,20 @@ export function studentOverlay(student: SimStudent, dummy: DummyTest, page: Page
     return parts.join("");
 }
 
-/** Grades the intended answers the way the grader should. */
+/**
+ * Grades the intended answers the way the grader should: 1 point per multiple-choice question,
+ * and for a free-response one what the mock grader awards its text.
+ */
 export function expectedScore(student: SimStudent, dummy: DummyTest): number {
-    return student.responses.filter((r, i) => {
+    return student.responses.reduce((sum, r, i) => {
+        const f = dummy.free?.[i];
+        if (f) return sum + mockPoints(r.text ?? "", f.points);
         const k = dummy.key[i]!;
-        return r.chosen.length === k.length && r.chosen.every((c, j) => c === k[j]);
-    }).length;
+        return sum + (r.chosen.length === k.length && r.chosen.every((c, j) => c === k[j]) ? 1 : 0);
+    }, 0);
+}
+
+/** The test's total points. */
+export function totalPoints(dummy: DummyTest): number {
+    return dummy.test.questions.reduce((sum, _, i) => sum + (dummy.free?.[i]?.points ?? 1), 0);
 }

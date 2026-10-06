@@ -122,6 +122,14 @@
                                                 more than one. Give it for every question or none; with all of them you get the grader's answer key.
                                             </li>
                                             <li>
+                                                <code>type</code> (optional): <code>"Multiple Choice"</code> (the default) or <code>"Free Response"</code>. A
+                                                free-response question has no <code>choices</code>; students write in a full-width box instead. Its
+                                                <code>answer</code> is the model answer the grader compares theirs with, so every question then needs an
+                                                <code>answer</code>. It may also have a <code>rubric</code> (what earns each point) and <code>lines</code>
+                                                (writing lines, 1–20, default 3).
+                                            </li>
+                                            <li><code>points</code> (optional): what the question is worth, a whole number from 1 to 100 (default 1).</li>
+                                            <li>
                                                 <code>figures</code> (optional, in a question): ids of figures to print between the prompt and the
                                                 choices, side by side while they fit.
                                             </li>
@@ -185,6 +193,10 @@
                                     <i class="bi bi-gear-wide-connected me-1"></i>Generate sheet
                                 </button>
                                 <span class="small text-body-secondary d-none d-sm-inline"><kbd>Ctrl</kbd> + <kbd>Enter</kbd></span>
+                                <div class="form-check form-switch ms-auto mb-0" title="Print the questions on plain pages, with every answer on an answer sheet at the end. Only the answer sheet is scanned.">
+                                    <input class="form-check-input" type="checkbox" role="switch" id="answer-sheet" />
+                                    <label class="form-check-label small" for="answer-sheet">Separate answer sheet</label>
+                                </div>
                             </div>
                         </div>
 
@@ -229,9 +241,13 @@
                                             </button>
                                         </div>
                                     </div>
-                                    <p class="small text-body-secondary mb-0 mt-3">
+                                    <p class="small text-body-secondary mb-0 mt-3" id="print-help">
                                         <i class="bi bi-info-circle me-1"></i>Print on US Letter at 100% scale (Actual size). Print one copy per
                                         student and keep each student's pages together.
+                                    </p>
+                                    <p class="small text-body-secondary mb-0 mt-3 d-none" id="print-help-separate">
+                                        <i class="bi bi-info-circle me-1"></i>Print on US Letter at 100% scale (Actual size), one copy per student.
+                                        Scan only the answer sheet pages at the end, keeping each student's together.
                                     </p>
                                 </div>
                             </div>
@@ -251,6 +267,12 @@
                                     <div class="form-text" id="key-help"></div>
                                     <div class="small text-body-secondary d-none" id="key-none">
                                         No answer key: add an <code>"answer"</code> to every question to get one here.
+                                    </div>
+                                    <div class="d-flex align-items-center gap-2 flex-wrap mt-2">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-download-test" title="Download this test's JSON">
+                                            <i class="bi bi-filetype-json"></i> test.json
+                                        </button>
+                                        <span class="small text-body-secondary" id="test-help">The web grader grades from this file.</span>
                                     </div>
                                 </div>
                             </div>
