@@ -41,13 +41,15 @@ export type ParseResult =
           key: string | null;
           /** How each question is graded and what it's worth, when every question has an answer, else null. */
           grading: GradingKey | null;
+          /** A study guide: no question has choices or an answer, so nothing is graded. */
+          studyGuide: boolean;
           pageCount: number;
           /** Non-blocking remarks, e.g. a figure no question uses. */
           notes: ValidationIssue[];
       }
     | { ok: false; errors: ValidationIssue[] };
 
-const ROOT_KEYS = ["test", "questions", "figures"];
+const ROOT_KEYS = ["test", "questions", "figures", "instructions"];
 const QUESTION_KEYS = ["type", "prompt", "figures", "choices", "answer", "points", "rubric", "lines"];
 const FIGURE_KEYS = ["type", "content", "width", "caption"];
 const ALIASES: Record<string, string> = {
@@ -180,6 +182,18 @@ export function parseSheetJson(text: string, opts: ParseOptions = {}): ParseResu
     if (!("test" in doc)) add("test", "Test name", `Missing "test" (the test name).`);
     else checkText(doc.test, "test", "Test name", MAX_TEST_NAME);
 
+    let instructions: string | null = null;
+    if ("instructions" in doc && checkText(doc.instructions, "instructions", "Instructions", MAX_TEXT)) {
+        instructions = doc.instructions.trim();
+    }
+
+    // A study guide: no question has choices or an answer, so nothing is marked or graded. The
+    // prompts and figures print on their own, with no rings, bubble sheet or QR.
+    const isStudyGuide =
+        Array.isArray(doc.questions) &&
+        doc.questions.length > 0 &&
+        doc.questions.every((q) => isObject(q) && !("choices" in q) && !("answer" in q));
+
     // Figures first, so questions can be checked against their ids.
     const figures = new Map<string, Figure>();
     const figureIds: string[] = [];
@@ -241,7 +255,7 @@ export function parseSheetJson(text: string, opts: ParseOptions = {}): ParseResu
             for (const k of Object.keys(q)) {
                 if (!QUESTION_KEYS.includes(k)) add(`${path}.${k}`, where, `Unknown key "${k}".${suggest(k, QUESTION_KEYS)}`);
             }
-            if ("type" in q) {
+            if ("type" in q && !isStudyGuide) {
                 const t = typeof q.type === "string" ? QUESTION_TYPES.find((name) => name.toLowerCase() === (q.type as string).trim().toLowerCase()) : undefined;
                 if (t) entry.free = t === FREE_RESPONSE;
                 else add(`${path}.type`, where, `"type" must be "${MULTIPLE_CHOICE}" or "${FREE_RESPONSE}", got ${JSON.stringify(q.type)}.`);
@@ -265,6 +279,13 @@ export function parseSheetJson(text: string, opts: ParseOptions = {}): ParseResu
                         add(`${fpath}[${j}]`, `${where}, figures`, `No figure "${id}".${hint}`);
                     });
                 }
+            }
+
+            if (isStudyGuide) {
+                for (const k of ["choices", "answer", "rubric", "lines"]) {
+                    if (k in q) add(`${path}.${k}`, where, `"${k}" isn't allowed in a study guide; its questions print only their prompt and figures.`);
+                }
+                return;
             }
 
             if ("points" in q) {
@@ -345,10 +366,12 @@ export function parseSheetJson(text: string, opts: ParseOptions = {}): ParseResu
         title: raw.test.trim(),
         questions: raw.questions.map((q, i) => ({
             prompt: q.prompt.trim(),
-            choices: parsed[i]!.free ? [] : q.choices!.map((c) => c.trim()),
+            choices: parsed[i]!.free || isStudyGuide ? [] : q.choices!.map((c) => c.trim()),
             ...(q.figures?.length ? { figures: q.figures.map((id) => figures.get(id)!) } : {}),
             ...(parsed[i]!.free ? { lines: parsed[i]!.lines } : {}),
         })),
+        ...(isStudyGuide ? { studyGuide: true } : {}),
+        ...(instructions ? { instructions } : {}),
     };
     const notes: ValidationIssue[] = figureIds
         .filter((id) => !used.has(id))
@@ -357,7 +380,7 @@ export function parseSheetJson(text: string, opts: ParseOptions = {}): ParseResu
     try {
         if (opts.layout === false) {
             // Not laid out.
-        } else if (opts.answerSheet) {
+        } else if (opts.answerSheet && !isStudyGuide) {
             const answerPages = layoutAnswerSheet(test).length;
             if (answerPages > MAX_PAGES) {
                 const message = `The answer sheet needs ${answerPages} pages; it can have at most ${MAX_PAGES}.`;
@@ -377,14 +400,16 @@ export function parseSheetJson(text: string, opts: ParseOptions = {}): ParseResu
         }
         const rows = LAYOUT.bodyLastRow - LAYOUT.firstRowContinued + 1;
         const message = e.figureRows
-            ? `Too long to fit on one page: its figures take ${e.figureRows} of a page's ${rows} rows. Make them smaller ("width") or shorten the prompt or choices.`
+            ? `Too long to fit on one page: its figures take ${e.figureRows} of a page's ${rows} rows. Make them smaller ("width")${isStudyGuide ? " or shorten the prompt." : " or shorten the prompt or choices."}`
             : test.questions[i]!.lines
               ? 'Too long to fit on one page; shorten the prompt or give it fewer "lines".'
-              : "Too long to fit on one page; shorten the prompt or choices.";
+              : isStudyGuide
+                ? "Too long to fit on one page; shorten the prompt or make its figures smaller."
+                : "Too long to fit on one page; shorten the prompt or choices.";
         return { ok: false, errors: [{ path: `questions[${i}]`, where: `Question ${i + 1}`, message }] };
     }
     // Only scanned pages carry a page number in their QR; question pages are never scanned.
-    if (!opts.answerSheet && pageCount > MAX_PAGES) {
+    if ((!opts.answerSheet || isStudyGuide) && pageCount > MAX_PAGES) {
         return {
             ok: false,
             errors: [{ path: "questions", where: "Questions", message: `Needs ${pageCount} pages; a sheet can have at most ${MAX_PAGES}.` }],
@@ -399,5 +424,5 @@ export function parseSheetJson(text: string, opts: ParseOptions = {}): ParseResu
                   : { type: "choice", answer: [...a.answer!].map((l) => CHOICE_LETTERS.indexOf(l)), points: a.points },
           )
         : null;
-    return { ok: true, test, key, grading, pageCount, notes };
+    return { ok: true, test, key, grading, studyGuide: isStudyGuide, pageCount, notes };
 }

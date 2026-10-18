@@ -30,6 +30,7 @@ export function loadTestKey(path: string): { key: GradingKey } | { error: string
         const more = parsed.errors.length > 5 ? `; and ${parsed.errors.length - 5} more` : "";
         return { error: `${basename(path)} is not a valid test: ${shown.join("; ")}${more}` };
     }
+    if (parsed.studyGuide) return { error: `${basename(path)} is a study guide; there's nothing to grade` };
     if (!parsed.grading) return { error: `${basename(path)} has no answers; give every question an "answer" to grade with it` };
     return { key: parsed.grading };
 }

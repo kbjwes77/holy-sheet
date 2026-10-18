@@ -26,6 +26,8 @@ const previews = $("previews");
 const printRoot = $("print-root");
 const keyLine = $<HTMLInputElement>("key-line");
 const answerSheet = $<HTMLInputElement>("answer-sheet");
+const keyNone = $("key-none");
+const KEY_NONE_DEFAULT = keyNone.innerHTML;
 const ANSWER_SHEET_KEY = "sheet-generator.answer-sheet";
 
 interface Generated {
@@ -34,6 +36,8 @@ interface Generated {
     key: string | null;
     /** Whether every question has an answer, so the grader can grade from the JSON. */
     gradable: boolean;
+    /** A study guide: no choices or answers, so nothing is graded and no answer sheet applies. */
+    studyGuide: boolean;
     /** Free-response questions in the test. */
     free: number;
     /** Every page's SVG, in print order. */
@@ -110,14 +114,19 @@ function showNotes(notes: ValidationIssue[]): void {
 
 function generate(): void {
     const source = input.value;
-    const separate = answerSheet.checked;
-    const result = parseSheetJson(source, { answerSheet: separate });
+    const result = parseSheetJson(source, { answerSheet: answerSheet.checked });
     if (!result.ok) {
         showErrors(result.errors);
         return;
     }
     hideErrors();
     showNotes(result.notes);
+    // A study guide has nothing to grade, so the separate answer sheet switch doesn't apply.
+    answerSheet.disabled = result.studyGuide;
+    answerSheet.title = result.studyGuide
+        ? "A study guide isn't marked or graded, so there's no answer sheet."
+        : "Print the questions on plain pages, with every answer on an answer sheet at the end. Only the answer sheet is scanned.";
+    const separate = answerSheet.checked && !result.studyGuide;
     let pages: string[];
     let answerPages: number | null = null;
     let blankPages = 0;
@@ -130,7 +139,17 @@ function generate(): void {
         pages = renderTest(result.test).map((p) => p.svg);
     }
     const free = result.test.questions.filter((q) => q.lines !== undefined).length;
-    current = { source, test: result.test, key: result.key, gradable: !!result.grading, free, pages, answerPages, blankPages };
+    current = {
+        source,
+        test: result.test,
+        key: result.key,
+        gradable: !!result.grading,
+        studyGuide: result.studyGuide,
+        free,
+        pages,
+        answerPages,
+        blankPages,
+    };
     showOutput(current);
 }
 
@@ -162,7 +181,9 @@ function showOutput(g: Generated): void {
               ]),
         badge("bi-file-earmark", "US Letter"),
         ...(g.free ? [badge("bi-pencil", `${g.free} free response`)] : []),
-        badge(g.gradable ? "bi-key" : "bi-key-fill", g.gradable ? "Answer key included" : "No answer key"),
+        ...(g.studyGuide
+            ? [badge("bi-journal-text", "Study guide")]
+            : [badge(g.gradable ? "bi-key" : "bi-key-fill", g.gradable ? "Answer key included" : "No answer key")]),
     );
     $("print-help").classList.toggle("d-none", answers !== null);
     $("print-help-separate").classList.toggle("d-none", answers === null);
@@ -170,6 +191,9 @@ function showOutput(g: Generated): void {
     // A letter key only for all multiple-choice tests; free-response ones grade from the JSON.
     $("key-group").classList.toggle("d-none", !g.key);
     $("key-none").classList.toggle("d-none", g.gradable);
+    keyNone.innerHTML = g.studyGuide
+        ? "This is a study guide: its questions are printed on their own, with nothing to mark or grade, so there's no answer key."
+        : KEY_NONE_DEFAULT;
     keyLine.value = g.key ?? "";
     const help = g.key
         ? "Paste this line when the command-line grader asks for the answer key."
@@ -178,9 +202,11 @@ function showOutput(g: Generated): void {
           : "";
     $("key-help").textContent = help;
     $("key-help").classList.toggle("d-none", !help);
-    $("test-help").textContent = g.gradable
-        ? "The web grader grades from this file."
-        : "The web grader needs this file with an answer for every question.";
+    $("test-help").textContent = g.studyGuide
+        ? "A study guide can't be graded."
+        : g.gradable
+          ? "The web grader grades from this file."
+          : "The web grader needs this file with an answer for every question.";
 
     const firstAnswer = answers === null ? Infinity : g.pages.length - answers;
     previews.replaceChildren(

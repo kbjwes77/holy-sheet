@@ -78,6 +78,14 @@ have `points`, a whole number from 1 to 100 (default 1). The key card's **test.j
 downloads the JSON for the web grader. See `examples/ap-macro-unit-4.json` and the validator in
 `gen/testdef.ts`.
 
+### Study guides
+
+A test whose questions have no `choices` and no `answer` is a study guide: the app prints each
+question's prompt and figures only — a title and an instruction line on page 1, then the numbered
+questions, with no choice rings, bubble sheet, timing marks, QR or corner squares, since nothing is
+marked or graded. A top-level `"instructions"` string replaces the default instruction line on any
+sheet.
+
 ### Free-response questions
 
 A question with `"type": "Free Response"` has no `choices`. Students write their answer in a

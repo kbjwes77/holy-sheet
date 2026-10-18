@@ -41,6 +41,13 @@ export const isFree = (q: QuestionDef): boolean => q.lines !== undefined;
 export interface TestDef {
     title: string;
     questions: QuestionDef[];
+    /**
+     * A study guide: every question has no choices to mark and nothing is graded. Pages print the
+     * prompts and figures only, with no rings, bubble rows, timing markers, QR or corner squares.
+     */
+    studyGuide?: boolean;
+    /** Page 1's instruction line, in place of the default for the sheet's kind (wrapped to fit). */
+    instructions?: string;
 }
 
 /** Where a question prints: across the page, or in one column of a two-column band. */
@@ -121,11 +128,28 @@ const PROMPT_BAR_PAD = 4;
 export const INSTRUCTIONS = "Fill in the bubble next to every correct answer. Some questions may have more than one correct answer.";
 /** Page 1's instructions on a test with free-response questions. */
 export const FREE_INSTRUCTIONS = "Fill in the bubble next to every correct answer; some questions have more than one. Write other answers in their boxes.";
+/** Page 1's instructions on a study guide, when the JSON gives no "instructions". */
+export const STUDY_INSTRUCTIONS = "Study guide: read each question carefully. Nothing on this page is marked or graded.";
 export const INSTRUCTIONS_ATTRS = `font-size="10" font-style="italic" fill="#333"`;
+/** Font size of page 1's instruction line(s). */
+const INSTRUCTION_SIZE = 10;
 
 /** Baseline of page 1's instructions line. */
 export function instructionsBaseline(L: LayoutSpec = LAYOUT): number {
     return rowY(L.instructionsRow, L) + L.cellH * 0.72 + 1;
+}
+
+/** Page 1's instruction text: the test's own, or the default for its kind of sheet. */
+export function instructionText(test: TestDef): string {
+    if (test.instructions) return test.instructions;
+    if (test.studyGuide) return STUDY_INSTRUCTIONS;
+    return test.questions.some(isFree) ? FREE_INSTRUCTIONS : INSTRUCTIONS;
+}
+
+/** Page 1's instruction line wrapped to the sheet's text width (clear of the QR area). */
+export function instructionLines(test: TestDef, L: LayoutSpec = LAYOUT): string[] {
+    const width = textRightEdge(L.instructionsRow, L) - colX(L.promptCol, L);
+    return wrapWidth(instructionText(test), width, INSTRUCTION_SIZE);
 }
 
 /** Gap between figures side by side, and the space above and below a line of figures. */
@@ -351,11 +375,14 @@ function place(q: QuestionDef, index: number, column: QuestionColumn, row: numbe
 class Packer {
     private readonly placements = new Map<string, Placement | null>();
     private readonly narrow = new Map<number, boolean>();
+    private readonly studyGuide: boolean;
 
     constructor(
         private readonly test: TestDef,
         private readonly L: LayoutSpec,
-    ) {}
+    ) {
+        this.studyGuide = !!test.studyGuide;
+    }
 
     place(index: number, column: QuestionColumn, row: number): Placement | null {
         const key = `${index}|${column}|${row}`;
@@ -385,6 +412,8 @@ class Packer {
      * earliest, the lowest, so a figure that has to drop below the QR stays near its prompt.
      */
     private placeTop(index: number, column: QuestionColumn, top: number, firstBubble: number): Placement | null {
+        // A study guide has no bubbles to align to a row, so its first question starts at `top`.
+        if (this.studyGuide) return this.place(index, column, top);
         let best: Placement | null = null;
         for (let row = top; row <= firstBubble; row++) {
             const p = this.place(index, column, row);
@@ -469,18 +498,27 @@ class Packer {
     }
 }
 
+/** The layout for a test: page 1's first question row drops below any wrapped instruction lines. */
+function layoutFor(test: TestDef, L: LayoutSpec): LayoutSpec {
+    const extra = instructionLines(test, L).length - 1;
+    return extra > 0 ? { ...L, firstRowPage1: L.firstRowPage1 + extra } : L;
+}
+
 /**
  * Assigns every question to a page, in order, filling each page before starting the next. Page 1
  * starts a blank row below the header. Later pages start with the first choice on row 4, the
  * prompt above it beside the corner square. A question that fits no page throws QuestionTooLongError.
  */
 export function paginate(test: TestDef, L: LayoutSpec = LAYOUT): PageLayout[] {
+    L = layoutFor(test, L);
+    // A study guide's questions have no bubbles, so they need no choices.
+    const studyGuide = !!test.studyGuide;
     // A page with a free-response box uses QR format 6, where one choice can't be encoded.
     const minChoices = test.questions.some(isFree) ? 2 : 1;
     test.questions.forEach((q, index) => {
         if (isFree(q)) {
             if (q.choices.length || !Number.isInteger(q.lines) || q.lines! < 1) throw new RangeError(`free-response question ${index + 1} needs whole lines and no choices`);
-        } else if (q.choices.length < minChoices || q.choices.length > L.ring.maxChoices) {
+        } else if (!studyGuide && (q.choices.length < minChoices || q.choices.length > L.ring.maxChoices)) {
             throw new RangeError(`question ${index + 1} has ${q.choices.length} choices`);
         }
     });
@@ -503,7 +541,8 @@ export function paginate(test: TestDef, L: LayoutSpec = LAYOUT): PageLayout[] {
         if (!fresh) {
             const p = placeStacked(test.questions[index]!, index, "full", L.firstRowContinued, L)!.placed;
             const figureRows = p.figures.length ? Math.max(...p.figures.map((pf) => Math.ceil((pf.y + pf.figure.boxH - rowY(p.promptRow + p.promptLines.length, L)) / L.cellH))) : 0;
-            throw new QuestionTooLongError(index, p.box ? figureRows : answerStartRow(p) - p.promptRow - p.promptLines.length);
+            const answerRows = p.box || !p.choices.length ? figureRows : answerStartRow(p) - p.promptRow - p.promptLines.length;
+            throw new QuestionTooLongError(index, answerRows);
         }
         current = fresh;
     });
@@ -673,7 +712,42 @@ export function titleLayout(title: string, width: number): { lines: string[]; si
     return { lines: [lines[0]!, truncate(lines.slice(1).join(" "), width, TITLE_MIN_SIZE, true)], size: TITLE_MIN_SIZE };
 }
 
+/**
+ * Renders a study guide: page 1 carries the test name and instruction line(s); every page then
+ * prints its questions' numbers, prompts and figures. Nothing is scanned or graded, so there is no
+ * QR, corner squares, timing markers or writing box, and no choices are drawn.
+ */
+export function renderStudyGuide(test: TestDef, opts: RenderOptions = {}): RenderedPage[] {
+    const L = opts.layout ?? LAYOUT;
+    const pages = paginate(test, L);
+    return pages.map((page) => {
+        const parts: string[] = [];
+        const text = (x: number, y: number, s: string, attrs = "") => parts.push(svgText(x, y, s, attrs));
+        const baseline = (r: number) => rowY(r, L) + L.cellH * 0.72;
+
+        if (page.pageNumber === 1) {
+            parts.push(titleSvg(test.title, L));
+            instructionLines(test, L).forEach((line, i) =>
+                text(colX(L.promptCol, L), instructionsBaseline(L) + i * L.cellH, line, INSTRUCTIONS_ATTRS),
+            );
+        }
+        parts.push(footerSvg(test.title, `Page ${page.pageNumber} of ${pages.length}`, L));
+
+        let figureCount = 0;
+        for (const q of page.questions) {
+            const g = geometry(q.column, L);
+            const px = g.promptX + promptIndent(q.index);
+            parts.push(numberBadge(q.index, g.promptX, rowY(q.promptRow, L) + L.cellH / 2, q.promptLines[0] ?? ""));
+            q.promptLines.forEach((line, i) => text(px, baseline(q.promptRow + i), line, `font-size="${TEXT_SIZE}" font-weight="bold"`));
+            for (const pf of q.figures) parts.push(renderFigure(pf.figure, pf.x, pf.y, `p${page.pageNumber}f${++figureCount}-`));
+        }
+        if (opts.overlay) parts.push(opts.overlay(page));
+        return { page, payload: payloadFor(test, pages, page), svg: pageSvg(parts.join(""), L) };
+    });
+}
+
 export function renderTest(test: TestDef, opts: RenderOptions = {}): RenderedPage[] {
+    if (test.studyGuide) return renderStudyGuide(test, opts);
     const L = opts.layout ?? LAYOUT;
     const pages = paginate(test, L);
     return pages.map((page) => {
@@ -689,7 +763,9 @@ export function renderTest(test: TestDef, opts: RenderOptions = {}): RenderedPag
         // questions.
         if (page.pageNumber === 1) {
             parts.push(titleSvg(test.title, L), fieldsSvg(L));
-            text(colX(L.promptCol, L), instructionsBaseline(L), test.questions.some(isFree) ? FREE_INSTRUCTIONS : INSTRUCTIONS, INSTRUCTIONS_ATTRS);
+            instructionLines(test, L).forEach((line, i) =>
+                text(colX(L.promptCol, L), instructionsBaseline(L) + i * L.cellH, line, INSTRUCTIONS_ATTRS),
+            );
         }
         parts.push(footerSvg(test.title, `Page ${page.pageNumber} of ${pages.length}`, L));
 
