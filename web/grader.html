@@ -37,11 +37,20 @@
                 <code>bun run web</code> after adding them.
             </div>
 
-            <div class="row g-4">
+            <div class="row g-4" id="grader-row">
                 <!-- Input -->
-                <div class="col-lg-5">
+                <div class="col-lg-5" id="left-col">
+                    <!-- Shown in place of the panels while the sidebar is collapsed -->
+                    <button type="button" class="grader-rail btn btn-outline-secondary" id="btn-sidebar-expand" title="Show the scanned sheets and test" aria-label="Show the scanned sheets and test">
+                        <i class="bi bi-chevron-double-right"></i>
+                        <span class="grader-rail-label small">Sheets &amp; test</span>
+                    </button>
+                    <div id="sidebar-body">
                     <div class="card shadow-sm mb-3">
                         <div class="card-header d-flex align-items-center gap-2 flex-wrap">
+                            <button type="button" class="btn btn-sm btn-link text-body-secondary p-0 panel-chevron" data-bs-toggle="collapse" data-bs-target="#files-body" aria-expanded="true" aria-controls="files-body" title="Collapse or expand">
+                                <i class="bi bi-chevron-down"></i>
+                            </button>
                             <span class="fw-semibold me-auto"><i class="bi bi-images me-1"></i>Scanned sheets</span>
                             <input type="file" id="zip-input" accept=".zip,application/zip" hidden />
                             <input type="file" id="images-input" accept="image/png,image/jpeg,.png,.jpg,.jpeg" multiple hidden />
@@ -50,7 +59,11 @@
                                 <button type="button" class="btn btn-outline-secondary" id="btn-images"><i class="bi bi-file-earmark-image"></i> Images</button>
                                 <button type="button" class="btn btn-outline-secondary" id="btn-clear-files" title="Clear"><i class="bi bi-x-lg"></i></button>
                             </div>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-sidebar-collapse" title="Hide the sidebar" aria-label="Hide the sidebar">
+                                <i class="bi bi-chevron-double-left"></i>
+                            </button>
                         </div>
+                        <div class="collapse show" id="files-body">
                         <div class="card-body">
                             <div class="drop-zone" id="drop-zone">
                                 <div class="file-box border rounded" id="file-box">
@@ -66,11 +79,18 @@
                                 Pages are graded in order: zip entries as stored, images by file name. Keep each student's pages together, page 1 first.
                             </div>
                         </div>
+                        </div>
                     </div>
 
                     <div class="card shadow-sm mb-3">
+                        <div class="card-header d-flex align-items-center gap-2">
+                            <button type="button" class="btn btn-sm btn-link text-body-secondary p-0 panel-chevron" data-bs-toggle="collapse" data-bs-target="#test-body" aria-expanded="true" aria-controls="test-body" title="Collapse or expand">
+                                <i class="bi bi-chevron-down"></i>
+                            </button>
+                            <span class="fw-semibold"><i class="bi bi-key me-1"></i>Test</span>
+                        </div>
+                        <div class="collapse show" id="test-body">
                         <div class="card-body">
-                            <label class="form-label fw-semibold" for="btn-test-file"><i class="bi bi-key me-1"></i>Test</label>
                             <div class="input-group">
                                 <span class="form-control text-truncate text-body-secondary" id="test-name">No test chosen</span>
                                 <input type="file" id="test-file" accept=".json,application/json" hidden />
@@ -103,6 +123,7 @@
                                 </div>
                             </div>
                         </div>
+                        </div>
                         <div class="card-footer d-flex align-items-center gap-2 flex-wrap">
                             <button type="button" class="btn btn-primary" id="btn-grade" disabled><i class="bi bi-play-fill me-1"></i>Grade</button>
                             <button type="button" class="btn btn-outline-danger d-none" id="btn-cancel"><i class="bi bi-stop-fill me-1"></i>Cancel</button>
@@ -111,10 +132,11 @@
                     </div>
 
                     <div class="alert alert-danger d-none" id="input-error" role="alert"></div>
+                    </div>
                 </div>
 
                 <!-- Run + results -->
-                <div class="col-lg-7">
+                <div class="col-lg-7" id="right-col">
                     <div class="card shadow-sm" id="empty-state">
                         <div class="card-body text-center text-body-secondary py-5">
                             <i class="bi bi-table display-4 d-block mb-3"></i>
@@ -130,6 +152,7 @@
                                     <span class="spinner-border spinner-border-sm text-primary" id="run-spinner" aria-hidden="true"></span>
                                     <i class="bi d-none" id="run-icon"></i>
                                     <span class="fw-semibold" id="run-status"></span>
+                                    <button type="button" class="btn btn-sm btn-outline-danger ms-auto d-none" id="btn-cancel-run"><i class="bi bi-stop-fill me-1"></i>Cancel</button>
                                 </div>
                                 <div class="progress" role="progressbar" aria-label="Pages read" id="progress">
                                     <div class="progress-bar" id="progress-bar" style="width: 0%"></div>
@@ -147,13 +170,22 @@
                             <div class="card-header d-flex align-items-center gap-2 flex-wrap">
                                 <span class="fw-semibold me-auto"><i class="bi bi-person-check me-1"></i>Check before grading</span>
                                 <span class="small text-body-secondary" id="review-counts"></span>
+                                <div class="btn-group btn-group-sm" role="group" aria-label="Which sheets to show">
+                                    <input type="radio" class="btn-check" name="review-view" id="view-all" value="all" autocomplete="off" checked />
+                                    <label class="btn btn-outline-primary" for="view-all">All Sheets <span class="badge text-bg-secondary" id="view-all-count"></span></label>
+                                    <input type="radio" class="btn-check" name="review-view" id="view-flagged" value="flagged" autocomplete="off" />
+                                    <label class="btn btn-outline-primary" for="view-flagged">Sheets That Need Review <span class="badge text-bg-warning" id="view-flagged-count"></span></label>
+                                </div>
                             </div>
                             <div class="card-body small text-body-secondary py-2">
                                 Check each name against the handwriting, pick the answer for any bubble too faint to call (click the bubble or
                                 its letter), and check the points each written answer was given. <strong>Skip</strong> leaves a submission out of the grades.
                             </div>
                             <fieldset id="review-fieldset">
-                                <ul class="list-group list-group-flush" id="review-list"></ul>
+                                <ul class="review-sheets list-unstyled d-flex flex-column gap-4 p-3 mb-0" id="review-list"></ul>
+                                <div class="text-center text-body-secondary py-4 d-none" id="review-empty">
+                                    <i class="bi bi-check2-circle fs-2 d-block mb-1"></i>No sheets need review.
+                                </div>
                             </fieldset>
                             <div class="card-footer d-flex align-items-center gap-2 flex-wrap">
                                 <button type="submit" class="btn btn-primary" id="btn-finish-review"><i class="bi bi-check2-all me-1"></i>Grade with these</button>

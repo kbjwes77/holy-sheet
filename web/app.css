@@ -280,3 +280,61 @@
 .review-skipped .review-body {
     opacity: 0.45;
 }
+
+/* Review: each sheet is its own card, so where one student's sheet ends and the next begins is clear. */
+.review-sheets {
+    background: var(--bs-tertiary-bg);
+}
+.review-sheet {
+    border-width: 2px;
+    border-color: var(--bs-border-color);
+}
+.review-sheet-head {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    background: var(--bs-secondary-bg);
+    border-bottom-width: 2px;
+}
+.review-sheet.review-skipped {
+    border-style: dashed;
+}
+
+/* The left column collapses to a slim rail so the review can use the width. */
+.panel-chevron i {
+    display: inline-block;
+    transition: transform 0.15s;
+}
+.panel-chevron[aria-expanded="false"] i {
+    transform: rotate(-90deg);
+}
+.grader-rail {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    width: 100%;
+}
+.sidebar-collapsed #sidebar-body {
+    display: none;
+}
+.sidebar-collapsed .grader-rail {
+    display: flex;
+}
+@media (min-width: 992px) {
+    .grader-rail {
+        flex-direction: column;
+        padding: 0.75rem 0;
+    }
+    .grader-rail-label {
+        writing-mode: vertical-rl;
+    }
+    #grader-row.sidebar-collapsed > #left-col {
+        flex: 0 0 auto;
+        width: 3rem;
+    }
+    #grader-row.sidebar-collapsed > #right-col {
+        flex: 1 1 0;
+        width: auto;
+    }
+}

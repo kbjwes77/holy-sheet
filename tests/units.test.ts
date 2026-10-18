@@ -189,6 +189,19 @@ describe("ocr", () => {
         expect(calls).toBe(3);
     });
 
+    test("logs each call's label, time, tokens and cost", async () => {
+        const fakeFetch = (async () =>
+            Response.json({
+                choices: [{ message: { content: '{"name":"Jane Doe"}' } }],
+                usage: { prompt_tokens: 4200, completion_tokens: 12, total_tokens: 4212, cost: 0.0123 },
+            })) as unknown as typeof fetch;
+        const lines: string[] = [];
+        const r = new OpenRouterReader({ apiKey: "k", model: "m", fetch: fakeFetch, log: (l) => lines.push(l) });
+        await r.readName(new Uint8Array([1]), "sheet-03.jpg");
+        expect(lines).toHaveLength(1);
+        expect(lines[0]).toMatch(/^OCR Name for 'sheet-03\.jpg' took \d+\.\ds \(4\.2k input, 12 output, \$0\.01\)$/);
+    });
+
     test("does not retry client errors", async () => {
         let calls = 0;
         const fakeFetch = (async () => {

@@ -214,7 +214,7 @@ async function readResponse(grader: ResponseGrader, key: FreeKey, file: string, 
     if (!text.text) return { ...base, ...text, points: 0, feedback: BLANK_FEEDBACK };
     if (!text.legible && !review) return { ...base, ...text, error: "answer is partly illegible" };
     try {
-        const g = await grader.gradeResponse(key, text.text, r.index);
+        const g = await grader.gradeResponse(key, text.text, r.index, file);
         return { ...base, ...text, points: Math.max(0, Math.min(key.points, Math.round(g.points))), feedback: g.feedback };
     } catch (e) {
         return { ...base, ...text, error: `grading failed: ${(e as Error).message}` };

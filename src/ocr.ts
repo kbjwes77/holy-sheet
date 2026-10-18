@@ -1,5 +1,6 @@
 // The model calls behind interfaces, with an OpenRouter implementation: student-name OCR, and for
 // free-response questions, transcribing the handwritten answer and grading the transcript.
+import OpenAI from "openai";
 import type { FreeKey } from "./key.ts";
 
 export interface NameReader {
@@ -25,14 +26,14 @@ export interface ResponseGrader {
     /** Transcribes the handwriting in the PNG crop of question `question`'s (0-based) answer box. */
     readResponse(png: Uint8Array, file: string, question: number, prompt: string): Promise<ResponseText>;
     /** Grades a transcribed answer to question `question` against its model answer (and rubric). */
-    gradeResponse(key: FreeKey, text: string, question: number): Promise<ResponseGrade>;
+    gradeResponse(key: FreeKey, text: string, question: number, file?: string): Promise<ResponseGrade>;
 }
 
 export class OcrError extends Error {
     override name = "OcrError";
 }
 
-export const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
+export const OPENROUTER_URL = "https://openrouter.ai/api/v1";
 
 const NAME_PROMPT =
     "This image is the 'Name (first and last)' box from a student's test sheet. Read the handwritten " +
@@ -127,35 +128,67 @@ export interface OpenRouterOptions {
     retries?: number;
     /** Base backoff in ms; doubles per attempt. */
     backoffMs?: number;
+    /** Receives one line per finished model call: what it was, how long it took, tokens and cost. */
+    log?: (line: string) => void;
 }
 
-type Content = string | ({ type: "text"; text: string } | { type: "image_url"; image_url: { url: string } })[];
+type Content = Exclude<OpenAI.Chat.ChatCompletionUserMessageParam["content"], undefined>;
 
 const image = (png: Uint8Array) => ({ type: "image_url" as const, image_url: { url: `data:image/png;base64,${Buffer.from(png).toString("base64")}` } });
 
+/** 1234 → "1.2k"; 4000 → "4k". */
+function tokens(n: number): string {
+    return n < 1000 ? String(n) : `${+(n / 1000).toFixed(1)}k`;
+}
+
+/** What one call used, as `(4k input, 1k output, $0.01)`; the cost only when OpenRouter reports it. */
+function usageNote(usage: OpenAI.CompletionUsage | undefined): string {
+    if (!usage) return "";
+    // OpenRouter adds the cost in credits (dollars) to the usage when asked with `usage: {include: true}`.
+    const cost = (usage as { cost?: unknown }).cost;
+    const parts = [`${tokens(usage.prompt_tokens)} input`, `${tokens(usage.completion_tokens)} output`];
+    if (typeof cost === "number") parts.push(`$${cost.toFixed(cost >= 0.01 ? 2 : 4)}`);
+    return ` (${parts.join(", ")})`;
+}
+
+const seconds = (ms: number) => `${(ms / 1000).toFixed(1)}s`;
+
 /** Every model call: one OpenRouter model at temperature 0 with JSON replies, retrying transient failures. */
 export class OpenRouterReader implements NameReader, ResponseGrader {
-    constructor(private readonly o: OpenRouterOptions) {}
+    private readonly client: OpenAI;
 
-    async readName(png: Uint8Array): Promise<string> {
-        return parseNameReply(await this.chat([{ type: "text", text: NAME_PROMPT }, image(png)]));
+    constructor(private readonly o: OpenRouterOptions) {
+        // Retries are ours, so the backoff and what counts as transient stay in one place.
+        this.client = new OpenAI({ apiKey: o.apiKey, baseURL: OPENROUTER_URL, maxRetries: 0, ...(o.fetch ? { fetch: o.fetch } : {}) });
     }
 
-    async readResponse(png: Uint8Array, _file: string, _question: number, prompt: string): Promise<ResponseText> {
-        return parseResponseReply(await this.chat([{ type: "text", text: responsePrompt(prompt) }, image(png)]));
+    async readName(png: Uint8Array, file = ""): Promise<string> {
+        const reply = await this.chat(`OCR Name for '${file}'`, [{ type: "text", text: NAME_PROMPT }, image(png)]);
+        return parseNameReply(reply);
     }
 
-    async gradeResponse(key: FreeKey, text: string): Promise<ResponseGrade> {
-        return parseGradeReply(await this.chat(gradingPrompt(key, text)), key.points);
+    async readResponse(png: Uint8Array, file: string, question: number, prompt: string): Promise<ResponseText> {
+        const reply = await this.chat(`OCR FRQ Question ${question + 1} for '${file}'`, [{ type: "text", text: responsePrompt(prompt) }, image(png)]);
+        return parseResponseReply(reply);
     }
 
-    private async chat(content: Content): Promise<string> {
+    async gradeResponse(key: FreeKey, text: string, question = 0, file = ""): Promise<ResponseGrade> {
+        const reply = await this.chat(`Grade FRQ Question ${question + 1} for '${file}'`, gradingPrompt(key, text));
+        return parseGradeReply(reply, key.points);
+    }
+
+    /** One logged call, retrying transient failures; the timing covers the retries. */
+    private async chat(label: string, content: Content): Promise<string> {
         const retries = this.o.retries ?? 3;
+        const start = performance.now();
         for (let attempt = 0; ; attempt++) {
             try {
-                return await this.once(content);
+                const { reply, usage } = await this.once(content);
+                this.o.log?.(`${label} took ${seconds(performance.now() - start)}${usageNote(usage)}${attempt ? ` after ${attempt} ${attempt === 1 ? "retry" : "retries"}` : ""}`);
+                return reply;
             } catch (e) {
                 if (!(e instanceof TransientError) || attempt >= retries) {
+                    this.o.log?.(`${label} failed after ${seconds(performance.now() - start)}: ${(e as Error).message}`);
                     throw e instanceof OcrError ? e : new OcrError((e as Error).message);
                 }
                 await Bun.sleep((this.o.backoffMs ?? 1000) * 2 ** attempt);
@@ -163,36 +196,32 @@ export class OpenRouterReader implements NameReader, ResponseGrader {
         }
     }
 
-    private async once(content: Content): Promise<string> {
-        const f = this.o.fetch ?? fetch;
-        let res: Response;
+    private async once(content: Content): Promise<{ reply: string; usage: OpenAI.CompletionUsage | undefined }> {
+        let completion: OpenAI.Chat.ChatCompletion;
         try {
-            res = await f(OPENROUTER_URL, {
-                method: "POST",
-                headers: { Authorization: `Bearer ${this.o.apiKey}`, "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    model: this.o.model,
-                    temperature: 0,
-                    response_format: { type: "json_object" },
-                    messages: [{ role: "user", content }],
-                }),
-            });
+            completion = await this.client.chat.completions.create({
+                model: this.o.model,
+                temperature: 0,
+                response_format: { type: "json_object" },
+                messages: [{ role: "user", content }],
+                // OpenRouter's usage accounting, for the cost in each call's log line.
+                usage: { include: true },
+            } as OpenAI.Chat.ChatCompletionCreateParamsNonStreaming);
         } catch (e) {
-            throw new TransientError(`request failed: ${(e as Error).message}`);
+            if (e instanceof OpenAI.APIConnectionError) throw new TransientError(`request failed: ${e.message}`);
+            if (e instanceof OpenAI.APIError) {
+                const msg = `OpenRouter HTTP ${e.status ?? "error"}: ${e.message.slice(0, 200)}`;
+                if (e.status === 429 || (e.status ?? 0) >= 500) throw new TransientError(msg);
+                throw new OcrError(msg);
+            }
+            // The SDK couldn't parse the body as JSON.
+            throw new TransientError(`OpenRouter returned an unreadable reply: ${(e as Error).message.slice(0, 120)}`);
         }
-        const text = await res.text();
-        if (res.status === 429 || res.status >= 500) throw new TransientError(`OpenRouter HTTP ${res.status}: ${text.slice(0, 200)}`);
-        if (!res.ok) throw new OcrError(`OpenRouter HTTP ${res.status}: ${text.slice(0, 200)}`);
-        let body: { choices?: { message?: { content?: unknown } }[]; error?: { message?: string } };
-        try {
-            body = JSON.parse(text);
-        } catch {
-            throw new TransientError(`OpenRouter returned non-JSON: ${text.slice(0, 120)}`);
-        }
-        if (body.error) throw new OcrError(`OpenRouter error: ${body.error.message ?? "unknown"}`);
-        const reply = body.choices?.[0]?.message?.content;
+        const err = (completion as { error?: { message?: string } }).error;
+        if (err) throw new OcrError(`OpenRouter error: ${err.message ?? "unknown"}`);
+        const reply = completion.choices?.[0]?.message?.content;
         if (typeof reply !== "string") throw new OcrError("OpenRouter reply has no message content");
-        return reply;
+        return { reply, usage: completion.usage };
     }
 }
 

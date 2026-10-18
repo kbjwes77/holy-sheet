@@ -207,9 +207,15 @@ function appendLog(text: string): void {
     cliLog.scrollTop = cliLog.scrollHeight;
 }
 
+/** Collapses the left column to a rail (or restores it), giving the review the width. */
+function setSidebarCollapsed(on: boolean): void {
+    $("grader-row").classList.toggle("sidebar-collapsed", on);
+}
+
 function setRunning(on: boolean): void {
     running = on;
     show($("btn-cancel"), on);
+    show($("btn-cancel-run"), on);
     for (const id of ["btn-zip", "btn-images", "btn-clear-files", "btn-test-file"]) $<HTMLButtonElement>(id).disabled = on;
     updateCommand();
 }
@@ -257,6 +263,7 @@ async function grade(): Promise<void> {
         if (v && !(Number(v) >= 0 && Number(v) <= 1)) return inputError(`${flag} threshold must be a number between 0 and 1.`);
     }
     resetResults();
+    setSidebarCollapsed(true);
     show($("empty-state"), false);
     show($("run"));
     setRunning(true);
@@ -272,6 +279,7 @@ async function grade(): Promise<void> {
         jobId = await upload(bytes, testFile, params);
     } catch (e) {
         setRunning(false);
+        setSidebarCollapsed(false);
         status(`Couldn't start grading: ${(e as Error).message}`, "error");
         progress(0, false);
         return;
@@ -363,6 +371,8 @@ interface SubmissionReview {
     /** Written answers, each with the points box the user can change. */
     responses: { item: ResponseItem; input: HTMLInputElement }[];
     skip: boolean;
+    /** Why this sheet needs a look, worked out when the review opens; empty for a clean sheet. */
+    flags: string[];
     nameInput: HTMLInputElement;
     dupNote: HTMLElement;
     li: HTMLElement;
@@ -390,7 +400,7 @@ function startReview(thresholds: ReviewThresholds, items: ReviewItem[]): void {
     for (const item of items) {
         // Each submission's name item comes before its other items. renderSubmission fills in
         // the elements.
-        if (item.kind === "name") subs[item.submission] = { name: item, answers: [], responses: [], skip: false } as unknown as SubmissionReview;
+        if (item.kind === "name") subs[item.submission] = { name: item, answers: [], responses: [], skip: false, flags: [] } as unknown as SubmissionReview;
         else if (item.kind === "response") subs[item.submission]!.responses.push({ item, input: null as unknown as HTMLInputElement });
         else {
             subs[item.submission]!.answers.push(item);
@@ -398,7 +408,15 @@ function startReview(thresholds: ReviewThresholds, items: ReviewItem[]): void {
         }
     }
     review = { thresholds, subs, total: items.length, chosen, replies: null, waiting: null };
-    reviewList.replaceChildren(...subs.map(renderSubmission));
+    const dups = duplicateNames(subs.map((s) => ({ name: s.name.ocr ?? "", file: s.name.files[0]! })));
+    for (const s of subs) s.flags = sheetFlags(s, dups);
+    reviewList.replaceChildren(...subs.map((s, i) => renderSubmission(s, i, subs.length)));
+    // Start on the sheets that need a look, or on everything when none do.
+    const flagged = subs.filter((s) => s.flags.length).length;
+    $("view-all-count").textContent = String(subs.length);
+    $("view-flagged-count").textContent = String(flagged);
+    $<HTMLInputElement>(flagged ? "view-flagged" : "view-all").checked = true;
+    applyReviewView();
     const answers = items.filter((i) => i.kind === "answer").length;
     const written = items.filter((i) => i.kind === "response").length;
     $("review-counts").textContent = [plural(subs.length, "name"), answers && plural(answers, "unclear answer"), written && plural(written, "written answer")]
@@ -417,11 +435,42 @@ function startReview(thresholds: ReviewThresholds, items: ReviewItem[]): void {
     $("review-card").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
-function renderSubmission(sub: SubmissionReview): HTMLElement {
-    const li = el("li", "list-group-item py-3");
+/** Why a sheet needs review: a name that wasn't read or is shared, unclear bubbles, or a written answer that's blank, unreadable or ungraded. */
+function sheetFlags(sub: SubmissionReview, dups: Map<string, string[]>): string[] {
+    const flags: string[] = [];
+    if (sub.name.ocr === null) flags.push("Name not recognized");
+    else if (dups.has(sub.name.ocr.trim().toLowerCase())) flags.push("Duplicate name");
+    if (sub.answers.length) flags.push(`${plural(sub.answers.length, "unclear answer")}`);
+    const written = sub.responses.map((r) => r.item);
+    if (written.some((r) => r.text === null || r.points === null)) flags.push("Grading error");
+    if (written.some((r) => r.text === "")) flags.push("Blank written answer");
+    if (written.some((r) => r.text && !r.legible)) flags.push("Illegible writing");
+    return flags;
+}
+
+/** Shows every sheet, or only those with flags, per the view toggle. */
+function applyReviewView(): void {
+    if (!review) return;
+    const all = $<HTMLInputElement>("view-all").checked;
+    for (const s of review.subs) show(s.li, all || s.flags.length > 0);
+    show($("review-empty"), !all && !review.subs.some((s) => s.flags.length));
+}
+
+/** Switches to every sheet if `field` sits in a hidden one, so the user can see it. */
+function revealIfHidden(field: HTMLElement): void {
+    if (field.closest("li.d-none")) {
+        $<HTMLInputElement>("view-all").checked = true;
+        applyReviewView();
+    }
+}
+
+function renderSubmission(sub: SubmissionReview, index: number, count: number): HTMLElement {
+    const li = el("li", "card review-sheet shadow-sm");
     sub.li = li;
-    const head = el("div", "d-flex align-items-center gap-2 mb-2");
+    const head = el("div", "card-header review-sheet-head d-flex align-items-center gap-2 flex-wrap");
+    head.append(el("span", "fw-semibold text-nowrap", `Sheet ${index + 1} of ${count}`));
     head.append(el("span", "small font-monospace text-body-secondary text-truncate me-auto", sub.name.files.join(", ")));
+    for (const f of sub.flags) head.append(el("span", "badge text-bg-warning", f));
     const skip = el("button", "btn btn-sm btn-outline-secondary text-nowrap");
     skip.type = "button";
     const label = () => {
@@ -438,7 +487,7 @@ function renderSubmission(sub: SubmissionReview): HTMLElement {
     });
     head.append(skip);
 
-    const body = el("div", "review-body");
+    const body = el("div", "card-body review-body");
     const row = el("div", "row g-2 align-items-center");
     const imgCol = el("div", "col-sm-6");
     const img = el("img", "review-name-crop border rounded");
@@ -645,6 +694,7 @@ function reviewReplies(): Map<number, string> | null {
         }
     }
     if (firstBad) {
+        revealIfHidden(firstBad);
         reviewError.textContent = "Every submission needs a name and points for each written answer (a whole number up to its points), or skip it.";
         firstBad.focus();
         return null;
@@ -686,6 +736,7 @@ function onReviewError(item: number, text: string): void {
     unlockReview();
     const where = review?.subs.find((s) => s.name.id === item || s.answers.some((a) => a.id === item) || s.responses.some((r) => r.item.id === item));
     reviewError.textContent = `The grader rejected this: ${text}`;
+    if (where) revealIfHidden(where.li);
     where?.li.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
@@ -951,6 +1002,10 @@ testFile.addEventListener("change", () => {
 for (const o of [optMark, optBlank, optDebug]) o.addEventListener("input", updateCommand);
 $("btn-grade").addEventListener("click", () => void grade());
 $("btn-cancel").addEventListener("click", cancel);
+$("btn-cancel-run").addEventListener("click", cancel);
+$("btn-sidebar-collapse").addEventListener("click", () => setSidebarCollapsed(true));
+$("btn-sidebar-expand").addEventListener("click", () => setSidebarCollapsed(false));
+for (const r of document.querySelectorAll<HTMLInputElement>('input[name="review-view"]')) r.addEventListener("change", applyReviewView);
 $("review-card").addEventListener("submit", (e) => {
     e.preventDefault();
     finishReview();

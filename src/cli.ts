@@ -143,7 +143,8 @@ export async function main(argv: string[], deps: CliDeps = {}): Promise<number> 
             return 1;
         }
         // Tests may mock only names; free-response calls then go to OpenRouter only when it's set up.
-        const reader = missing.length ? undefined : new OpenRouterReader({ apiKey: apiKey!, model: model! });
+        const reader = missing.length ? undefined : new OpenRouterReader({ apiKey: apiKey!, model: model!, log: (line) => err(`${line}
+`) });
         nameReader ??= reader!;
         responseGrader ??= reader;
     }
