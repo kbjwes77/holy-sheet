@@ -15,10 +15,10 @@
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
-    border: 2px dashed var(--bs-primary);
-    border-radius: var(--bs-border-radius);
-    background: rgba(var(--bs-primary-rgb), 0.08);
-    color: var(--bs-primary);
+    border: 2px dashed var(--bs-primary-base);
+    border-radius: var(--bs-radius-5);
+    background: color-mix(in oklab, var(--bs-primary-base) 8%, transparent);
+    color: var(--bs-primary-base);
     font-weight: 600;
     pointer-events: none;
 }
@@ -127,7 +127,7 @@
     overflow: auto;
     white-space: pre-wrap;
     word-break: break-word;
-    background: var(--bs-tertiary-bg);
+    background: var(--bs-bg-2);
 }
 .grade-meter {
     width: 5rem;
@@ -192,11 +192,11 @@
     transform: translate(-2px, -2px);
 }
 .review-ring.unclear {
-    border-color: var(--bs-warning);
+    border-color: var(--bs-warning-base);
 }
 .review-ring.chosen {
-    border-color: var(--bs-primary);
-    background: rgba(var(--bs-primary-rgb), 0.25);
+    border-color: var(--bs-primary-base);
+    background: color-mix(in oklab, var(--bs-primary-base) 25%, transparent);
 }
 .review-ring-label {
     position: absolute;
@@ -226,7 +226,7 @@
     padding: 0.4rem 0.6rem;
     border: 1px solid var(--bs-border-color-translucent);
     border-radius: 0.6rem;
-    background: var(--bs-body-bg);
+    background: var(--bs-bg-body);
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
     cursor: pointer;
     user-select: none;
@@ -254,13 +254,13 @@
     font-size: 0.75rem;
     font-weight: 600;
     font-variant-numeric: tabular-nums;
-    color: var(--bs-secondary-color);
+    color: var(--bs-fg-2);
 }
 .review-chip-bar {
     grid-column: 1 / -1;
     height: 3px;
     border-radius: 2px;
-    background: var(--bs-secondary-bg);
+    background: var(--bs-bg-3);
     overflow: hidden;
 }
 .review-chip-bar > span {
@@ -269,13 +269,13 @@
     border-radius: inherit;
 }
 .review-chip-bar > .marked {
-    background: var(--bs-success);
+    background: var(--bs-success-base);
 }
 .review-chip-bar > .ambiguous {
-    background: var(--bs-warning);
+    background: var(--bs-warning-base);
 }
 .review-chip-bar > .blank {
-    background: var(--bs-gray-500);
+    background: var(--bs-bg-4);
 }
 .review-skipped .review-body {
     opacity: 0.45;
@@ -283,58 +283,174 @@
 
 /* Review: each sheet is its own card, so where one student's sheet ends and the next begins is clear. */
 .review-sheets {
-    background: var(--bs-tertiary-bg);
+    background: var(--bs-bg-2);
+    border-radius: var(--bs-radius-5);
 }
 .review-sheet {
     border-width: 2px;
-    border-color: var(--bs-border-color);
 }
 .review-sheet-head {
     position: sticky;
     top: 0;
     z-index: 3;
-    background: var(--bs-secondary-bg);
+    /* v6's .card-header is a column; this one is a single compact row. */
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.25rem 0.75rem;
+    background: var(--bs-bg-3);
     border-bottom-width: 2px;
+}
+.review-sheet-head > * {
+    flex-shrink: 0;
+}
+.review-sheet-head > .review-sheet-title {
+    flex: 1 1 0;
+    min-width: 0;
+    line-height: 1.3;
 }
 .review-sheet.review-skipped {
     border-style: dashed;
 }
 
-/* The left column collapses to a slim rail so the review can use the width. */
-.panel-chevron i {
-    display: inline-block;
-    transition: transform 0.15s;
-}
-.panel-chevron[aria-expanded="false"] i {
-    transform: rotate(-90deg);
-}
-.grader-rail {
-    display: none;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    width: 100%;
-}
-.sidebar-collapsed #sidebar-body {
-    display: none;
-}
-.sidebar-collapsed .grader-rail {
+/* The pinned status bar: a progress bar and status line, with the CLI output under its chevron. */
+.status-bar {
     display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    cursor: pointer;
+    list-style: none;
 }
-@media (min-width: 992px) {
-    .grader-rail {
-        flex-direction: column;
-        padding: 0.75rem 0;
-    }
-    .grader-rail-label {
-        writing-mode: vertical-rl;
-    }
-    #grader-row.sidebar-collapsed > #left-col {
-        flex: 0 0 auto;
-        width: 3rem;
-    }
-    #grader-row.sidebar-collapsed > #right-col {
-        flex: 1 1 0;
-        width: auto;
-    }
+.status-bar::-webkit-details-marker {
+    display: none;
+}
+.status-bars {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-width: 4rem;
+}
+.status-bar .progress {
+    height: 0.5rem;
+}
+.status-chevron {
+    transition: transform 0.2s;
+}
+.status-card[open] .status-chevron,
+.curve-panel[open] .status-chevron {
+    transform: rotate(-180deg);
+}
+.status-log {
+    padding: 0 1rem 1rem;
+}
+
+/* Accordion headers: the title, then a one-line summary of what was chosen. */
+.accordion-header > .text-truncate {
+    min-width: 0;
+}
+.grader-options > summary {
+    cursor: pointer;
+}
+.result-section {
+    margin-top: 1.5rem;
+}
+
+/* Correct responses by question: columns grow from one baseline, thin, with a 2px gap and a rounded top. */
+.difficulty-chart {
+    display: flex;
+    gap: 2px;
+    height: 10rem;
+    padding-top: 1.25rem;
+    overflow-x: auto;
+}
+.difficulty-axis {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    flex: 0 0 2.5rem;
+    padding-bottom: 1.25rem;
+    text-align: end;
+    padding-inline-end: 0.5rem;
+    line-height: 1;
+}
+.difficulty-col {
+    flex: 1 1 0;
+    min-width: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+.difficulty-plot {
+    position: relative;
+    flex: 1;
+    width: 100%;
+    max-width: 1.5rem;
+    border-bottom: 1px solid var(--bs-border-color);
+}
+.difficulty-plot::before {
+    content: "";
+    position: absolute;
+    inset-inline: -0.25rem;
+    top: 50%;
+    border-top: 1px solid var(--bs-border-color-translucent);
+}
+.difficulty-bar {
+    position: absolute;
+    inset-inline: 0;
+    bottom: 0;
+    min-height: 3px;
+    background: var(--bs-theme-bg);
+    border-radius: 4px 4px 0 0;
+}
+.difficulty-value {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+.difficulty-tick {
+    height: 1.25rem;
+    line-height: 1.25rem;
+}
+.difficulty-swatch {
+    display: inline-block;
+    width: 0.75rem;
+    height: 0.75rem;
+    border-radius: 2px;
+    background: var(--bs-theme-bg);
+}
+#result-alert {
+    margin-bottom: 1rem;
+}
+
+/* Curve Scores: a collapsible panel above the grades table. */
+.curve-summary {
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    cursor: pointer;
+}
+.curve-body {
+    padding: 0.75rem 0.75rem 1rem;
+    border-top: 1px solid var(--bs-border-color);
+}
+.curve-table {
+    max-height: 14rem;
+    overflow-y: auto;
+}
+.curve-table thead th {
+    position: sticky;
+    top: 0;
+    background: var(--bs-bg-2);
+}
+.curve-check {
+    width: 2rem;
+}
+.curve-points {
+    width: 5rem !important;
 }

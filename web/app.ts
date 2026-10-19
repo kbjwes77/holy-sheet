@@ -154,7 +154,7 @@ function generate(): void {
 }
 
 function badge(icon: string, text: string): HTMLElement {
-    const b = el("span", "badge rounded-pill text-bg-light border");
+    const b = el("span", "badge rounded-pill bg-2 fg-body border");
     b.append(el("i", `bi ${icon} me-1`), text);
     return b;
 }
@@ -215,7 +215,7 @@ function showOutput(g: Generated): void {
             const paper = el("div", "paper");
             paper.innerHTML = svg;
             const kind = answers === null ? "" : i >= firstAnswer ? " · Answer sheet (scanned)" : " · Questions";
-            wrap.append(paper, el("figcaption", "small text-body-secondary text-center mt-2", `Page ${i + 1} of ${g.pages.length}${kind}`));
+            wrap.append(paper, el("figcaption", "small fg-secondary text-center mt-3", `Page ${i + 1} of ${g.pages.length}${kind}`));
             return wrap;
         }),
     );
@@ -327,6 +327,10 @@ $("btn-print").addEventListener("click", () => window.print());
 $("btn-pdf").addEventListener("click", () => void downloadPdf());
 $("btn-copy-key").addEventListener("click", () => void copyKey());
 $("btn-copy-format").addEventListener("click", () => void copyFormatHelp());
+$("btn-format-help").addEventListener("click", (e) => {
+    const open = $("format-help").classList.toggle("d-none") === false;
+    (e.currentTarget as HTMLElement).setAttribute("aria-expanded", String(open));
+});
 $("btn-download-key").addEventListener("click", () => {
     if (current?.key) download(`${slug(current.test.title)}-key.txt`, new Blob([`${current.key}\n`], { type: "text/plain" }));
 });

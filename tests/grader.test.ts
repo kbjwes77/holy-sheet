@@ -104,6 +104,11 @@ describe("stderr parsing", () => {
         expect(summarizeStderr(["review: 2 item(s) to check, images in dir/review"]).reviewDir).toBe("dir/review");
     });
 
+    test("summarizes model request progress", () => {
+        expect(summarizeStderr(["requests 0/20", "OCR Name for 'a.jpg' took 1.2s", "requests 7/20"])).toMatchObject({ requestsDone: 7, requests: 20 });
+        expect(summarizeStderr(["decoded 1/1: a.jpg"])).toMatchObject({ requestsDone: 0, requests: 0 });
+    });
+
     test("summarizes progress, skipped submissions, debug dir and fatal errors", () => {
         const s = summarizeStderr([
             "decoded 1/3: p1.jpg",
@@ -119,6 +124,8 @@ describe("stderr parsing", () => {
         expect(s).toEqual({
             decoded: 2,
             pages: 3,
+            requestsDone: 0,
+            requests: 0,
             problemFiles: ["dir/p2.jpg"],
             skipped: [
                 { orphan: false, files: ["p1.jpg", "dir/p2.jpg"], reasons: ["dir/p2.jpg: QR code not found", "missing page(s) 2"] },

@@ -10,6 +10,7 @@
     "typescript": "^7.0.2"
   },
   "dependencies": {
+    "bootstrap": "6.0.0-alpha.1",
     "fflate": "^0.8.3",
     "openai": "^7.38.0",
     "sharp": "^0.35.5",

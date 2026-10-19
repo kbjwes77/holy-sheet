@@ -5,7 +5,7 @@ CSV row per student. See `Test Sheet Grader — Implementation Brief.md` for the
 
 ```sh
 bun install
-# .env needs OPENROUTER_API_KEY and OPENROUTER_MODEL (no default model)
+# .env needs OPENROUTER_API_KEY, VISION_MODEL (reads handwriting) and REASONING_MODEL (grades written answers); no defaults
 bun run grade.ts sheets.zip > grades.csv          # prompts for the key on stderr
 bun run grade.ts sheets.zip --test test.json      # key, points and free-response answers from the test's JSON
 bun run grade.ts sheets.zip --debug               # annotated images of every page
@@ -35,7 +35,7 @@ The grader crops each answer box from the page and sends it to the model twice:
    awards whole points from 0 to the question's `points`. It judges content only, ignoring
    spelling and grammar.
 
-Both calls use `OPENROUTER_MODEL` at temperature 0 and share the name OCR's retries and
+Transcribing uses `VISION_MODEL` and grading uses `REASONING_MODEL`, both at temperature 0, and share the name OCR's retries and
 concurrency. A blank box scores 0 without a grading call.
 
 Without `--review`, a box the model can't read, or a failed call, skips the submission with a

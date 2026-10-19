@@ -1,6 +1,6 @@
 // Builds a single self-contained HTML file (dist/web/sheet-generator.html) that works when
 // opened straight from disk: the app is bundled as a classic IIFE script and inlined with its
-// CSS, since browsers block module scripts on file:// URLs. Bootstrap still loads from its CDN.
+// CSS (Bootstrap's too), since browsers block module scripts on file:// URLs. Bootstrap Icons still load from their CDN.
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -29,6 +29,8 @@ const swap = (from: string, to: string) => {
     html = html.replace(from, () => to);
 };
 html = html.replace(/[ \t]*<!-- source-only:start -->[\s\S]*?<!-- source-only:end -->\n?/, "");
+const bootstrapCss = await Bun.file(join(root, "..", "node_modules", "bootstrap", "dist", "css", "bootstrap.min.css")).text();
+swap(`<link rel="stylesheet" href="../node_modules/bootstrap/dist/css/bootstrap.min.css" />`, `<style>\n${bootstrapCss}</style>`);
 swap(`<link rel="stylesheet" href="./app.css" />`, `<style>\n${css}</style>`);
 swap(`<script type="module" src="./app.ts"></script>`, `<script>${js}</script>`);
 

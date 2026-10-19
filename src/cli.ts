@@ -6,7 +6,7 @@ import { parseSheetJson } from "../gen/testdef.ts";
 import { csvHeader, csvRow, gradedRowFields } from "./csv.ts";
 import { renderDebug } from "./debug.ts";
 import { ask, checkKey, choiceKey, KeyAbortError, LineReader, promptKey, type GradingKey } from "./key.ts";
-import { OpenRouterReader, type NameReader, type ResponseGrader } from "./ocr.ts";
+import { CallStats, OpenRouterReader, describeReasoning, fetchModelInfo, reasoningFor, type NameReader, type ResponseGrader } from "./ocr.ts";
 import { DEFAULT_THRESHOLDS, type Thresholds } from "./pipeline.ts";
 import { debugImageName, debugWrittenLine, skippedHeader, skippedReasonLine } from "./report.ts";
 import { parseReviewReply, REVIEW_FILE, reviewPrompt, reviewStartLine, type ReviewDecision, type ReviewFile } from "./review.ts";
@@ -132,18 +132,24 @@ export async function main(argv: string[], deps: CliDeps = {}): Promise<number> 
         testKey = loaded.key;
     }
 
+    const stats = new CallStats();
     let nameReader = deps.nameReader;
     let responseGrader = deps.responseGrader;
     if (!nameReader || !responseGrader) {
         const apiKey = env.OPENROUTER_API_KEY;
-        const model = env.OPENROUTER_MODEL;
-        const missing = [!apiKey && "OPENROUTER_API_KEY", !model && "OPENROUTER_MODEL"].filter(Boolean);
+        const visionModel = env.VISION_MODEL;
+        const reasoningModel = env.REASONING_MODEL;
+        const missing = [!apiKey && "OPENROUTER_API_KEY", !visionModel && "VISION_MODEL", !reasoningModel && "REASONING_MODEL"].filter(Boolean);
         if (missing.length && !nameReader) {
             err(`fatal: ${missing.join(" and ")} must be set (e.g. in .env)\n`);
             return 1;
         }
         // Tests may mock only names; free-response calls then go to OpenRouter only when it's set up.
-        const reader = missing.length ? undefined : new OpenRouterReader({ apiKey: apiKey!, model: model!, log: (line) => err(`${line}
+        // The lowest reasoning each model allows (OCR: off if it can be; grading: "low" at the least).
+        const info = missing.length ? new Map() : await fetchModelInfo([visionModel!, reasoningModel!]);
+        const reasoning = { vision: reasoningFor(info.get(visionModel!), "ocr"), grading: reasoningFor(info.get(reasoningModel!), "grade") };
+        if (!missing.length) err(`reasoning: ${visionModel} ${describeReasoning(reasoning.vision)}, ${reasoningModel} ${describeReasoning(reasoning.grading)}\n`);
+        const reader = missing.length ? undefined : new OpenRouterReader({ stats, reasoning, apiKey: apiKey!, visionModel: visionModel!, reasoningModel: reasoningModel!, sessionId: `grader-${crypto.randomUUID()}`, log: (line) => err(`${line}
 `) });
         nameReader ??= reader!;
         responseGrader ??= reader;
@@ -177,6 +183,10 @@ export async function main(argv: string[], deps: CliDeps = {}): Promise<number> 
             thresholds,
             getKey,
             onProgress: (m) => err(`${m}\n`),
+            // Time and cost of the model requests, per task and in all, as soon as they're done.
+            onRequestsDone: () => {
+                for (const line of stats.summary()) err(`${line}\n`);
+            },
             ...(args.values.review ? { review: reviewHooks(join(dir, "review"), thresholds, lines, err) } : {}),
         });
     } catch (e) {

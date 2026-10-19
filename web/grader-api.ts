@@ -46,7 +46,7 @@ export interface GraderApiOptions {
     keepMs?: number;
 }
 
-const OCR_VARS = ["OPENROUTER_API_KEY", "OPENROUTER_MODEL"] as const;
+const OCR_VARS = ["OPENROUTER_API_KEY", "VISION_MODEL", "REASONING_MODEL"] as const;
 const RATIO = /^(?:\d+(?:\.\d*)?|\.\d+)$/;
 
 /** Upload name → a safe file name ending in `ext` (the zip's is shown in the CLI's summary line). */

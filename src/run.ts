@@ -8,7 +8,7 @@ import type { FreeKey, GradingKey } from "./key.ts";
 import { answerRingRadius, colX, LAYOUT, ringCol, ringRadius, rowY } from "./layout.ts";
 import { limitConcurrency, type NameReader, type ResponseGrader } from "./ocr.ts";
 import { DEFAULT_THRESHOLDS, processPage, type PageResult, type QuestionRead, type Thresholds } from "./pipeline.ts";
-import { decodedLine } from "./report.ts";
+import { decodedLine, requestsLine } from "./report.ts";
 import { SKIPPED_IN_REVIEW, type AnswerItem, type ReviewDecision, type ReviewItem } from "./review.ts";
 import { readZipImages } from "./zip.ts";
 
@@ -28,6 +28,8 @@ export interface RunOptions {
     thresholds?: Thresholds;
     ocrConcurrency?: number;
     onProgress?: (msg: string) => void;
+    /** Called once every model request has finished, before any review (a failed request counts as finished). */
+    onRequestsDone?: () => void;
     /**
      * Turns on review: unclear marks, names and free-response answers are asked about instead of
      * skipping the submission, and every name and free-response grade is confirmed. `begin` gets
@@ -122,6 +124,24 @@ export async function gradeZip(zip: Uint8Array, o: RunOptions): Promise<RunResul
         : groups;
     const valid = reviewable.filter((g) => !g.reasons.length);
 
+    // Every model request this run will make: a name for each submission, and for each written
+    // answer a transcription and a grading. One that isn't needed (a blank box isn't graded) still
+    // counts as finished, so the total is reached.
+    const nameRequests = valid.filter((g) => g.pages[0]!.nameCrop).length;
+    const boxes = freeIndexes.length ? valid.reduce((n, g) => n + g.pages.reduce((m, p) => m + (p.responses?.length ?? 0), 0), 0) : 0;
+    const totalRequests = nameRequests + 2 * boxes;
+    let doneRequests = 0;
+    // Nothing is written while the key prompt waits for a reply on the same stderr line; the count
+    // catches up once the key is in.
+    let reporting = false;
+    const report = () => {
+        if (totalRequests && reporting) o.onProgress?.(requestsLine(doneRequests, totalRequests));
+    };
+    const tick = () => {
+        doneRequests++;
+        report();
+    };
+
     // OCR runs while the key prompt waits.
     const read = limitConcurrency(o.ocrConcurrency ?? 4, (png: Uint8Array, file: string) => o.nameReader.readName(png, file));
     const names = new Map<Group<PageResult>, Promise<{ name?: string; error?: string }>>(
@@ -129,8 +149,8 @@ export async function gradeZip(zip: Uint8Array, o: RunOptions): Promise<RunResul
             const first = g.pages[0]!;
             const p = first.nameCrop
                 ? read(first.nameCrop, first.file).then(
-                      (name) => (name ? { name } : { error: "name is empty or illegible" }),
-                      (e: Error) => ({ error: `OCR failed: ${e.message}` }),
+                      (name) => (tick(), name ? { name } : { error: "name is empty or illegible" }),
+                      (e: Error) => (tick(), { error: `OCR failed: ${e.message}` }),
                   )
                 : Promise.resolve({ error: "no name crop" });
             return [g, p] as const;
@@ -145,14 +165,37 @@ export async function gradeZip(zip: Uint8Array, o: RunOptions): Promise<RunResul
         free,
     );
 
+    reporting = true;
+    report();
+
     // Free-response answers need the key (their prompts and model answers), so they start now.
     const responses = new Map<Group<PageResult>, Promise<ResponseRead[]>>();
     if (freeIndexes.length) {
-        const grade = limitConcurrency(o.ocrConcurrency ?? 4, (p: PageResult, r: { index: number; png: Uint8Array }) =>
-            readResponse(o.responseGrader!, key[r.index] as FreeKey, p.file, r, !!o.review),
+        // Transcribing (the vision model) and grading (the reasoning model) each get their own
+        // slots, so quick transcriptions don't queue behind slow grades, and each model sees a steady
+        // run of its own requests.
+        const limits = { transcribe: limiter(o.ocrConcurrency ?? 4), grade: limiter(o.ocrConcurrency ?? 4) };
+        // Start the answers question by question, so the grading prompts that share a question's
+        // prefix reach the grading model close together while a provider's prompt cache is warm.
+        // Each student's reads keep their page order.
+        const next = new Map<Group<PageResult>, number>();
+        const jobs = valid.flatMap((g) =>
+            g.pages.flatMap((p) =>
+                (p.responses ?? []).map((r) => {
+                    const slot = next.get(g) ?? 0;
+                    next.set(g, slot + 1);
+                    return { g, p, r, slot };
+                }),
+            ),
         );
-        for (const g of valid) responses.set(g, Promise.all(g.pages.flatMap((p) => (p.responses ?? []).map((r) => grade(p, r)))));
+        const slots = new Map(valid.map((g) => [g, [] as Promise<ResponseRead>[]]));
+        for (const j of [...jobs].sort((a, b) => a.r.index - b.r.index)) slots.get(j.g)![j.slot] = readResponse(o.responseGrader!, key[j.r.index] as FreeKey, j.p.file, j.r, !!o.review, limits, tick);
+        for (const g of valid) responses.set(g, Promise.all(slots.get(g)!));
     }
+
+    // Names and written answers never reject (a failed request becomes an error on its result).
+    await Promise.all([...names.values(), ...responses.values()]);
+    o.onRequestsDone?.();
 
     const decisions = o.review ? await reviewSubmissions(valid, names, responses, key, o.review) : undefined;
 
@@ -199,24 +242,52 @@ export async function gradeZip(zip: Uint8Array, o: RunOptions): Promise<RunResul
     return { rows, skipped, pages, problemPages: pages.filter((p) => skippedFiles.has(p.file) || p.reasons.length), free: freeIndexes };
 }
 
+/** Runs a request once one of a limited number of slots is free. */
+type Limiter = <T>(fn: () => Promise<T>) => Promise<T>;
+function limiter(limit: number): Limiter {
+    const run = limitConcurrency(limit, (fn: () => Promise<unknown>) => fn());
+    return <T>(fn: () => Promise<T>) => run(fn) as Promise<T>;
+}
+
 /**
  * Transcribes one answer box, then grades it. A blank box scores 0 without a grading call. A
  * partly illegible one is graded on its best reading only under review, where the teacher sees it.
  */
-async function readResponse(grader: ResponseGrader, key: FreeKey, file: string, r: { index: number; png: Uint8Array }, review: boolean): Promise<ResponseRead> {
+async function readResponse(
+    grader: ResponseGrader,
+    key: FreeKey,
+    file: string,
+    r: { index: number; png: Uint8Array },
+    review: boolean,
+    /** Concurrency limits for the two kinds of request. */
+    limits: { transcribe: Limiter; grade: Limiter },
+    /** Called once per request this answer accounts for: its transcription and its grading, made or not. */
+    tick: () => void,
+): Promise<ResponseRead> {
     const base = { index: r.index, file, png: r.png, points: null, feedback: "" };
     let text;
     try {
-        text = await grader.readResponse(r.png, file, r.index, key.prompt);
+        text = await limits.transcribe(() => grader.readResponse(r.png, file, r.index, key.prompt));
     } catch (e) {
+        tick();
+        tick();
         return { ...base, text: null, legible: false, error: `OCR failed: ${(e as Error).message}` };
     }
-    if (!text.text) return { ...base, ...text, points: 0, feedback: BLANK_FEEDBACK };
-    if (!text.legible && !review) return { ...base, ...text, error: "answer is partly illegible" };
+    tick();
+    if (!text.text) {
+        tick();
+        return { ...base, ...text, points: 0, feedback: BLANK_FEEDBACK };
+    }
+    if (!text.legible && !review) {
+        tick();
+        return { ...base, ...text, error: "answer is partly illegible" };
+    }
     try {
-        const g = await grader.gradeResponse(key, text.text, r.index, file);
+        const g = await limits.grade(() => grader.gradeResponse(key, text.text, r.index, file));
+        tick();
         return { ...base, ...text, points: Math.max(0, Math.min(key.points, Math.round(g.points))), feedback: g.feedback };
     } catch (e) {
+        tick();
         return { ...base, ...text, error: `grading failed: ${(e as Error).message}` };
     }
 }
@@ -247,6 +318,15 @@ async function reviewSubmissions(
                 files: g.pages.map((p) => p.file),
                 ocr: ocr.name ?? null,
                 ...(ocr.error ? { error: ocr.error } : {}),
+                stats: {
+                    total: key.reduce((n, e) => n + e.points, 0),
+                    choice: g.pages.flatMap((p) =>
+                        (p.questions ?? []).flatMap((q) => {
+                            const e = key[q.index];
+                            return e?.type === "choice" ? [{ question: q.index + 1, points: e.points, answer: e.answer, marked: q.marked }] : [];
+                        }),
+                    ),
+                },
             },
             png: g.pages[0]!.nameCrop ?? new Uint8Array(),
             group: g,

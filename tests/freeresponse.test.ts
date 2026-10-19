@@ -338,6 +338,31 @@ describe("simulated free-response sheets", () => {
     );
 
     test(
+        "written answers are read question by question, so grading prompts sharing a prefix run together",
+        async () => {
+            const fx = await makeFixture({ seed: 47, students: 3, questions: 8, freeRate: 0.5, profiles: ["clean"] });
+            const calls = { read: [] as number[], graded: [] as string[] };
+            const progress: string[] = [];
+            const result = await gradeZip(fx.zip, { nameReader: mockReader(fx), responseGrader: mockGrader(fx, calls), getKey: async () => fx.grading, onProgress: (m) => progress.push(m) });
+            expect(result.skipped).toEqual([]);
+            // The request count: a name per student, and a transcription and a grading per written answer, all finished.
+            const boxes = fx.students.length * fx.dummy.free!.filter(Boolean).length;
+            const requests = progress.flatMap((m) => (/^requests (\d+)\/(\d+)$/.exec(m) ? [m.slice(9).split("/").map(Number)] : []));
+            const total = fx.students.length + 2 * boxes;
+            // Reported once the key is in (some names may already be done), then after every request, ending complete.
+            expect(requests.every(([, t]) => t === total)).toBe(true);
+            expect(requests.at(-1)).toEqual([total, total]);
+            expect(requests.map((r) => r[0]!)).toEqual(requests.map((r) => r[0]!).sort((x, y) => x - y));
+            expect(calls.read.length).toBe(fx.students.length * fx.dummy.free!.filter(Boolean).length);
+            // Calls start in question order (a question's calls for every student before the next question's).
+            expect(calls.read).toEqual([...calls.read].sort((a, b) => a - b));
+            // Reordering the calls doesn't change anyone's results.
+            expect(result.rows.map((r) => ({ name: r.name, score: r.score, total: r.total }))).toEqual(fx.expected.map((e) => ({ name: e.name, score: e.score, total: e.total })));
+        },
+        300_000,
+    );
+
+    test(
         "an unreadable answer skips the submission, or under review is asked about and settled",
         async () => {
             const fx = await makeFixture({ seed: 44, students: 2, questions: 8, freeRate: 0.4, profiles: ["clean"] });
@@ -361,6 +386,12 @@ describe("simulated free-response sheets", () => {
                 review: {
                     async begin() {},
                     async ask(item) {
+                        if (item.kind === "name") {
+                            // The stat strip's data: the key and the reading of every multiple-choice question on the sheet.
+                            const choiceQuestions = fx.grading.filter((k) => k.type === "choice").length;
+                            expect(item.stats?.total).toBe(fx.grading.reduce((n, k) => n + k.points, 0));
+                            expect(item.stats?.choice.length).toBe(choiceQuestions);
+                        }
                         if (item.kind !== "response") return item.kind === "name" ? { name: item.ocr! } : { answer: item.marked };
                         asked.push(item);
                         // The illegible one was graded on its best reading; the teacher changes that grade and keeps the rest.

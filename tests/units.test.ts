@@ -6,7 +6,7 @@ import { scoreAnswers } from "../src/grade.ts";
 import { groupPages, type GroupablePage } from "../src/grouping.ts";
 import { choiceKey, parseKey } from "../src/key.ts";
 import { LAYOUT, bubbleCenter, cellCenter, markerRect, ringRadius } from "../src/layout.ts";
-import { limitConcurrency, OpenRouterReader, parseNameReply } from "../src/ocr.ts";
+import { CallStats, describeReasoning, fetchModelInfo, gradingPrompt, limitConcurrency, OpenRouterReader, parseNameReply, reasoningFor } from "../src/ocr.ts";
 import { blankBaseline } from "../src/pipeline.ts";
 import { readZipImages, isPageImage, ZipError } from "../src/zip.ts";
 
@@ -184,7 +184,7 @@ describe("ocr", () => {
             if (calls < 3) return new Response("busy", { status: 429 });
             return Response.json({ choices: [{ message: { content: '{"name":"Jane Doe"}' } }] });
         }) as unknown as typeof fetch;
-        const r = new OpenRouterReader({ apiKey: "k", model: "test/model", fetch: fakeFetch, backoffMs: 1 });
+        const r = new OpenRouterReader({ apiKey: "k", visionModel: "test/model", reasoningModel: "test/reasoner", fetch: fakeFetch, backoffMs: 1 });
         expect(await r.readName(new Uint8Array([1, 2]))).toBe("Jane Doe");
         expect(calls).toBe(3);
     });
@@ -196,10 +196,141 @@ describe("ocr", () => {
                 usage: { prompt_tokens: 4200, completion_tokens: 12, total_tokens: 4212, cost: 0.0123 },
             })) as unknown as typeof fetch;
         const lines: string[] = [];
-        const r = new OpenRouterReader({ apiKey: "k", model: "m", fetch: fakeFetch, log: (l) => lines.push(l) });
+        const r = new OpenRouterReader({ apiKey: "k", visionModel: "m", reasoningModel: "r", fetch: fakeFetch, log: (l) => lines.push(l) });
         await r.readName(new Uint8Array([1]), "sheet-03.jpg");
         expect(lines).toHaveLength(1);
         expect(lines[0]).toMatch(/^OCR Name for 'sheet-03\.jpg' took \d+\.\ds \(4\.2k input, 12 output, \$0\.01\)$/);
+    });
+
+    test("reads handwriting with the vision model and grades with the reasoning model", async () => {
+        const models: string[] = [];
+        const fakeFetch = (async (_url: string, init: RequestInit) => {
+            models.push(JSON.parse(String(init.body)).model);
+            return Response.json({ choices: [{ message: { content: '{"name":"Jane","text":"hi","legible":true,"points":1,"feedback":"ok"}' } }] });
+        }) as unknown as typeof fetch;
+        const r = new OpenRouterReader({ apiKey: "k", visionModel: "vision/m", reasoningModel: "reason/m", fetch: fakeFetch });
+        await r.readName(new Uint8Array([1]), "a.png");
+        await r.readResponse(new Uint8Array([1]), "a.png", 0, "Q?");
+        await r.gradeResponse({ type: "free", prompt: "Q?", answer: "A", points: 2 } as never, "hi", 0, "a.png");
+        expect(models).toEqual(["vision/m", "vision/m", "reason/m"]);
+    });
+
+    test("logs cached tokens when reported, and routes a run's calls with one session id", async () => {
+        const sessions: (string | null)[] = [];
+        const fakeFetch = (async (_url: string, init: RequestInit) => {
+            sessions.push(new Headers(init.headers).get("x-session-id"));
+            return Response.json({
+                choices: [{ message: { content: '{"name":"Jane"}' } }],
+                usage: { prompt_tokens: 4200, completion_tokens: 12, total_tokens: 4212, prompt_tokens_details: { cached_tokens: 3072 } },
+            });
+        }) as unknown as typeof fetch;
+        const lines: string[] = [];
+        const r = new OpenRouterReader({ apiKey: "k", visionModel: "m", reasoningModel: "r", fetch: fakeFetch, log: (l) => lines.push(l), sessionId: "grader-abc" });
+        await r.readName(new Uint8Array([1]), "a.jpg");
+        await r.readName(new Uint8Array([2]), "b.jpg");
+        expect(sessions).toEqual(["grader-abc", "grader-abc"]);
+        expect(lines[0]).toMatch(/\(4\.2k input, 3\.1k cached, 12 output\)$/);
+    });
+
+    test("reasoning: OCR off when allowed, grading never below low, nothing for non-reasoning models", () => {
+        const optional = { id: "v", reasoning: { mandatory: false } };
+        const flash = { id: "g", reasoning: { mandatory: true, supported_efforts: ["max", "high", "low"] } };
+        const minimalOnly = { id: "m", reasoning: { mandatory: true, supported_efforts: ["minimal", "high"] } };
+        const onlyMinimal = { id: "n", reasoning: { mandatory: true, supported_efforts: ["minimal"] } };
+        expect(reasoningFor(optional, "ocr")).toEqual({ enabled: false });
+        expect(reasoningFor(optional, "grade")).toEqual({ effort: "low" });
+        expect(reasoningFor(flash, "ocr")).toEqual({ effort: "low" });
+        expect(reasoningFor(flash, "grade")).toEqual({ effort: "low" });
+        // Mandatory with "minimal" available: OCR takes it, grading stays at or above low.
+        expect(reasoningFor(minimalOnly, "ocr")).toEqual({ effort: "minimal" });
+        expect(reasoningFor(minimalOnly, "grade")).toEqual({ effort: "high" });
+        expect(reasoningFor(onlyMinimal, "grade")).toEqual({ effort: "minimal" });
+        expect(reasoningFor({ id: "plain" }, "ocr")).toBeUndefined();
+        expect(reasoningFor(undefined, "grade")).toBeUndefined();
+        expect(describeReasoning({ enabled: false })).toBe("off");
+        expect(describeReasoning({ effort: "low" })).toBe("effort low");
+    });
+
+    test("sends the reasoning setting for each kind of call and logs reasoning tokens", async () => {
+        const bodies: { model: string; reasoning?: unknown }[] = [];
+        const fakeFetch = (async (_url: string, init: RequestInit) => {
+            bodies.push(JSON.parse(String(init.body)));
+            return Response.json({
+                choices: [{ message: { content: '{"name":"Jane","text":"hi","legible":true,"points":1,"feedback":"ok"}' } }],
+                usage: { prompt_tokens: 367, completion_tokens: 4900, total_tokens: 5267, completion_tokens_details: { reasoning_tokens: 4800 } },
+            });
+        }) as unknown as typeof fetch;
+        const lines: string[] = [];
+        const r = new OpenRouterReader({
+            apiKey: "k",
+            visionModel: "vision/m",
+            reasoningModel: "reason/m",
+            fetch: fakeFetch,
+            log: (l) => lines.push(l),
+            reasoning: { vision: { enabled: false }, grading: { effort: "low" } },
+        });
+        await r.readName(new Uint8Array([1]), "a.jpg");
+        await r.gradeResponse({ type: "free", prompt: "Q?", answer: "A", points: 2 } as never, "hi", 0, "a.jpg");
+        expect(bodies.map((b) => [b.model, b.reasoning])).toEqual([
+            ["vision/m", { enabled: false }],
+            ["reason/m", { effort: "low" }],
+        ]);
+        expect(lines[0]).toMatch(/\(367 input, 4\.9k output, 4\.8k reasoning\)$/);
+    });
+
+    test("summarizes each task's time and cost, and all of them", async () => {
+        const stats = new CallStats();
+        expect(stats.summary()).toEqual([]);
+        // start/end in ms: name 1.0s and 3.0s; grading 2.0s; the run spans 0 to 6s.
+        stats.record("Name OCR", 0, 1000, 0.0001);
+        stats.record("Name OCR", 1000, 4000, 0.0003);
+        stats.record("FRQ Grading", 4000, 6000, 0.02);
+        stats.fail();
+        expect(stats.count).toBe(3);
+        expect(stats.summary()).toEqual([
+            "Name OCR (2 requests)",
+            "  time  min 1.0s · mean 2.0s · max 3.0s · total 4.0s",
+            "  cost  min $0.0001 · mean $0.0002 · max $0.0003 · total $0.0004",
+            "FRQ Grading (1 request)",
+            "  time  min 2.0s · mean 2.0s · max 2.0s · total 2.0s",
+            "  cost  min $0.02 · mean $0.02 · max $0.02 · total $0.02",
+            "All requests (3, 1 failed)",
+            "  time  total 6.0s of request time · 6.0s elapsed from the first request to the last",
+            "  cost  total $0.02",
+        ]);
+    });
+
+    test("the reader records each request under its task", async () => {
+        const fakeFetch = (async () =>
+            Response.json({ choices: [{ message: { content: '{"name":"J","text":"t","legible":true,"points":1,"feedback":"f"}' } }], usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2, cost: 0.001 } })) as unknown as typeof fetch;
+        const stats = new CallStats();
+        const r = new OpenRouterReader({ apiKey: "k", visionModel: "v", reasoningModel: "r", fetch: fakeFetch, stats });
+        await r.readName(new Uint8Array([1]), "a.jpg");
+        await r.readResponse(new Uint8Array([1]), "a.jpg", 0, "Q?");
+        await r.gradeResponse({ type: "free", prompt: "Q?", answer: "A", points: 1 } as never, "t", 0, "a.jpg");
+        const lines = stats.summary();
+        expect(lines.filter((l) => /^(Name OCR|FRQ OCR|FRQ Grading) \(1 request\)$/.test(l))).toHaveLength(3);
+        expect(lines.at(-1)).toBe("  cost  total $0.0030");
+    });
+
+    test("fetchModelInfo finds the models and returns nothing when the list can't be read", async () => {
+        const list = (async () => Response.json({ data: [{ id: "a", reasoning: { mandatory: true } }, { id: "other" }] })) as unknown as typeof fetch;
+        expect([...(await fetchModelInfo(["a", "b"], list)).keys()]).toEqual(["a"]);
+        const down = (async () => {
+            throw new Error("offline");
+        }) as unknown as typeof fetch;
+        expect((await fetchModelInfo(["a"], down)).size).toBe(0);
+        expect((await fetchModelInfo(["a"], (async () => new Response("nope", { status: 500 })) as unknown as typeof fetch)).size).toBe(0);
+    });
+
+    test("every student's grading prompt for a question shares its prefix up to the answer", () => {
+        const key = { type: "free" as const, prompt: "Why?", answer: "Because.", rubric: "1 pt: says because", points: 2 };
+        const a = gradingPrompt(key, "first student's answer");
+        const b = gradingPrompt(key, "a completely different answer");
+        const prefix = (p: string) => p.slice(0, p.indexOf("<<<"));
+        expect(prefix(a)).toBe(prefix(b));
+        // The question, model answer, rubric and judging rules all come before the answer.
+        for (const part of ["Question: Why?", "Model answer: Because.", "Rubric: 1 pt: says because", "Judge the content only"]) expect(prefix(a)).toContain(part);
     });
 
     test("does not retry client errors", async () => {
@@ -208,7 +339,7 @@ describe("ocr", () => {
             calls++;
             return new Response("bad key", { status: 401 });
         }) as unknown as typeof fetch;
-        const r = new OpenRouterReader({ apiKey: "k", model: "m", fetch: fakeFetch, backoffMs: 1 });
+        const r = new OpenRouterReader({ apiKey: "k", visionModel: "m", reasoningModel: "r", fetch: fakeFetch, backoffMs: 1 });
         expect(r.readName(new Uint8Array())).rejects.toThrow(/401/);
         await Bun.sleep(5);
         expect(calls).toBe(1);

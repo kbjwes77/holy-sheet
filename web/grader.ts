@@ -5,10 +5,10 @@
 // answers' points) and renders its CSV as a table.
 import { zipSync } from "fflate";
 import { parseSheetJson } from "../gen/testdef.ts";
-import { CSV_HEADER, FREE_COLUMN_RE, parseCsv } from "../src/csv.ts";
+import { CSV_HEADER, FREE_COLUMN_RE, csvRow, parseCsv } from "../src/csv.ts";
 import type { GradingKey } from "../src/key.ts";
 import { CHOICE_LETTERS } from "../src/layout.ts";
-import { debugImageName, summarizeStderr, type Skipped } from "../src/report.ts";
+import { REQUESTS_RE, debugImageName, summarizeStderr, type Skipped } from "../src/report.ts";
 import {
     duplicateNames,
     parseReviewReply,
@@ -91,9 +91,9 @@ function renderInput(): void {
     const files = !input ? [] : input.kind === "zip" ? [input.file] : input.files;
     list.replaceChildren(
         ...files.map((f) => {
-            const li = el("li", "list-group-item d-flex gap-2 align-items-center");
-            li.append(el("i", `bi ${input!.kind === "zip" ? "bi-file-earmark-zip" : "bi-file-earmark-image"} text-body-secondary`));
-            li.append(el("span", "text-truncate me-auto", f.name), el("span", "text-body-secondary text-nowrap", kb(f.size)));
+            const li = el("li", "list-group-item d-flex gap-3 align-items-center");
+            li.append(el("i", `bi ${input!.kind === "zip" ? "bi-file-earmark-zip" : "bi-file-earmark-image"} fg-secondary`));
+            li.append(el("span", "text-truncate me-auto", f.name), el("span", "fg-secondary text-nowrap", kb(f.size)));
             return li;
         }),
     );
@@ -105,6 +105,7 @@ function renderInput(): void {
         : input.kind === "zip"
           ? `Zip of ${kb(total)}. Its pages are graded in the order they're stored.`
           : `${plural(files.length, "image")} (${kb(total)}), graded in this order. Keep each student's pages together, page 1 first.`;
+    $("sheets-summary").textContent = !input ? "" : input.kind === "zip" ? input.file.name : plural(files.length, "image");
     updateCommand();
 }
 
@@ -122,7 +123,7 @@ async function chooseTest(f: File): Promise<void> {
         $("test-summary").textContent = "";
     };
     $("test-name").textContent = f.name;
-    $("test-name").classList.remove("text-body-secondary");
+    $("test-name").classList.remove("fg-secondary");
     show(errors, false);
     if (f.size > 8 * 1024 * 1024) fail(["That file is too large to be a test."]);
     else {
@@ -165,6 +166,8 @@ function updateCommand(): void {
     parts.push("--review");
     $("command-preview").textContent = parts.join(" ");
     $<HTMLButtonElement>("btn-grade").disabled = !input || !test || running;
+    $<HTMLButtonElement>("btn-continue").disabled = !input;
+    $("test-header-summary").textContent = test ? test.file.name : "";
 }
 
 async function zipBytes(): Promise<Uint8Array> {
@@ -191,7 +194,7 @@ function status(text: string, state: "busy" | "ok" | "warn" | "error" | "idle" =
     runStatus.textContent = text;
     show($("run-spinner"), state === "busy");
     const icon = $("run-icon");
-    const icons = { ok: "bi-check-circle-fill text-success", warn: "bi-exclamation-triangle-fill text-warning", error: "bi-x-octagon-fill text-danger", idle: "bi-stop-circle text-body-secondary" };
+    const icons = { ok: "bi-check-circle-fill fg-success", warn: "bi-exclamation-triangle-fill fg-warning", error: "bi-x-octagon-fill fg-danger", idle: "bi-stop-circle fg-secondary" };
     show(icon, state !== "busy");
     if (state !== "busy") icon.className = `bi ${icons[state]}`;
 }
@@ -202,26 +205,46 @@ function progress(fraction: number, striped: boolean): void {
     progressBar.classList.toggle("progress-bar-animated", striped);
 }
 
+/** The second bar: model requests (names, written answers, grading) finished of those expected. */
+function requestProgress(fraction: number | null): void {
+    show($("progress-requests"), fraction !== null);
+    $("progress-requests-bar").style.width = `${Math.round((fraction ?? 0) * 100)}%`;
+}
+
 function appendLog(text: string): void {
     cliLog.textContent += `${text}\n`;
     cliLog.scrollTop = cliLog.scrollHeight;
 }
 
-/** Collapses the left column to a rail (or restores it), giving the review the width. */
-function setSidebarCollapsed(on: boolean): void {
-    $("grader-row").classList.toggle("sidebar-collapsed", on);
+type Panel = "panel-sheets" | "panel-test" | "panel-review" | "panel-results";
+
+/** Opens one accordion panel; the panels share a `name`, so the others close. */
+function openPanel(id: Panel): void {
+    const panel = $<HTMLDetailsElement>(id);
+    panel.open = true;
+    panel.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+/** The Review panel's placeholder, shown until there's something to review. */
+function setReviewPlaceholder(title: string, detail: string, visible = true): void {
+    $("empty-title").textContent = title;
+    $("empty-detail").textContent = detail;
+    show($("empty-state"), visible);
 }
 
 function setRunning(on: boolean): void {
     running = on;
-    show($("btn-cancel"), on);
     show($("btn-cancel-run"), on);
+    if (on) show($("btn-view-results"), false);
     for (const id of ["btn-zip", "btn-images", "btn-clear-files", "btn-test-file"]) $<HTMLButtonElement>(id).disabled = on;
     updateCommand();
 }
 
 function resetResults(): void {
-    for (const id of ["result-alert", "results-card", "skipped-card", "images-card", "review-card"]) show($(id), false);
+    for (const id of ["result-alert", "results-card", "chart-card", "skipped-card", "images-card", "review-card", "btn-view-results"]) show($(id), false);
+    show($("results-empty"));
+    $("review-header-summary").textContent = "";
+    $("results-header-summary").textContent = "";
     review = null;
     cliLog.textContent = "";
     $("run-command").textContent = "";
@@ -263,8 +286,9 @@ async function grade(): Promise<void> {
         if (v && !(Number(v) >= 0 && Number(v) <= 1)) return inputError(`${flag} threshold must be a number between 0 and 1.`);
     }
     resetResults();
-    setSidebarCollapsed(true);
-    show($("empty-state"), false);
+    requestProgress(null);
+    setReviewPlaceholder("Reading the sheets…", "The review opens here once every name and written answer is read.");
+    openPanel("panel-review");
     show($("run"));
     setRunning(true);
     status(input.kind === "images" ? "Zipping images…" : "Reading the zip…");
@@ -279,7 +303,7 @@ async function grade(): Promise<void> {
         jobId = await upload(bytes, testFile, params);
     } catch (e) {
         setRunning(false);
-        setSidebarCollapsed(false);
+        setReviewPlaceholder("Nothing to review yet", "Add the scanned sheets and the test, then choose Grade.");
         status(`Couldn't start grading: ${(e as Error).message}`, "error");
         progress(0, false);
         return;
@@ -314,15 +338,17 @@ function onEvent(e: JobEvent): void {
             $("run-command").textContent = `$ ${e.command}`;
             return;
         case "log": {
-            appendLog(e.text);
+            // The request counts only drive the second bar; the CLI output keeps its per-call timing lines.
+            if (!REQUESTS_RE.test(e.text)) appendLog(e.text);
             log.push(e.text);
             const s = summarizeStderr(log);
+            if (s.requests) requestProgress(s.requestsDone / s.requests);
             if (s.pages && s.decoded < s.pages) {
                 status(`Reading pages: ${s.decoded} of ${s.pages}`);
                 progress(s.decoded / s.pages, false);
             } else if (s.pages && s.decoded === s.pages) {
-                status("Reading names and written answers…");
-                progress(1, true);
+                status(s.requests && s.requestsDone < s.requests ? `Reading names and answers: ${s.requestsDone} of ${s.requests} requests` : "Reading names and written answers…");
+                progress(1, false);
             }
             return;
         }
@@ -349,9 +375,13 @@ function onEvent(e: JobEvent): void {
             source?.close();
             source = null;
             setRunning(false);
+            requestProgress(e.cancelled ? null : 1);
             show($("review-card"), false);
+            setReviewPlaceholder("Nothing left to review", "Grading is finished; see the results.");
             progress(1, false);
             showResults(e);
+            show($("btn-view-results"));
+            openPanel("panel-results");
             return;
     }
 }
@@ -371,6 +401,8 @@ interface SubmissionReview {
     /** Written answers, each with the points box the user can change. */
     responses: { item: ResponseItem; input: HTMLInputElement }[];
     skip: boolean;
+    /** The stat strip's badges, filled by `refreshStats`. */
+    stats?: { correct: HTMLElement; omitted: HTMLElement; percent: HTMLElement; points: HTMLElement };
     /** Why this sheet needs a look, worked out when the review opens; empty for a clean sheet. */
     flags: string[];
     nameInput: HTMLInputElement;
@@ -426,13 +458,16 @@ function startReview(thresholds: ReviewThresholds, items: ReviewItem[]): void {
     $<HTMLFieldSetElement>("review-fieldset").disabled = false;
     $<HTMLButtonElement>("btn-finish-review").disabled = false;
     updateReviewNotes();
+    refreshStats();
     show($("review-card"));
+    show($("empty-state"), false);
+    $("review-header-summary").textContent = `${plural(subs.length, "sheet")}, ${flagged} to check`;
+    openPanel("panel-review");
     progress(1, false);
     status("Waiting for your review", "busy");
     show($("run-spinner"), false);
     const firstEmpty = subs.find((s) => s.name.ocr === null)?.nameInput ?? subs.flatMap((s) => s.responses).find((r) => r.item.points === null)?.input;
     (firstEmpty ?? $("btn-finish-review")).focus({ preventScroll: true });
-    $("review-card").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 /** Why a sheet needs review: a name that wasn't read or is shared, unclear bubbles, or a written answer that's blank, unreadable or ungraded. */
@@ -446,6 +481,64 @@ function sheetFlags(sub: SubmissionReview, dups: Map<string, string[]>): string[
     if (written.some((r) => r.text === "")) flags.push("Blank written answer");
     if (written.some((r) => r.text && !r.legible)) flags.push("Illegible writing");
     return flags;
+}
+
+interface Outcome {
+    /** 1-based question number. */
+    question: number;
+    correct: boolean;
+    omitted: boolean;
+    /** Points as it stands, or null for a written answer that has none yet. */
+    points: number | null;
+}
+
+/**
+ * Each question on a sheet as it stands in the form: multiple choice by the bubbles as chosen
+ * (an exact match with the key is correct, like the grader's scoring; none chosen is omitted),
+ * written answers by the points typed (full points is correct; a blank box is omitted).
+ */
+function sheetOutcomes(sub: SubmissionReview): Outcome[] {
+    const stats = sub.name.stats;
+    if (!stats || !review) return [];
+    const out: Outcome[] = [];
+    for (const q of stats.choice) {
+        const unclear = sub.answers.find((a) => a.question === q.question);
+        const got = (unclear ? [...(review.chosen.get(unclear.id) ?? [])] : [...q.marked]).sort((x, y) => x - y);
+        const correct = got.length === q.answer.length && got.every((c, i) => c === q.answer[i]);
+        out.push({ question: q.question, correct: got.length > 0 && correct, omitted: got.length === 0, points: correct ? q.points : 0 });
+    }
+    for (const { item, input } of sub.responses) {
+        const typed = input.value.trim();
+        const points = typed === "" || !Number.isFinite(Number(typed)) ? null : Math.max(0, Math.min(item.maxPoints, Math.round(Number(typed))));
+        out.push({ question: item.question, correct: points === item.maxPoints, omitted: item.text === "", points });
+    }
+    return out;
+}
+
+/** A sheet's tally: correct and omitted counts, and the score out of the whole test's points. */
+function sheetTally(sub: SubmissionReview): { correct: number; omitted: number; score: number; total: number } | null {
+    const stats = sub.name.stats;
+    if (!stats) return null;
+    const outcomes = sheetOutcomes(sub);
+    return {
+        correct: outcomes.filter((o) => o.correct).length,
+        omitted: outcomes.filter((o) => o.omitted).length,
+        score: outcomes.reduce((n, o) => n + (o.points ?? 0), 0),
+        total: stats.total,
+    };
+}
+
+/** Updates every sheet's stat strip. */
+function refreshStats(): void {
+    if (!review) return;
+    for (const sub of review.subs) {
+        const t = sheetTally(sub);
+        if (!t || !sub.stats) continue;
+        sub.stats.correct.textContent = `Correct: ${t.correct}`;
+        sub.stats.omitted.textContent = `Omitted: ${t.omitted}`;
+        sub.stats.percent.textContent = `${t.total ? (Math.round((t.score / t.total) * 1000) / 10).toFixed(1) : "0.0"}%`;
+        sub.stats.points.textContent = `${t.score}/${t.total}`;
+    }
 }
 
 /** Shows every sheet, or only those with flags, per the view toggle. */
@@ -467,11 +560,21 @@ function revealIfHidden(field: HTMLElement): void {
 function renderSubmission(sub: SubmissionReview, index: number, count: number): HTMLElement {
     const li = el("li", "card review-sheet shadow-sm");
     sub.li = li;
-    const head = el("div", "card-header review-sheet-head d-flex align-items-center gap-2 flex-wrap");
-    head.append(el("span", "fw-semibold text-nowrap", `Sheet ${index + 1} of ${count}`));
-    head.append(el("span", "small font-monospace text-body-secondary text-truncate me-auto", sub.name.files.join(", ")));
-    for (const f of sub.flags) head.append(el("span", "badge text-bg-warning", f));
-    const skip = el("button", "btn btn-sm btn-outline-secondary text-nowrap");
+    const head = el("div", "card-header review-sheet-head");
+    // The title: the sheet number and the student's name, with the file names under them.
+    const title = el("div", "review-sheet-title");
+    const nameLabel = el("span", "fw-semibold text-truncate");
+    const showName = (name: string) => {
+        nameLabel.textContent = name.trim() || "Name not read";
+        nameLabel.classList.toggle("fg-secondary", !name.trim());
+    };
+    showName(sub.name.ocr ?? "");
+    const line = el("div", "d-flex align-items-baseline gap-3");
+    line.append(el("span", "fw-semibold text-nowrap", `Sheet ${index + 1} of ${count}`), nameLabel);
+    title.append(line, el("div", "small fg-secondary font-monospace text-truncate", sub.name.files.join(", ")));
+    head.append(title);
+    for (const f of sub.flags) head.append(el("span", "badge theme-warning", f));
+    const skip = el("button", "btn-sm btn-outline theme-secondary text-nowrap");
     skip.type = "button";
     const label = () => {
         skip.replaceChildren(el("i", `bi ${sub.skip ? "bi-arrow-counterclockwise" : "bi-slash-circle"} me-1`), sub.skip ? "Include" : "Skip");
@@ -488,14 +591,24 @@ function renderSubmission(sub: SubmissionReview, index: number, count: number): 
     head.append(skip);
 
     const body = el("div", "card-body review-body");
-    const row = el("div", "row g-2 align-items-center");
-    const imgCol = el("div", "col-sm-6");
+    if (sub.name.stats) {
+        const strip = el("div", "review-stats d-flex align-items-center flex-wrap gap-3");
+        const correct = el("span", "badge badge-subtle theme-success");
+        const omitted = el("span", "badge badge-subtle theme-secondary");
+        const percent = el("span", "badge badge-outline theme-secondary ms-auto");
+        const points = el("span", "badge theme-primary");
+        strip.append(correct, omitted, percent, points);
+        body.append(strip);
+        sub.stats = { correct, omitted, percent, points };
+    }
+    const row = el("div", "row g-3 align-items-center");
+    const imgCol = el("div", "sm:col-6");
     const img = el("img", "review-name-crop border rounded");
     img.src = reviewImageUrl(sub.name.image);
     img.alt = `Name box on ${sub.name.files[0]}`;
-    img.addEventListener("error", () => img.replaceWith(el("span", "small text-body-secondary", "No image of the name box")));
+    img.addEventListener("error", () => img.replaceWith(el("span", "small fg-secondary", "No image of the name box")));
     imgCol.append(img);
-    const inputCol = el("div", "col-sm-6");
+    const inputCol = el("div", "sm:col-6");
     const input = el("input", "form-control");
     input.type = "text";
     input.value = sub.name.ocr ?? "";
@@ -505,14 +618,15 @@ function renderSubmission(sub: SubmissionReview, index: number, count: number): 
     input.ariaLabel = `Student name for ${sub.name.files[0]}`;
     input.addEventListener("input", () => {
         input.classList.remove("is-invalid");
+        showName(input.value);
         updateReviewNotes();
     });
     sub.nameInput = input;
     const ocrNote =
         sub.name.ocr === null
-            ? el("div", "form-text text-danger", `Couldn't read the name: ${sub.name.error ?? "unknown error"}`)
+            ? el("div", "form-text fg-danger", `Couldn't read the name: ${sub.name.error ?? "unknown error"}`)
             : el("div", "form-text", "Read from the sheet; correct it if it's wrong.");
-    sub.dupNote = el("div", "form-text text-warning-emphasis d-none");
+    sub.dupNote = el("div", "form-text fg-warning d-none");
     inputCol.append(input, ocrNote, sub.dupNote);
     row.append(imgCol, inputCol);
     body.append(row);
@@ -531,25 +645,25 @@ function renderResponse(r: SubmissionReview["responses"][number]): HTMLElement {
     const box = el("div", "review-answer");
     box.dataset.item = String(item.id);
     const title = el("div", "small mb-1");
-    title.append(el("span", "fw-semibold", `Question ${item.question}`), el("span", "text-body-secondary", ` · written answer · ${item.file}`));
+    title.append(el("span", "fw-semibold", `Question ${item.question}`), el("span", "fg-secondary", ` · written answer · ${item.file}`));
 
     const img = el("img", "review-response-crop border rounded");
     img.src = reviewImageUrl(item.image);
     img.alt = `Written answer to question ${item.question} on ${item.file}`;
-    img.addEventListener("error", () => img.replaceWith(el("span", "small text-body-secondary", "No image of the answer box")));
+    img.addEventListener("error", () => img.replaceWith(el("span", "small fg-secondary", "No image of the answer box")));
 
-    const row = el("div", "row g-2 align-items-start mt-1");
-    const textCol = el("div", "col-sm-9 small");
-    if (item.text === null) textCol.append(el("div", "text-danger", `Couldn't read the answer: ${item.error ?? "unknown error"}`));
+    const row = el("div", "row g-3 align-items-start mt-1");
+    const textCol = el("div", "sm:col-9 small");
+    if (item.text === null) textCol.append(el("div", "fg-danger", `Couldn't read the answer: ${item.error ?? "unknown error"}`));
     else {
         const read = el("div", "review-transcript");
-        read.append(el("span", "text-body-secondary", "Read as: "), item.text ? el("q", "", item.text) : el("em", "text-body-secondary", "(blank)"));
+        read.append(el("span", "fg-secondary", "Read as: "), item.text ? el("q", "", item.text) : el("em", "fg-secondary", "(blank)"));
         textCol.append(read);
-        if (!item.legible) textCol.append(el("div", "text-warning-emphasis", "Some of the writing couldn't be read; check it against the image."));
-        if (item.points !== null && item.feedback) textCol.append(el("div", "text-body-secondary mt-1", item.feedback));
-        if (item.points === null && item.error) textCol.append(el("div", "text-danger mt-1", `Not graded: ${item.error}`));
+        if (!item.legible) textCol.append(el("div", "fg-warning", "Some of the writing couldn't be read; check it against the image."));
+        if (item.points !== null && item.feedback) textCol.append(el("div", "fg-secondary mt-1", item.feedback));
+        if (item.points === null && item.error) textCol.append(el("div", "fg-danger mt-1", `Not graded: ${item.error}`));
     }
-    const pointsCol = el("div", "col-sm-3");
+    const pointsCol = el("div", "sm:col-3");
     const group = el("div", "input-group input-group-sm");
     const input = el("input", "form-control text-end font-monospace");
     input.type = "number";
@@ -559,7 +673,10 @@ function renderResponse(r: SubmissionReview["responses"][number]): HTMLElement {
     input.value = item.points === null ? "" : String(item.points);
     input.placeholder = "?";
     input.ariaLabel = `Points for question ${item.question} on ${item.file}`;
-    input.addEventListener("input", () => input.classList.remove("is-invalid"));
+    input.addEventListener("input", () => {
+        input.classList.remove("is-invalid");
+        refreshStats();
+    });
     r.input = input;
     group.append(input, el("span", "input-group-text", `/ ${item.maxPoints}`));
     pointsCol.append(group, el("div", "form-text", item.points === null ? "Give the points" : "Points awarded"));
@@ -572,7 +689,7 @@ function renderAnswer(item: AnswerItem): HTMLElement {
     const box = el("div", "review-answer");
     box.dataset.item = String(item.id);
     const title = el("div", "small mb-1");
-    title.append(el("span", "fw-semibold", `Question ${item.question}`), el("span", "text-body-secondary", ` · ${item.file}`));
+    title.append(el("span", "fw-semibold", `Question ${item.question}`), el("span", "fg-secondary", ` · ${item.file}`));
 
     const pic = el("div", "review-question border rounded overflow-hidden");
     const img = el("img");
@@ -583,10 +700,10 @@ function renderAnswer(item: AnswerItem): HTMLElement {
     img.style.height = "auto";
     pic.append(img);
 
-    const choices = el("div", "d-flex flex-wrap align-items-center gap-2 mt-2");
+    const choices = el("div", "d-flex flex-wrap align-items-center gap-3 mt-3");
     choices.role = "group";
     choices.ariaLabel = `Answer to question ${item.question}`;
-    const none = el("span", "badge rounded-pill text-bg-warning", "Response Omitted");
+    const none = el("span", "badge rounded-pill theme-warning", "Response Omitted");
     const { mark, blank } = review!.thresholds;
     const zone: Record<Verdict, string> = { marked: "reads as filled", ambiguous: "unclear", blank: "reads as empty" };
     const scale = `filled above ${Math.round(mark * 100)}%, empty below ${Math.round(blank * 100)}%`;
@@ -605,6 +722,7 @@ function renderAnswer(item: AnswerItem): HTMLElement {
     const toggle = (c: number) => {
         if (!chosen.delete(c)) chosen.add(c);
         refresh();
+        refreshStats();
     };
     const pct = (v: number, of: number) => `${(v / of) * 100}%`;
     item.rings.forEach((ring, c) => {
@@ -632,7 +750,7 @@ function renderAnswer(item: AnswerItem): HTMLElement {
 
         const chip = el("label", "review-chip");
         chip.title = hint;
-        const check = el("input", "form-check-input m-0");
+        const check = el("input", "check m-0");
         check.type = "checkbox";
         check.ariaLabel = `${letter}, ${dark} dark, ${zone[verdict]}`;
         check.addEventListener("change", () => toggle(c));
@@ -754,21 +872,105 @@ function unlockReview(): void {
 let csvText = "";
 
 function badge(icon: string, text: string): HTMLElement {
-    const b = el("span", "badge rounded-pill text-bg-light border");
+    const b = el("span", "badge rounded-pill bg-2 fg-body border");
     b.append(el("i", `bi ${icon} me-1`), text);
     return b;
 }
 
 function alertBox(kind: string, icon: string, title: string, detail?: string): void {
     const box = $("result-alert");
-    box.className = `alert alert-${kind}`;
+    box.className = `alert theme-${kind}`;
     box.replaceChildren(el("i", `bi ${icon} me-1`), el("strong", "", title));
     if (detail) box.append(el("div", "small mt-1", detail));
+}
+
+/**
+ * Draws the correct-response share per question from the reviewed sheets (skipped ones left out).
+ * The question most students got right is primary, the one fewest got right is warning (both only
+ * when the questions differ), and any nobody got right is danger, listed under the chart.
+ */
+function renderDifficulty(): void {
+    const subs = (review?.subs ?? []).filter((s) => !s.skip && s.name.stats);
+    const by = new Map<number, { correct: number; answered: number }>();
+    for (const sub of subs) {
+        for (const o of sheetOutcomes(sub)) {
+            const t = by.get(o.question) ?? { correct: 0, answered: 0 };
+            t.answered++;
+            if (o.correct) t.correct++;
+            by.set(o.question, t);
+        }
+    }
+    const questions = [...by.entries()].sort((a, b) => a[0] - b[0]);
+    show($("chart-card"), questions.length > 0);
+    if (!questions.length) return;
+    const rate = (t: { correct: number; answered: number }) => (t.answered ? t.correct / t.answered : 0);
+    const rates = questions.map(([, t]) => rate(t));
+    const best = Math.max(...rates);
+    const worst = Math.min(...rates);
+    const tone = (r: number): "danger" | "primary" | "warning" | "secondary" =>
+        r === 0 ? "danger" : best > worst && r === best ? "primary" : best > worst && r === worst ? "warning" : "secondary";
+
+    const none = questions.filter(([, t]) => t.correct === 0).map(([q]) => q);
+    const label = (q: number, t: { correct: number; answered: number }) => `Question ${q}: ${t.correct} of ${t.answered} correct (${Math.round(rate(t) * 100)}%)`;
+    const dense = questions.length > 30;
+    const cols = questions.map(([q, t], i) => {
+        const col = el("div", "difficulty-col");
+        col.title = label(q, t);
+        col.setAttribute("aria-label", label(q, t));
+        const plot = el("div", "difficulty-plot");
+        const bar = el("div", `difficulty-bar theme-${tone(rates[i]!)}`);
+        bar.style.height = `${rates[i]! * 100}%`;
+        plot.append(bar);
+        // Label only the highlighted bars, at the tip.
+        if (tone(rates[i]!) !== "secondary") {
+            const v = el("span", "difficulty-value small", `${Math.round(rates[i]! * 100)}%`);
+            v.style.bottom = `calc(${rates[i]! * 100}% + 4px)`;
+            plot.append(v);
+        }
+        col.append(plot, el("div", "difficulty-tick small fg-secondary", !dense || q % 5 === 0 ? String(q) : ""));
+        return col;
+    });
+    const axis = el("div", "difficulty-axis small fg-secondary");
+    axis.append(el("span", "", "100%"), el("span", "", "50%"), el("span", "", "0"));
+    const chart = $("difficulty-chart");
+    chart.replaceChildren(axis, ...cols);
+    chart.setAttribute("role", "group");
+    chart.ariaLabel = `Share of students answering each question correctly. ${none.length ? `Nobody answered ${none.map((q) => `question ${q}`).join(", ")} correctly.` : ""}`;
+
+    // Only the colours actually on the chart; fewest-correct is danger instead when nobody got those right.
+    const used = new Set(rates.map(tone));
+    const legend: [string, string][] = [];
+    if (used.has("primary")) legend.push(["primary", "Easiest (most correct)"]);
+    if (used.has("warning")) legend.push(["warning", "Hardest (fewest correct)"]);
+    if (used.has("secondary")) legend.push(["secondary", "Other questions"]);
+    if (used.has("danger")) legend.push(["danger", "No correct responses"]);
+    $("difficulty-legend").replaceChildren(
+        ...legend.map(([theme, text]) => {
+            const item = el("span", "d-inline-flex align-items-center gap-1");
+            item.append(el("span", `difficulty-swatch theme-${theme}`), text);
+            return item;
+        }),
+    );
+
+    show($("difficulty-none"), none.length > 0);
+    if (none.length) {
+        $("difficulty-none-list").textContent = `Nobody answered ${none.length === 1 ? "question" : "questions"} ${none.map((q) => `Q${q}`).join(", ")} correctly. Check the key for ${none.length === 1 ? "it" : "them"}, or reteach the material.`;
+    }
+
+    const tbody = $<HTMLTableElement>("difficulty-table").tBodies[0]!;
+    tbody.replaceChildren(
+        ...questions.map(([q, t]) => {
+            const tr = el("tr");
+            tr.append(el("td", "", `Q${q}`), el("td", "text-end", String(t.correct)), el("td", "text-end", String(t.answered)), el("td", "text-end", `${Math.round(rate(t) * 100)}%`));
+            return tr;
+        }),
+    );
 }
 
 function showResults(e: Extract<JobEvent, { type: "done" }>): void {
     const s = summarizeStderr(log);
     csvText = e.csv;
+    show($("results-empty"), false);
     if (e.cancelled) {
         status("Cancelled", "idle");
         alertBox("secondary", "bi-stop-circle", "Grading was cancelled.");
@@ -783,13 +985,21 @@ function showResults(e: Extract<JobEvent, { type: "done" }>): void {
         alertBox("danger", "bi-x-octagon", s.fatal ? `The grader stopped: ${s.fatal}` : `The grader exited with code ${e.exitCode}.`);
     }
 
+    renderDifficulty();
     renderTable(e.csv);
+    $("results-header-summary").textContent = `${plural(rows.length, "student")} graded${s.skipped.length ? `, ${s.skipped.length} skipped` : ""}`;
     renderSkipped(s.skipped, e.images);
     renderImages(e.images);
 }
 
 interface Row {
     name: string;
+    /** The score as graded, before any curve. `score` is `base + curve`. */
+    base: number;
+    /** Points given in Curve Scores; set (not added to) each time a curve is applied. */
+    curve: number;
+    /** The reviewed sheet this row came from, for the "responded to question N" shortcut. */
+    sub?: SubmissionReview;
     score: number;
     total: number;
     percent: number;
@@ -798,6 +1008,11 @@ interface Row {
     free: { points: string; text: string; feedback: string }[];
 }
 let rows: Row[] = [];
+/** The CLI's CSV as parsed, and as text; a curve rewrites each curved row's score and percent. */
+let csvTable: string[][] = [];
+let csvOriginal = "";
+/** Rows ticked in the Curve Scores table, by index into `rows`. */
+let curveSelected = new Set<number>();
 /** The free-response questions' numbers (1-based), in column order. */
 let freeQuestions: number[] = [];
 let sort: { key: Exclude<keyof Row, "free">; dir: 1 | -1 } = { key: "name", dir: 1 };
@@ -823,8 +1038,12 @@ function renderTable(csv: string): void {
         alertBox("danger", "bi-x-octagon", `Unexpected CSV header: ${header.join(",")}`);
         return;
     }
+    csvTable = [header, ...body];
+    csvOriginal = csv;
     rows = body.map(([name = "", score = "", total = "", percent = "", ...rest]) => ({
         name,
+        base: Number(score),
+        curve: 0,
         score: Number(score),
         total: Number(total),
         percent: Number(percent),
@@ -832,6 +1051,19 @@ function renderTable(csv: string): void {
         free: freeQuestions.map((_, k) => ({ points: rest[3 * k] ?? "", text: rest[3 * k + 1] ?? "", feedback: rest[3 * k + 2] ?? "" })),
     }));
     show($("results-card"));
+    // Tie each row to its reviewed sheet: the first unused, unskipped sheet with that name.
+    const unused = (review?.subs ?? []).filter((s) => !s.skip && s.name.stats);
+    for (const r of rows) {
+        const i = unused.findIndex((s) => s.nameInput.value.trim() === r.name.trim());
+        if (i >= 0) r.sub = unused.splice(i, 1)[0]!;
+    }
+    curveSelected = new Set();
+    renderBadges();
+    renderRows();
+    renderCurve();
+}
+
+function renderBadges(): void {
     const pct = rows.map((r) => r.percent);
     const avg = pct.length ? pct.reduce((a, b) => a + b, 0) / pct.length : 0;
     $("result-badges").replaceChildren(
@@ -841,7 +1073,105 @@ function renderTable(csv: string): void {
             : []),
         badge("bi-list-ol", rows[0] ? `Out of ${plural(rows[0].total, "point")}` : "No rows"),
     );
+}
+
+// ---- Curve scores ------------------------------------------------------------
+// A curve is points given on top of a student's base score. Applying one sets it (never adds to
+// an earlier one), and the score is always recomputed from the base, so reapplying can't stack.
+
+/** Recomputes a row's score and percent from its base and curve, formatted like the grader's CSV. */
+function rescore(r: Row): void {
+    r.score = r.base + r.curve;
+    r.percent = r.total ? Math.round((r.score / r.total) * 1000) / 10 : 0;
+    r.percentText = r.percent.toFixed(1);
+}
+
+/** The CSV the Copy and download buttons use: the CLI's own until a curve changes a row. */
+function rebuildCsv(): void {
+    if (rows.every((r) => !r.curve)) {
+        csvText = csvOriginal;
+        return;
+    }
+    const [header, ...body] = csvTable;
+    csvText = [
+        header!,
+        ...body.map((fields, i) => {
+            const r = rows[i]!;
+            if (!r.curve) return fields;
+            const out = [...fields];
+            out[1] = String(r.score);
+            out[3] = r.percentText;
+            return out;
+        }),
+    ]
+        .map(csvRow)
+        .join("");
+}
+
+function renderCurve(): void {
+    const questions = [...new Set(rows.flatMap((r) => (r.sub ? sheetOutcomes(r.sub).map((o) => o.question) : [])))].sort((a, b) => a - b);
+    show($("curve-shortcut"), questions.length > 0);
+    const select = $<HTMLSelectElement>("curve-question");
+    const keep = select.value;
+    select.replaceChildren(...questions.map((q) => Object.assign(el("option", "", `Q${q}`), { value: String(q) })));
+    if (keep && questions.includes(Number(keep))) select.value = keep;
+
+    const body = $<HTMLTableElement>("curve-table").tBodies[0]!;
+    body.replaceChildren(
+        ...rows.map((r, i) => {
+            const tr = el("tr");
+            const td = el("td", "curve-check");
+            const box = el("input", "check");
+            box.type = "checkbox";
+            box.checked = curveSelected.has(i);
+            box.ariaLabel = `Select ${r.name}`;
+            box.addEventListener("change", () => {
+                if (box.checked) curveSelected.add(i);
+                else curveSelected.delete(i);
+                renderCurveSelection();
+            });
+            td.append(box);
+            tr.append(
+                td,
+                el("td", "", r.name),
+                el("td", "text-end font-monospace", String(r.base)),
+                el("td", "text-end font-monospace", r.curve ? (r.curve > 0 ? `+${r.curve}` : String(r.curve)) : "–"),
+                el("td", "text-end font-monospace", String(r.score)),
+            );
+            return tr;
+        }),
+    );
+    const curved = rows.filter((r) => r.curve).length;
+    $("curve-summary").textContent = curved ? `${plural(curved, "student")} curved` : "";
+    renderCurveSelection();
+}
+
+/** The select-all box, its label and the count, after the selection changes. */
+function renderCurveSelection(): void {
+    const all = $<HTMLInputElement>("curve-all");
+    all.checked = rows.length > 0 && curveSelected.size === rows.length;
+    all.indeterminate = curveSelected.size > 0 && curveSelected.size < rows.length;
+    $("curve-all-label").textContent = all.checked ? "Select None" : "Select All";
+    $("curve-count").textContent = `${curveSelected.size} of ${rows.length} students selected`;
+    $("curve-error").textContent = "";
+    const boxes = $<HTMLTableElement>("curve-table").tBodies[0]!.querySelectorAll<HTMLInputElement>("input.check");
+    boxes.forEach((b, i) => (b.checked = curveSelected.has(i)));
+}
+
+function applyCurve(): void {
+    const error = $("curve-error");
+    const typed = $<HTMLInputElement>("curve-points").value.trim();
+    const points = Number(typed);
+    if (typed === "" || !Number.isInteger(points)) return void (error.textContent = "Give a whole number of points.");
+    if (!curveSelected.size) return void (error.textContent = "Select at least one student.");
+    for (const i of curveSelected) {
+        rows[i]!.curve = points;
+        rescore(rows[i]!);
+    }
+    rebuildCsv();
+    renderBadges();
     renderRows();
+    renderCurve();
 }
 
 const COLUMNS: { key: Exclude<keyof Row, "free">; label: string; numeric: boolean }[] = [
@@ -857,7 +1187,7 @@ function renderRows(): void {
     for (const c of COLUMNS) {
         const th = el("th", c.numeric ? "text-end" : "");
         th.scope = "col";
-        const btn = el("button", "btn btn-link btn-sm p-0 fw-semibold text-body text-decoration-none", c.label);
+        const btn = el("button", "btn-link btn-sm p-0 fw-semibold fg-body text-decoration-none", c.label);
         btn.type = "button";
         if (sort.key === c.key) btn.append(el("i", `bi ${sort.dir === 1 ? "bi-caret-up-fill" : "bi-caret-down-fill"} ms-1 small`));
         btn.addEventListener("click", () => {
@@ -885,10 +1215,12 @@ function renderRows(): void {
     table.tBodies[0]!.replaceChildren(
         ...sorted.map((r) => {
             const row = el("tr");
-            row.append(el("td", "", r.name), el("td", "text-end font-monospace", String(r.score)), el("td", "text-end font-monospace", String(r.total)));
+            const score = el("td", "text-end font-monospace", String(r.score));
+            if (r.curve) score.append(" ", el("span", `badge badge-subtle ${r.curve > 0 ? "theme-primary" : "theme-warning"}`, `${r.curve > 0 ? "+" : ""}${r.curve}`));
+            row.append(el("td", "", r.name), score, el("td", "text-end font-monospace", String(r.total)));
             const pct = el("td", "text-end");
-            const bar = el("div", "d-flex align-items-center justify-content-end gap-2");
-            const meter = el("div", "progress grade-meter d-none d-sm-flex");
+            const bar = el("div", "d-flex align-items-center justify-content-end gap-3");
+            const meter = el("div", "progress grade-meter d-none sm:d-flex");
             const fill = el("div", `progress-bar ${r.percent >= 70 ? "bg-success" : r.percent >= 50 ? "bg-warning" : "bg-danger"}`);
             fill.style.width = `${r.percent}%`;
             meter.append(fill);
@@ -901,7 +1233,7 @@ function renderRows(): void {
                 details.append(el("summary", "font-monospace", x.points || "–"));
                 const more = el("div", "free-detail text-start small");
                 more.append(el("div", "", x.text ? `“${x.text}”` : "(blank)"));
-                if (x.feedback) more.append(el("div", "text-body-secondary mt-1", x.feedback));
+                if (x.feedback) more.append(el("div", "fg-secondary mt-1", x.feedback));
                 details.append(more);
                 details.title = `Question ${freeQuestions[k]}`;
                 td.append(details);
@@ -925,19 +1257,19 @@ function renderSkipped(skipped: Skipped[], images: string[]): void {
         ...skipped.map((s) => {
             const li = el("li", "list-group-item");
             const head = el("div", "d-flex flex-wrap gap-1 align-items-center mb-1");
-            head.append(el("span", `badge ${s.orphan ? "text-bg-secondary" : "text-bg-warning"} me-1`, s.orphan ? "Orphan pages" : "Submission"));
+            head.append(el("span", `badge ${s.orphan ? "theme-secondary" : "theme-warning"} me-1`, s.orphan ? "Orphan pages" : "Submission"));
             for (const f of s.files) {
                 const img = debugImageName(f);
                 if (have.has(img)) {
-                    const a = el("a", "small font-monospace me-2", f);
+                    const a = el("a", "small font-monospace me-3", f);
                     a.href = imageUrl(img);
                     a.target = "_blank";
                     a.rel = "noopener";
                     a.title = "Open the diagnostic image";
                     head.append(a);
-                } else head.append(el("span", "small font-monospace me-2", f));
+                } else head.append(el("span", "small font-monospace me-3", f));
             }
-            const ul = el("ul", "small mb-0 ps-3");
+            const ul = el("ul", "small mb-0 ps-5");
             ul.append(...s.reasons.map((r) => el("li", "", r)));
             li.append(head, ul);
             return li;
@@ -960,7 +1292,7 @@ function renderImages(images: string[]): void {
             img.src = imageUrl(name);
             img.alt = `Diagnostic image for ${name}`;
             img.loading = "lazy";
-            a.append(img, el("div", "small text-body-secondary text-truncate mt-1", name));
+            a.append(img, el("div", "small fg-secondary text-truncate mt-1", name));
             col.append(a);
             return col;
         }),
@@ -1001,10 +1333,34 @@ testFile.addEventListener("change", () => {
 });
 for (const o of [optMark, optBlank, optDebug]) o.addEventListener("input", updateCommand);
 $("btn-grade").addEventListener("click", () => void grade());
-$("btn-cancel").addEventListener("click", cancel);
-$("btn-cancel-run").addEventListener("click", cancel);
-$("btn-sidebar-collapse").addEventListener("click", () => setSidebarCollapsed(true));
-$("btn-sidebar-expand").addEventListener("click", () => setSidebarCollapsed(false));
+// These two sit inside the status bar's <summary>; keep their clicks from toggling it.
+$("btn-cancel-run").addEventListener("click", (e) => {
+    e.preventDefault();
+    cancel();
+});
+$("curve-all").addEventListener("change", () => {
+    curveSelected = $<HTMLInputElement>("curve-all").checked ? new Set(rows.keys()) : new Set();
+    renderCurveSelection();
+});
+$("btn-curve-select").addEventListener("click", () => {
+    const q = Number($<HTMLSelectElement>("curve-question").value);
+    const wantCorrect = $<HTMLSelectElement>("curve-result").value === "correct";
+    // Only the students who meet the condition; one whose sheet lacks the question meets neither.
+    curveSelected = new Set(
+        rows.flatMap((r, i) => {
+            const o = r.sub && sheetOutcomes(r.sub).find((x) => x.question === q);
+            return o && o.correct === wantCorrect ? [i] : [];
+        }),
+    );
+    renderCurveSelection();
+});
+$("btn-curve-apply").addEventListener("click", applyCurve);
+$("btn-view-results").addEventListener("click", (e) => {
+    e.preventDefault();
+    openPanel("panel-results");
+});
+$("btn-continue").addEventListener("click", () => openPanel("panel-test"));
+$("btn-back").addEventListener("click", () => openPanel("panel-sheets"));
 for (const r of document.querySelectorAll<HTMLInputElement>('input[name="review-view"]')) r.addEventListener("change", applyReviewView);
 $("review-card").addEventListener("submit", (e) => {
     e.preventDefault();

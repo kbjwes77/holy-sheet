@@ -9,12 +9,12 @@
             // Follow the OS light/dark preference before first paint.
             document.documentElement.dataset.bsTheme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
         </script>
-        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
+        <link rel="stylesheet" href="../node_modules/bootstrap/dist/css/bootstrap.min.css" />
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
         <link rel="stylesheet" href="./app.css" />
     </head>
     <body>
-        <div class="alert alert-warning rounded-0 mb-0 d-none" id="file-warning" role="alert">
+        <div class="alert theme-warning rounded-0 mb-0 d-none" id="file-warning" role="alert">
             <i class="bi bi-exclamation-triangle me-1"></i>
             The grader runs through its local server and can't be opened from disk. Run <code>bun run web</code> and open
             <code>http://localhost:3000/grader</code>.
@@ -22,219 +22,302 @@
         <script>
             if (location.protocol === "file:") document.getElementById("file-warning").classList.remove("d-none");
         </script>
-        <nav class="navbar border-bottom bg-body-tertiary">
-            <div class="container-xxl">
-                <span class="navbar-brand fw-semibold"><i class="bi bi-clipboard-check me-2 text-primary"></i>Grader</span>
-                <span class="navbar-text small text-body-secondary d-none d-md-inline me-auto">Grade scanned answer sheets</span>
-                <a class="btn btn-sm btn-outline-secondary" href="/"><i class="bi bi-ui-radios-grid me-1"></i>Sheet Generator</a>
+        <nav class="navbar border-bottom bg-2">
+            <div class="container">
+                <span class="navbar-brand fw-semibold"><i class="bi bi-clipboard-check me-3 fg-primary"></i>Grader</span>
+                <span class="navbar-text small fg-secondary d-none md:d-inline me-auto">Grade scanned answer sheets</span>
+                <a class="btn-outline theme-secondary btn-sm" href="/"><i class="bi bi-ui-radios-grid me-1"></i>Sheet Generator</a>
             </div>
         </nav>
 
-        <main class="container-xxl py-4">
-            <div class="alert alert-warning d-none" id="config-warning" role="alert">
+        <main class="container py-7">
+            <div class="alert theme-warning mb-5 d-none" id="config-warning" role="alert">
                 <i class="bi bi-exclamation-triangle me-1"></i>
                 Name reading isn't set up: <span id="config-missing"></span> must be set in <code>.env</code>. Restart
                 <code>bun run web</code> after adding them.
             </div>
 
-            <div class="row g-4" id="grader-row">
-                <!-- Input -->
-                <div class="col-lg-5" id="left-col">
-                    <!-- Shown in place of the panels while the sidebar is collapsed -->
-                    <button type="button" class="grader-rail btn btn-outline-secondary" id="btn-sidebar-expand" title="Show the scanned sheets and test" aria-label="Show the scanned sheets and test">
-                        <i class="bi bi-chevron-double-right"></i>
-                        <span class="grader-rail-label small">Sheets &amp; test</span>
-                    </button>
-                    <div id="sidebar-body">
-                    <div class="card shadow-sm mb-3">
-                        <div class="card-header d-flex align-items-center gap-2 flex-wrap">
-                            <button type="button" class="btn btn-sm btn-link text-body-secondary p-0 panel-chevron" data-bs-toggle="collapse" data-bs-target="#files-body" aria-expanded="true" aria-controls="files-body" title="Collapse or expand">
-                                <i class="bi bi-chevron-down"></i>
-                            </button>
-                            <span class="fw-semibold me-auto"><i class="bi bi-images me-1"></i>Scanned sheets</span>
+            <!-- Pinned status: a progress bar and status line, expandable to the CLI output -->
+            <details class="status-card card shadow-sm mb-5 d-none" id="run">
+                <summary class="status-bar">
+                    <span class="spinner-border spinner-sm fg-primary" id="run-spinner" aria-hidden="true"></span>
+                    <i class="bi d-none" id="run-icon"></i>
+                    <span class="fw-semibold text-nowrap" id="run-status"></span>
+                    <div class="status-bars flex-fill">
+                        <div class="progress" role="progressbar" aria-label="Pages read" title="Pages read" id="progress">
+                            <div class="progress-bar" id="progress-bar" style="width: 0%"></div>
+                        </div>
+                        <div class="progress d-none" role="progressbar" aria-label="Names and written answers read and graded" title="Model requests: names, written answers and grading" id="progress-requests">
+                            <div class="progress-bar theme-accent" id="progress-requests-bar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-outline theme-danger btn-sm d-none" id="btn-cancel-run"><i class="bi bi-stop-fill me-1"></i>Cancel</button>
+                    <button type="button" class="btn-solid theme-primary btn-sm d-none" id="btn-view-results">View Results</button>
+                    <i class="bi bi-chevron-down status-chevron" aria-hidden="true"></i>
+                </summary>
+                <div class="status-log">
+                    <code class="d-block small fg-secondary" id="run-command"></code>
+                    <pre class="cli-log small border rounded p-3 mt-3 mb-0" id="cli-log"></pre>
+                </div>
+            </details>
+
+            <div class="accordion accordion-gap" id="grader-steps">
+                <!-- 1. Scanned sheets -->
+                <details class="accordion-item" name="grader-step" id="panel-sheets" open>
+                    <summary class="accordion-header">
+                        <span class="fw-semibold"><i class="bi bi-images me-2"></i>Scanned Sheets</span>
+                        <span class="small fg-secondary ms-3 text-truncate" id="sheets-summary"></span>
+                        <svg class="accordion-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="m2 5 6 6 6-6" /></svg>
+                    </summary>
+                    <div class="accordion-body">
+                        <div class="d-flex align-items-center gap-3 flex-wrap mb-3">
                             <input type="file" id="zip-input" accept=".zip,application/zip" hidden />
                             <input type="file" id="images-input" accept="image/png,image/jpeg,.png,.jpg,.jpeg" multiple hidden />
                             <div class="btn-group btn-group-sm">
-                                <button type="button" class="btn btn-outline-secondary" id="btn-zip"><i class="bi bi-file-earmark-zip"></i> .zip file</button>
-                                <button type="button" class="btn btn-outline-secondary" id="btn-images"><i class="bi bi-file-earmark-image"></i> Images</button>
-                                <button type="button" class="btn btn-outline-secondary" id="btn-clear-files" title="Clear"><i class="bi bi-x-lg"></i></button>
+                                <button type="button" class="btn-outline theme-secondary" id="btn-zip"><i class="bi bi-file-earmark-zip"></i> .zip file</button>
+                                <button type="button" class="btn-outline theme-secondary" id="btn-images"><i class="bi bi-file-earmark-image"></i> Images</button>
+                                <button type="button" class="btn-outline theme-secondary" id="btn-clear-files" title="Clear"><i class="bi bi-x-lg"></i></button>
                             </div>
-                            <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-sidebar-collapse" title="Hide the sidebar" aria-label="Hide the sidebar">
-                                <i class="bi bi-chevron-double-left"></i>
-                            </button>
                         </div>
-                        <div class="collapse show" id="files-body">
-                        <div class="card-body">
-                            <div class="drop-zone" id="drop-zone">
-                                <div class="file-box border rounded" id="file-box">
-                                    <div class="text-center text-body-secondary py-4" id="file-empty">
-                                        <i class="bi bi-cloud-arrow-up fs-2 d-block mb-2"></i>
-                                        Drop a <strong>.zip</strong> or <strong>PNG/JPG</strong> page images here,<br />or use the buttons above.
+                        <div class="drop-zone" id="drop-zone">
+                            <div class="file-box border rounded" id="file-box">
+                                <div class="text-center fg-secondary py-7" id="file-empty">
+                                    <i class="bi bi-cloud-arrow-up fs-3xl d-block mb-3"></i>
+                                    Drop a <strong>.zip</strong> or <strong>PNG/JPG</strong> page images here,<br />or use the buttons above.
+                                </div>
+                                <ol class="list-group list-group-flush list-group-numbered small d-none" id="file-list"></ol>
+                            </div>
+                            <div class="drop-hint"><i class="bi bi-file-earmark-arrow-down"></i> Drop to add</div>
+                        </div>
+                        <div class="form-text mt-3" id="file-summary">
+                            Pages are graded in order: zip entries as stored, images by file name. Keep each student's pages together, page 1 first.
+                        </div>
+                        <div class="alert theme-danger mt-5 mb-0 d-none" id="input-error" role="alert"></div>
+                        <div class="d-flex justify-content-end mt-5">
+                            <button type="button" class="btn-solid theme-primary" id="btn-continue" disabled>Continue <i class="bi bi-arrow-right ms-1"></i></button>
+                        </div>
+                    </div>
+                </details>
+
+                <!-- 2. Test -->
+                <details class="accordion-item" name="grader-step" id="panel-test">
+                    <summary class="accordion-header">
+                        <span class="fw-semibold"><i class="bi bi-key me-2"></i>Test</span>
+                        <span class="small fg-secondary ms-3 text-truncate" id="test-header-summary"></span>
+                        <svg class="accordion-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="m2 5 6 6 6-6" /></svg>
+                    </summary>
+                    <div class="accordion-body">
+                        <div class="input-group">
+                            <span class="form-control text-truncate fg-secondary" id="test-name">No test chosen</span>
+                            <input type="file" id="test-file" accept=".json,application/json" hidden />
+                            <button type="button" class="btn-outline theme-secondary" id="btn-test-file"><i class="bi bi-folder2-open"></i> test.json</button>
+                        </div>
+                        <div class="form-text" id="test-summary">
+                            The test's JSON from the Sheet Generator, with an <code>answer</code> for every question. The grader takes the answer key,
+                            each question's points and the free-response model answers from it.
+                        </div>
+                        <ul class="small fg-danger mb-0 mt-1 ps-5 d-none" id="test-errors"></ul>
+
+                        <details class="grader-options mt-5">
+                            <summary class="small fg-secondary"><i class="bi bi-sliders me-1"></i>Options</summary>
+                            <div class="row g-3 mt-1">
+                                <div class="col-6">
+                                    <label class="form-label small mb-1" for="opt-mark">Mark threshold</label>
+                                    <input type="number" class="form-control form-control-sm" id="opt-mark" min="0" max="1" step="0.01" />
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label small mb-1" for="opt-blank">Blank threshold</label>
+                                    <input type="number" class="form-control form-control-sm" id="opt-blank" min="0" max="1" step="0.01" />
+                                </div>
+                            </div>
+                            <div class="form-text">Fill ratios: at or above the mark threshold reads as filled, at or below the blank one as empty; anything between is unclear and you'll be asked about it.</div>
+                            <div class="form-field mt-3">
+                                <input type="checkbox" class="check" id="opt-debug" />
+                                <label class="small" for="opt-debug">Diagnostic images for every page (problem pages always get one)</label>
+                            </div>
+                        </details>
+
+                        <code class="d-block small fg-secondary text-break mt-5" id="command-preview" title="The command this runs"></code>
+                        <div class="d-flex justify-content-end gap-3 mt-5">
+                            <button type="button" class="btn-outline theme-secondary" id="btn-back"><i class="bi bi-arrow-left me-1"></i>Back</button>
+                            <button type="button" class="btn-solid theme-primary" id="btn-grade" disabled><i class="bi bi-play-fill me-1"></i>Grade</button>
+                        </div>
+                    </div>
+                </details>
+
+                <!-- 3. Review -->
+                <details class="accordion-item" name="grader-step" id="panel-review">
+                    <summary class="accordion-header">
+                        <span class="fw-semibold"><i class="bi bi-person-check me-2"></i>Review</span>
+                        <span class="small fg-secondary ms-3 text-truncate" id="review-header-summary"></span>
+                        <svg class="accordion-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="m2 5 6 6 6-6" /></svg>
+                    </summary>
+                    <div class="accordion-body review-panel">
+                        <div class="text-center fg-secondary py-7" id="empty-state">
+                            <i class="bi bi-table fs-4xl d-block mb-5"></i>
+                            <p class="mb-1 fw-semibold" id="empty-title">Nothing to review yet</p>
+                            <p class="mb-0 small" id="empty-detail">Add the scanned sheets and the test, then choose <strong>Grade</strong>.</p>
+                        </div>
+
+                        <form class="review-form d-none" id="review-card" novalidate>
+                            <div class="d-flex align-items-center gap-3 flex-wrap mb-3">
+                                <span class="fw-semibold me-auto">Check before grading</span>
+                                <span class="small fg-secondary" id="review-counts"></span>
+                            </div>
+                            <fieldset class="d-flex flex-wrap gap-5 mb-5">
+                                <legend class="visually-hidden">Which sheets to show</legend>
+                                <div class="form-field">
+                                    <input type="radio" id="view-all" name="review-view" value="all" class="radio" checked />
+                                    <div class="form-field-content">
+                                        <label for="view-all" class="fw-medium">All Sheets <span class="badge badge-subtle theme-success" id="view-all-count"></span></label>
+                                        <small class="form-text">Every student's sheet, in scan order.</small>
                                     </div>
-                                    <ol class="list-group list-group-flush list-group-numbered small d-none" id="file-list"></ol>
                                 </div>
-                                <div class="drop-hint"><i class="bi bi-file-earmark-arrow-down"></i> Drop to add</div>
-                            </div>
-                            <div class="form-text mt-2" id="file-summary">
-                                Pages are graded in order: zip entries as stored, images by file name. Keep each student's pages together, page 1 first.
-                            </div>
-                        </div>
-                        </div>
-                    </div>
-
-                    <div class="card shadow-sm mb-3">
-                        <div class="card-header d-flex align-items-center gap-2">
-                            <button type="button" class="btn btn-sm btn-link text-body-secondary p-0 panel-chevron" data-bs-toggle="collapse" data-bs-target="#test-body" aria-expanded="true" aria-controls="test-body" title="Collapse or expand">
-                                <i class="bi bi-chevron-down"></i>
-                            </button>
-                            <span class="fw-semibold"><i class="bi bi-key me-1"></i>Test</span>
-                        </div>
-                        <div class="collapse show" id="test-body">
-                        <div class="card-body">
-                            <div class="input-group">
-                                <span class="form-control text-truncate text-body-secondary" id="test-name">No test chosen</span>
-                                <input type="file" id="test-file" accept=".json,application/json" hidden />
-                                <button type="button" class="btn btn-outline-secondary" id="btn-test-file"><i class="bi bi-folder2-open"></i> test.json</button>
-                            </div>
-                            <div class="form-text" id="test-summary">
-                                The test's JSON from the Sheet Generator, with an <code>answer</code> for every question. The grader takes the answer key,
-                                each question's points and the free-response model answers from it.
-                            </div>
-                            <ul class="small text-danger mb-0 mt-1 ps-3 d-none" id="test-errors"></ul>
-
-                            <a class="link-secondary small d-inline-block mt-3" data-bs-toggle="collapse" href="#options" role="button" aria-expanded="false">
-                                <i class="bi bi-sliders me-1"></i>Options
-                            </a>
-                            <div class="collapse" id="options">
-                                <div class="row g-2 mt-1">
-                                    <div class="col-6">
-                                        <label class="form-label small mb-1" for="opt-mark">Mark threshold</label>
-                                        <input type="number" class="form-control form-control-sm" id="opt-mark" min="0" max="1" step="0.01" />
+                                <div class="form-field">
+                                    <input type="radio" id="view-flagged" name="review-view" value="flagged" class="radio" />
+                                    <div class="form-field-content">
+                                        <label for="view-flagged" class="fw-medium">Sheets That Need Review <span class="badge badge-subtle theme-warning" id="view-flagged-count"></span></label>
+                                        <small class="form-text">Names, unclear answers or written answers the grader couldn't settle.</small>
                                     </div>
-                                    <div class="col-6">
-                                        <label class="form-label small mb-1" for="opt-blank">Blank threshold</label>
-                                        <input type="number" class="form-control form-control-sm" id="opt-blank" min="0" max="1" step="0.01" />
-                                    </div>
-                                </div>
-                                <div class="form-text">Fill ratios: at or above the mark threshold reads as filled, at or below the blank one as empty; anything between is unclear and you'll be asked about it.</div>
-                                <div class="form-check mt-2">
-                                    <input class="form-check-input" type="checkbox" id="opt-debug" />
-                                    <label class="form-check-label small" for="opt-debug">Diagnostic images for every page (problem pages always get one)</label>
-                                </div>
-                            </div>
-                        </div>
-                        </div>
-                        <div class="card-footer d-flex align-items-center gap-2 flex-wrap">
-                            <button type="button" class="btn btn-primary" id="btn-grade" disabled><i class="bi bi-play-fill me-1"></i>Grade</button>
-                            <button type="button" class="btn btn-outline-danger d-none" id="btn-cancel"><i class="bi bi-stop-fill me-1"></i>Cancel</button>
-                            <code class="small text-body-secondary text-break ms-auto" id="command-preview" title="The command this runs"></code>
-                        </div>
-                    </div>
-
-                    <div class="alert alert-danger d-none" id="input-error" role="alert"></div>
-                    </div>
-                </div>
-
-                <!-- Run + results -->
-                <div class="col-lg-7" id="right-col">
-                    <div class="card shadow-sm" id="empty-state">
-                        <div class="card-body text-center text-body-secondary py-5">
-                            <i class="bi bi-table display-4 d-block mb-3"></i>
-                            <p class="mb-1 fw-semibold">No results yet</p>
-                            <p class="mb-0 small">Add the scanned sheets and the test, then choose <strong>Grade</strong>.</p>
-                        </div>
-                    </div>
-
-                    <div class="d-none" id="run">
-                        <div class="card shadow-sm mb-3">
-                            <div class="card-body">
-                                <div class="d-flex align-items-center gap-2 mb-2">
-                                    <span class="spinner-border spinner-border-sm text-primary" id="run-spinner" aria-hidden="true"></span>
-                                    <i class="bi d-none" id="run-icon"></i>
-                                    <span class="fw-semibold" id="run-status"></span>
-                                    <button type="button" class="btn btn-sm btn-outline-danger ms-auto d-none" id="btn-cancel-run"><i class="bi bi-stop-fill me-1"></i>Cancel</button>
-                                </div>
-                                <div class="progress" role="progressbar" aria-label="Pages read" id="progress">
-                                    <div class="progress-bar" id="progress-bar" style="width: 0%"></div>
-                                </div>
-
-                                <details class="mt-3">
-                                    <summary class="small text-body-secondary">CLI output</summary>
-                                    <code class="d-block small text-body-secondary mt-2" id="run-command"></code>
-                                    <pre class="cli-log small border rounded p-2 mt-2 mb-0" id="cli-log"></pre>
-                                </details>
-                            </div>
-                        </div>
-
-                        <form class="card shadow-sm mb-3 border-primary d-none" id="review-card" novalidate>
-                            <div class="card-header d-flex align-items-center gap-2 flex-wrap">
-                                <span class="fw-semibold me-auto"><i class="bi bi-person-check me-1"></i>Check before grading</span>
-                                <span class="small text-body-secondary" id="review-counts"></span>
-                                <div class="btn-group btn-group-sm" role="group" aria-label="Which sheets to show">
-                                    <input type="radio" class="btn-check" name="review-view" id="view-all" value="all" autocomplete="off" checked />
-                                    <label class="btn btn-outline-primary" for="view-all">All Sheets <span class="badge text-bg-secondary" id="view-all-count"></span></label>
-                                    <input type="radio" class="btn-check" name="review-view" id="view-flagged" value="flagged" autocomplete="off" />
-                                    <label class="btn btn-outline-primary" for="view-flagged">Sheets That Need Review <span class="badge text-bg-warning" id="view-flagged-count"></span></label>
-                                </div>
-                            </div>
-                            <div class="card-body small text-body-secondary py-2">
-                                Check each name against the handwriting, pick the answer for any bubble too faint to call (click the bubble or
-                                its letter), and check the points each written answer was given. <strong>Skip</strong> leaves a submission out of the grades.
-                            </div>
-                            <fieldset id="review-fieldset">
-                                <ul class="review-sheets list-unstyled d-flex flex-column gap-4 p-3 mb-0" id="review-list"></ul>
-                                <div class="text-center text-body-secondary py-4 d-none" id="review-empty">
-                                    <i class="bi bi-check2-circle fs-2 d-block mb-1"></i>No sheets need review.
                                 </div>
                             </fieldset>
-                            <div class="card-footer d-flex align-items-center gap-2 flex-wrap">
-                                <button type="submit" class="btn btn-primary" id="btn-finish-review"><i class="bi bi-check2-all me-1"></i>Grade with these</button>
-                                <span class="small text-danger" id="review-error"></span>
-                                <span class="small text-body-secondary ms-auto" id="review-summary"></span>
+                            <p class="small fg-secondary">
+                                Check each name against the handwriting, pick the answer for any bubble too faint to call (click the bubble or
+                                its letter), and check the points each written answer was given. <strong>Skip</strong> leaves a submission out of the grades.
+                            </p>
+                            <fieldset id="review-fieldset">
+                                <ul class="review-sheets list-unstyled d-flex flex-column gap-7 p-5 mb-0" id="review-list"></ul>
+                                <div class="text-center fg-secondary py-7 d-none" id="review-empty">
+                                    <i class="bi bi-check2-circle fs-3xl d-block mb-1"></i>No sheets need review.
+                                </div>
+                            </fieldset>
+                            <div class="d-flex align-items-center gap-3 flex-wrap mt-5">
+                                <span class="small fg-danger" id="review-error"></span>
+                                <span class="small fg-secondary me-auto" id="review-summary"></span>
+                                <button type="submit" class="btn-solid theme-primary" id="btn-finish-review"><i class="bi bi-check2-all me-1"></i>Grade with these</button>
                             </div>
                         </form>
+                    </div>
+                </details>
+
+                <!-- 4. Results -->
+                <details class="accordion-item" name="grader-step" id="panel-results">
+                    <summary class="accordion-header">
+                        <span class="fw-semibold"><i class="bi bi-table me-2"></i>Results</span>
+                        <span class="small fg-secondary ms-3 text-truncate" id="results-header-summary"></span>
+                        <svg class="accordion-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="m2 5 6 6 6-6" /></svg>
+                    </summary>
+                    <div class="accordion-body">
+                        <div class="text-center fg-secondary py-7" id="results-empty">
+                            <i class="bi bi-table fs-4xl d-block mb-5"></i>
+                            <p class="mb-0 fw-semibold">No results yet</p>
+                        </div>
 
                         <div class="alert d-none" id="result-alert" role="status"></div>
 
-                        <div class="card shadow-sm mb-3 d-none" id="results-card">
-                            <div class="card-header d-flex align-items-center gap-2 flex-wrap">
-                                <span class="fw-semibold me-auto"><i class="bi bi-table me-1"></i>Grades</span>
+                        <section class="d-none" id="results-card">
+                            <div class="d-flex align-items-center gap-3 flex-wrap mb-3">
+                                <h3 class="fs-md fw-semibold me-auto mb-0"><i class="bi bi-table me-1"></i>Grades</h3>
                                 <div class="btn-group btn-group-sm">
-                                    <button type="button" class="btn btn-outline-secondary" id="btn-copy-csv"><i class="bi bi-clipboard" id="copy-csv-icon"></i> Copy</button>
-                                    <button type="button" class="btn btn-success" id="btn-download-csv"><i class="bi bi-download"></i> grades.csv</button>
+                                    <button type="button" class="btn-outline theme-secondary" id="btn-copy-csv"><i class="bi bi-clipboard" id="copy-csv-icon"></i> Copy</button>
+                                    <button type="button" class="btn-solid theme-success" id="btn-download-csv"><i class="bi bi-download"></i> grades.csv</button>
                                 </div>
                             </div>
-                            <div class="card-body pb-0">
-                                <div class="d-flex flex-wrap gap-2 small mb-3" id="result-badges"></div>
-                            </div>
+                            <div class="d-flex flex-wrap gap-3 small mb-5" id="result-badges"></div>
+
+                            <details class="curve-panel border rounded mb-5" id="curve-panel">
+                                <summary class="curve-summary">
+                                    <i class="bi bi-graph-up-arrow"></i>
+                                    <span class="fw-semibold">Curve Scores</span>
+                                    <span class="small fg-secondary text-truncate" id="curve-summary"></span>
+                                    <i class="bi bi-chevron-down status-chevron ms-auto" aria-hidden="true"></i>
+                                </summary>
+                                <div class="curve-body">
+                                    <div class="d-flex flex-wrap align-items-center gap-3 mb-5" id="curve-shortcut">
+                                        <span class="small">Select all students who responded to question</span>
+                                        <select class="form-control form-control-sm w-auto" id="curve-question" aria-label="Question number"></select>
+                                        <select class="form-control form-control-sm w-auto" id="curve-result" aria-label="Correctly or incorrectly">
+                                            <option value="correct">correctly</option>
+                                            <option value="incorrect">incorrectly</option>
+                                        </select>
+                                        <button type="button" class="btn-outline theme-secondary btn-sm" id="btn-curve-select">Select</button>
+                                    </div>
+
+                                    <div class="form-field mb-3">
+                                        <input type="checkbox" class="check" id="curve-all" />
+                                        <label for="curve-all" class="small fw-medium" id="curve-all-label">Select All</label>
+                                    </div>
+                                    <div class="curve-table border rounded">
+                                        <table class="table table-sm align-middle small mb-0" id="curve-table">
+                                            <thead>
+                                                <tr>
+                                                    <th scope="col" class="curve-check"><span class="visually-hidden">Selected</span></th>
+                                                    <th scope="col">Student</th>
+                                                    <th scope="col" class="text-end">Base</th>
+                                                    <th scope="col" class="text-end">Curve</th>
+                                                    <th scope="col" class="text-end">Score</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody></tbody>
+                                        </table>
+                                    </div>
+
+                                    <div class="d-flex flex-wrap align-items-center gap-3 mt-5">
+                                        <label class="small" for="curve-points">Points to give</label>
+                                        <input type="number" step="1" value="1" class="form-control form-control-sm w-auto curve-points" id="curve-points" />
+                                        <span class="small fg-secondary" id="curve-count"></span>
+                                        <span class="small fg-danger" id="curve-error"></span>
+                                        <button type="button" class="btn-solid theme-primary ms-auto" id="btn-curve-apply">Apply curve</button>
+                                    </div>
+                                    <div class="form-text">
+                                        Each selected student's curve is set to these points on top of their base score. Applying again replaces it rather than adding
+                                        to it, so curves never stack; 0 removes a curve.
+                                    </div>
+                                </div>
+                            </details>
                             <div class="table-responsive">
                                 <table class="table table-hover table-sm align-middle mb-0 grades-table" id="grades-table">
                                     <thead></thead>
                                     <tbody></tbody>
                                 </table>
                             </div>
-                        </div>
+                        </section>
 
-                        <div class="card shadow-sm mb-3 border-warning d-none" id="skipped-card">
-                            <div class="card-header fw-semibold"><i class="bi bi-exclamation-triangle text-warning me-1"></i><span id="skipped-title"></span></div>
+                        <section class="result-section d-none" id="chart-card">
+                            <h3 class="fs-md fw-semibold mb-1"><i class="bi bi-bar-chart me-1"></i>Correct responses by question</h3>
+                            <p class="small fg-secondary mb-3">The share of students who answered each question correctly. A written answer counts as correct at full points.</p>
+                            <div class="difficulty-chart" id="difficulty-chart"></div>
+                            <div class="d-flex flex-wrap gap-5 small fg-secondary mt-3" id="difficulty-legend"></div>
+                            <div class="d-flex align-items-start gap-3 mt-3 d-none" id="difficulty-none">
+                                <span class="badge theme-danger text-nowrap">No correct responses</span>
+                                <span class="small fg-secondary" id="difficulty-none-list"></span>
+                            </div>
+                            <details class="mt-3">
+                                <summary class="small fg-secondary">Show as table</summary>
+                                <table class="table table-sm small mt-3 mb-0" id="difficulty-table">
+                                    <thead><tr><th scope="col">Question</th><th scope="col" class="text-end">Correct</th><th scope="col" class="text-end">Answered</th><th scope="col" class="text-end">Share</th></tr></thead>
+                                    <tbody></tbody>
+                                </table>
+                            </details>
+                        </section>
+
+                        <section class="result-section d-none" id="skipped-card">
+                            <h3 class="fs-md fw-semibold"><i class="bi bi-exclamation-triangle fg-warning me-1"></i><span id="skipped-title"></span></h3>
                             <ul class="list-group list-group-flush" id="skipped-list"></ul>
-                        </div>
+                        </section>
 
-                        <div class="card shadow-sm mb-3 d-none" id="images-card">
-                            <div class="card-header d-flex align-items-center gap-2">
-                                <span class="fw-semibold me-auto"><i class="bi bi-bounding-box me-1"></i>Diagnostic images</span>
-                                <a class="btn btn-sm btn-outline-secondary" id="images-zip" download="diagnostics.zip"><i class="bi bi-download"></i> All (.zip)</a>
+                        <section class="result-section d-none" id="images-card">
+                            <div class="d-flex align-items-center gap-3 mb-3">
+                                <h3 class="fs-md fw-semibold me-auto mb-0"><i class="bi bi-bounding-box me-1"></i>Diagnostic images</h3>
+                                <a class="btn-outline theme-secondary btn-sm" id="images-zip" download="diagnostics.zip"><i class="bi bi-download"></i> All (.zip)</a>
                             </div>
-                            <div class="card-body">
-                                <div class="row row-cols-2 row-cols-md-3 g-3" id="images-grid"></div>
-                            </div>
-                        </div>
+                            <div class="row row-cols-2 md:row-cols-3 g-5" id="images-grid"></div>
+                        </section>
                     </div>
-                </div>
+                </details>
             </div>
         </main>
 
-        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
         <script type="module" src="./grader.ts"></script>
     </body>
 </html>

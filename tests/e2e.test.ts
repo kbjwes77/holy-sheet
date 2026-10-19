@@ -170,7 +170,7 @@ describe("end to end", () => {
         let stderr = "";
         const code = await main(["missing.zip"], { env: {}, stderr: (s) => (stderr += s), stdout: () => {} });
         expect(code).toBe(1);
-        expect(stderr).toMatch(/OPENROUTER_API_KEY and OPENROUTER_MODEL must be set/);
+        expect(stderr).toMatch(/OPENROUTER_API_KEY and VISION_MODEL and REASONING_MODEL must be set/);
     });
 
     test("mixed tests are fatal", async () => {

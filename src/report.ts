@@ -11,6 +11,10 @@ export const keyErrorLine = (error: string) => `  ${error}\n`;
 export const decodedLine = (i: number, n: number, file: string, problem: boolean) => `decoded ${i}/${n}: ${file}${problem ? " (problem)" : ""}`;
 const DECODED_RE = /^decoded (\d+)\/(\d+): (.*?)( \(problem\))?$/;
 
+/** Model requests finished so far (name OCR, written-answer OCR and grading), of all expected. */
+export const requestsLine = (done: number, total: number) => `requests ${done}/${total}`;
+export const REQUESTS_RE = /^requests (\d+)\/(\d+)$/;
+
 export const skippedHeader = (orphan: boolean, files: string[]) => `skipped ${orphan ? "orphan pages" : "submission"} [${files.join(", ")}]:\n`;
 export const skippedReasonLine = (reason: string) => `  - ${reason}\n`;
 const SKIPPED_RE = /^skipped (orphan pages|submission) \[(.*)\]:$/;
@@ -114,6 +118,9 @@ export interface StderrSummary {
     /** Pages decoded so far, and the total (0 before the first page). */
     decoded: number;
     pages: number;
+    /** Model requests finished and expected (0 before the count is known). */
+    requestsDone: number;
+    requests: number;
     problemFiles: string[];
     skipped: Skipped[];
     fatal?: string;
@@ -126,7 +133,7 @@ export interface StderrSummary {
 
 /** Summarises complete stderr log lines (as emitted by StderrParser). */
 export function summarizeStderr(lines: readonly string[]): StderrSummary {
-    const s: StderrSummary = { decoded: 0, pages: 0, problemFiles: [], skipped: [] };
+    const s: StderrSummary = { decoded: 0, pages: 0, requestsDone: 0, requests: 0, problemFiles: [], skipped: [] };
     let current: Skipped | undefined;
     for (const line of lines) {
         const reason = current && REASON_RE.exec(line);
@@ -140,6 +147,9 @@ export function summarizeStderr(lines: readonly string[]): StderrSummary {
             s.decoded = Number(m[1]);
             s.pages = Number(m[2]);
             if (m[4]) s.problemFiles.push(m[3]!);
+        } else if ((m = REQUESTS_RE.exec(line))) {
+            s.requestsDone = Number(m[1]);
+            s.requests = Number(m[2]);
         } else if ((m = SKIPPED_RE.exec(line))) {
             current = { orphan: m[1] === "orphan pages", files: m[2] ? m[2].split(", ") : [], reasons: [] };
             s.skipped.push(current);

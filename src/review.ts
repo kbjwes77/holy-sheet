@@ -22,6 +22,15 @@ export interface NameItem extends ItemBase {
     /** The OCR result, or null when it failed (then `error` says why). */
     ocr: string | null;
     error?: string;
+    /** What the page needs to score the sheet as the teacher edits it; absent from older review files. */
+    stats?: SheetStats;
+}
+
+/** The key and the grader's reading of a submission's multiple-choice questions, for a live score. */
+export interface SheetStats {
+    /** What every question on the test is worth in all. */
+    total: number;
+    choice: { question: number; points: number; answer: number[]; marked: number[] }[];
 }
 
 export interface AnswerItem extends ItemBase {
