@@ -143,6 +143,9 @@ export function createBilling(db: Database, auth: Auth, o: BillingOptions = {}) 
         }
     }
 
+    /** Stripe schedules a cancellation either as `cancel_at_period_end` or, as the portal does, with a `cancel_at` timestamp. */
+    const scheduledCancel = (sub: Stripe.Subscription) => sub.cancel_at_period_end || sub.cancel_at != null;
+
     /** Writes a (freshly fetched) subscription's state onto its owner. Pro while it's active, trialing or past due. */
     function syncSubscription(sub: Stripe.Subscription): void {
         const customer = typeof sub.customer === "string" ? sub.customer : sub.customer.id;
@@ -168,7 +171,7 @@ export function createBilling(db: Database, auth: Auth, o: BillingOptions = {}) 
         db.query(
             `UPDATE users SET plan = ?, stripe_subscription_id = ?, subscription_status = ?, subscription_created = ?, price_id = ?, billing_interval = ?,
                  current_period_end = ?, cancel_at_period_end = ?, trial_used_at = COALESCE(trial_used_at, ?) WHERE id = ?`,
-        ).run(pro ? "pro" : "free", sub.id, sub.status, sub.created, item?.price.id ?? null, interval ?? null, item?.current_period_end ?? null, sub.cancel_at_period_end ? 1 : 0, sub.trial_start ?? null, user.id);
+        ).run(pro ? "pro" : "free", sub.id, sub.status, sub.created, item?.price.id ?? null, interval ?? null, item?.current_period_end ?? null, scheduledCancel(sub) ? 1 : 0, sub.trial_start ?? null, user.id);
         const plan = pro ? "pro" : "free";
         if (user.plan !== plan) recordUsage(db, user.id, `plan_${plan}`, 1, { subscription: sub.id, status: sub.status });
     }

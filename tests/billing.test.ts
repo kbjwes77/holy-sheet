@@ -69,6 +69,7 @@ function subscribe(customer: string, status: string, over: Record<string, unknow
         created: 1000,
         metadata: {},
         cancel_at_period_end: false,
+        cancel_at: null,
         trial_start: null,
         items: { data: [{ price: { id: "price_m", recurring: { interval: "month" } }, current_period_end: 5000 }] },
         ...over,
@@ -153,6 +154,16 @@ describe("webhook", () => {
         await update(lastCustomer(), "active", { id: "sub_ui", cancel_at_period_end: true, items: { data: [{ price: { id: "price_y", recurring: { interval: "year" } }, current_period_end: 7777 }] } });
         expect((await me(c)).billing).toMatchObject({ status: "active", interval: "year", periodEnd: 7777, cancelAtPeriodEnd: true });
         expect(db.query("SELECT price_id, subscription_created FROM users WHERE email = ?").get("ui@example.com")).toEqual({ price_id: "price_y", subscription_created: 1000 });
+    });
+
+    test("a cancellation scheduled with cancel_at (as the portal does) keeps Pro and shows as cancelling", async () => {
+        const c = await new Client().signUp("portal-cancel@example.com");
+        await c.checkout();
+        await update(lastCustomer(), "trialing", { id: "sub_pc", cancel_at: 5000, cancel_at_period_end: false });
+        expect(await plan(c)).toBe("pro");
+        expect((await me(c)).billing).toMatchObject({ status: "trialing", cancelAtPeriodEnd: true });
+        await update(lastCustomer(), "canceled", { id: "sub_pc", cancel_at: 5000 }, "customer.subscription.deleted");
+        expect(await plan(c)).toBe("free");
     });
 
     test("checkout.session.completed syncs the subscription it names", async () => {
