@@ -1,6 +1,6 @@
 {
-    "name": "GradeLake",
-    "short_name": "GradeLake",
+    "name": "Grade Lake",
+    "short_name": "Grade Lake",
     "description": "Printable answer sheets and fast exam grading for teachers.",
     "start_url": "/dashboard",
     "display": "browser",

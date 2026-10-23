@@ -1,6 +1,6 @@
-# GradeLake
+# Grade Lake
 
-> GradeLake is a web app for teachers and tutors that turns a test into printable, scannable answer sheets and grades the scanned or photographed sheets into a CSV. It handles multiple-choice questions and handwritten free-response questions.
+> Grade Lake is a web app for teachers and tutors that turns a test into printable, scannable answer sheets and grades the scanned or photographed sheets into a CSV. It handles multiple-choice questions and handwritten free-response questions.
 
 ## What it does
 
@@ -15,7 +15,7 @@
 
 ## Privacy note
 
-- Filled bubbles are read by GradeLake itself. Images of the name box and of handwritten answers are sent to AI models to be read and graded.
+- Filled bubbles are read by Grade Lake itself. Images of the name box and of handwritten answers are sent to AI models to be read and graded.
 
 ## Pages
 

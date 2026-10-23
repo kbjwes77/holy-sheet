@@ -122,7 +122,7 @@ function themeSwitch(): HTMLElement {
  */
 export async function startPage(active: string): Promise<{ me: Me; motd: string }> {
     const { user, motd } = await api<{ user: Me; motd: string }>("/api/me");
-    const brandHtml = '<i class="bi bi-water fg-primary"></i>GradeLake';
+    const brandHtml = '<i class="bi bi-water fg-primary"></i>Grade Lake';
 
     const links: [string, string, string, string][] = [
         ["dashboard", "/dashboard", "bi-house", "Dashboard"],
