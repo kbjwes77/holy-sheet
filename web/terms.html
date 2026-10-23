@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="darkreader-lock" />
+        <title>Terms of Service – GradeLake</title>
+        <meta name="description" content="The rules for using GradeLake, including accounts, content, grading and subscriptions." />
+        <link rel="canonical" href="https://gradelake.com/terms" />
+        <meta name="robots" content="index, follow" />
+        <meta name="theme-color" content="#1a3fd1" />
+        <script>
+            let theme = null;
+            try {
+                theme = localStorage.getItem("theme");
+            } catch {}
+            document.documentElement.dataset.bsTheme = theme === "light" || theme === "dark" ? theme : matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        </script>
+        <link rel="stylesheet" href="./landing.css" />
+        <link rel="stylesheet" href="./pricing.css" />
+        <link rel="stylesheet" href="./legal.css" />
+        <link rel="icon" href="../public/images/favicon.ico" sizes="48x48" />
+        <link rel="icon" type="image/svg+xml" href="../public/images/logo-square.svg" />
+        <link rel="icon" type="image/png" sizes="32x32" href="../public/images/favicon-32x32.png" />
+        <link rel="icon" type="image/png" sizes="16x16" href="../public/images/favicon-16x16.png" />
+        <link rel="apple-touch-icon" href="../public/images/apple-touch-icon.png" />
+        <link rel="manifest" href="../public/site.webmanifest" />
+    </head>
+    <body>
+        <div class="wrap">
+            <header class="nav price-nav">
+                <a href="/" class="brand"><img src="../public/images/logo-square.svg" alt="" width="36" height="35" />GradeLake</a>
+                <a href="/pricing" class="nav-link">Pricing</a>
+                <a href="/login" class="nav-link">Sign in</a>
+            </header>
+        </div>
+
+        <main class="wrap legal">
+            <h1>Terms of Service</h1>
+            <p class="updated">Last updated October 23, 2026</p>
+            <p>These terms govern your use of GradeLake. By creating an account or using the site you agree to them. If you don't agree, please don't use GradeLake.</p>
+
+            <h2>The service</h2>
+            <p>GradeLake lets you create and share study material, generate printable answer sheets, and, with a Pro subscription, grade scanned or photographed sheets. Most features are free. Grading is part of the paid Pro plan.</p>
+
+            <h2>Your account</h2>
+            <ul>
+                <li>You must give accurate information and keep your password secure. You are responsible for activity on your account.</li>
+                <li>You must be at least 13 years old, and GradeLake is intended for teachers, tutors and other adults.</li>
+                <li>One person per account. Don't share your sign-in.</li>
+            </ul>
+
+            <h2>Your content</h2>
+            <p>You keep ownership of what you create and upload. You give GradeLake permission to store, process and display it as needed to run the service. When you publish a material, you also allow other signed-in users to view, download and copy it to their own library. You can unpublish or delete it at any time, though copies others already made remain theirs.</p>
+            <p>You are responsible for your content. Only upload or publish material you have the right to use, and only upload student work you are permitted to share with a grading service under your school's rules and the law.</p>
+
+            <h2>Acceptable use</h2>
+            <p>Don't use GradeLake to break the law, infringe others' rights, publish harmful, hateful or misleading material, try to get into other accounts or our systems, overload or disrupt the service, scrape it in bulk, or resell access. We may remove content or suspend accounts that break these rules.</p>
+
+            <h2>Grading and AI</h2>
+            <p>Grades come from reading filled bubbles and from AI models that transcribe and score handwritten answers. AI can make mistakes. GradeLake flags uncertain items for you to review, but you are responsible for checking results before you rely on them or give them to students. Handwriting and model answers are sent to AI providers as described in the <a href="/policy">Privacy Policy</a>.</p>
+
+            <h2>Pro subscription and payments</h2>
+            <ul>
+                <li>Pro costs $5 per month or $40 per year, billed in advance through Stripe, until you cancel.</li>
+                <li>New accounts can start a one-time 7-day free trial. A card is required, and you are charged when the trial ends unless you cancel before then. Each account gets one trial.</li>
+                <li>Cancel at any time from the Pricing page's subscription portal. Pro continues until the end of the period you've paid for, and then your account returns to Free. We don't give refunds for partial periods unless the law requires it.</li>
+                <li>If a renewal payment fails, Stripe retries it, and Pro stays on during the retries. If the payment still fails, the subscription is canceled.</li>
+                <li>We may change prices with advance notice. A change takes effect at your next renewal.</li>
+            </ul>
+
+            <h2>Availability and changes</h2>
+            <p>We work to keep GradeLake running but don't promise it will always be available or error free. We may change or discontinue features, and we may update these terms. If we make significant changes we will tell signed-in users, and continuing to use GradeLake means you accept them.</p>
+
+            <h2>Ending your account</h2>
+            <p>You can stop using GradeLake at any time and ask us to delete your account. We may suspend or end accounts that break these terms.</p>
+
+            <h2>Disclaimer and liability</h2>
+            <p>GradeLake is provided "as is" without warranties of any kind. To the fullest extent the law allows, GradeLake and its operators are not liable for indirect, incidental or consequential damages, lost data, or lost grades, and our total liability for any claim is limited to the amount you paid us in the 12 months before it arose. Some places don't allow these limits, so they may not apply to you.</p>
+
+            <h2>General</h2>
+            <p>If part of these terms can't be enforced, the rest still applies. These terms are the whole agreement between you and GradeLake about the service.</p>
+
+            <!-- TODO: add governing law / jurisdiction and a contact email before launch. -->
+            <p class="legal-links">See also our <a href="/policy">Privacy Policy</a>.</p>
+        </main>
+
+        <footer>
+            <div class="wrap">
+                <a href="/" class="brand"><img src="../public/images/logo-square.svg" alt="" width="24" height="23" />GradeLake</a>
+                <a href="/pricing">Pricing</a>
+                <a href="/policy">Privacy</a>
+                <a href="/terms">Terms</a>
+                <a href="/login">Sign in</a>
+            </div>
+        </footer>
+    </body>
+</html>

@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="darkreader-lock" />
+        <title>Pricing – GradeLake</title>
+        <meta name="description" content="GradeLake is free to use: browse, create and share study material and generate study guides, quizzes and exams. Grading scanned answer sheets is $5 a month, with a 7-day free trial." />
+        <link rel="canonical" href="https://gradelake.com/pricing" />
+        <meta name="robots" content="index, follow" />
+        <meta name="theme-color" content="#1a3fd1" />
+        <meta property="og:type" content="website" />
+        <meta property="og:site_name" content="GradeLake" />
+        <meta property="og:url" content="https://gradelake.com/pricing" />
+        <meta property="og:title" content="GradeLake pricing" />
+        <meta property="og:description" content="Free for study material. Grading scanned answer sheets is $5 a month, with a 7-day free trial." />
+        <meta property="og:image" content="https://gradelake.com/images/og-image.jpg" />
+
+        <script>
+            let theme = null;
+            try {
+                theme = localStorage.getItem("theme");
+            } catch {}
+            document.documentElement.dataset.bsTheme = theme === "light" || theme === "dark" ? theme : matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        </script>
+        <link rel="stylesheet" href="./landing.css" />
+        <link rel="stylesheet" href="./pricing.css" />
+        <link rel="icon" href="../public/images/favicon.ico" sizes="48x48" />
+        <link rel="icon" type="image/svg+xml" href="../public/images/logo-square.svg" />
+        <link rel="icon" type="image/png" sizes="32x32" href="../public/images/favicon-32x32.png" />
+        <link rel="icon" type="image/png" sizes="16x16" href="../public/images/favicon-16x16.png" />
+        <link rel="apple-touch-icon" href="../public/images/apple-touch-icon.png" />
+        <link rel="manifest" href="../public/site.webmanifest" />
+    </head>
+    <body>
+        <div class="wrap">
+            <header class="nav price-nav">
+                <a href="/" class="brand"><img src="../public/images/logo-square.svg" alt="" width="36" height="35" />GradeLake</a>
+                <a href="/login" class="nav-link" id="nav-login">Sign in</a>
+                <a href="/register" class="btn btn-solid" id="nav-register">Create account</a>
+            </header>
+        </div>
+
+        <main>
+            <section class="price-head">
+                <div class="wrap">
+                    <h1>Simple pricing</h1>
+                    <p>Everything is free except the grader. Try it free for a week, then it's $5 a month or $40 a year.</p>
+                </div>
+            </section>
+
+            <section class="price-plans">
+                <div class="wrap plans">
+                    <article class="plan">
+                        <h2>Free</h2>
+                        <p class="plan-price"><span class="amount">$0</span> <span class="per">forever</span></p>
+                        <ul class="ticks">
+                            <li>Browse materials other teachers publish</li>
+                            <li>Create, organize and share your own study material</li>
+                            <li>Generate study guides, quizzes and exams from any material on the site</li>
+                            <li>Print answer sheets with the Sheet Generator</li>
+                        </ul>
+                        <a href="/register" class="btn btn-outline" id="free-cta">Create a free account</a>
+                    </article>
+
+                    <article class="plan plan-pro">
+                        <p class="plan-flag">Includes a 7-day free trial</p>
+                        <h2>Pro</h2>
+                        <div class="interval" role="group" aria-label="Billing period">
+                            <button type="button" class="on" id="int-monthly" aria-pressed="true">Monthly</button>
+                            <button type="button" id="int-yearly" aria-pressed="false">Yearly <span>save 33%</span></button>
+                        </div>
+                        <p class="plan-price"><span class="amount" id="pro-amount">$5</span> <span class="per" id="pro-per">per month</span></p>
+                        <ul class="ticks">
+                            <li>Everything in Free</li>
+                            <li>The Sheet Grader: scan or photograph a stack of answer sheets and get every grade as a CSV</li>
+                            <li>Multiple choice and handwritten free response</li>
+                            <li>Grade any number of sheets during your trial</li>
+                            <li>Cancel any time</li>
+                        </ul>
+                        <button type="button" class="btn btn-solid" id="pro-cta">Start your 7-day free trial</button>
+                        <p class="plan-note" id="pro-note" role="status"></p>
+                        <p class="plan-error" id="pro-error" role="alert" hidden></p>
+                    </article>
+                </div>
+            </section>
+
+            <section class="section price-faq" style="padding-top: 0">
+                <div class="wrap faq-wrap">
+                    <h2>Questions</h2>
+                    <details class="faq"><summary>How does the free trial work?</summary><p>Start Pro and grade as many sheets as you like for 7 days. Checkout asks for a card so grading keeps working if you stay, but you aren't charged until the trial ends, and you can cancel before then at no cost. Each account gets one trial.</p></details>
+                    <details class="faq"><summary>What do I get without paying?</summary><p>Everything except the grader: browsing, creating and sharing study material, generating study guides, quizzes and exams from any material on the site, and printing answer sheets.</p></details>
+                    <details class="faq"><summary>What happens if I cancel?</summary><p>Pro stays on until the end of the period you've paid for, then your account goes back to Free. Your library and everything you've published stay exactly as they were.</p></details>
+                    <details class="faq"><summary>How do I pay, and can I change my card?</summary><p>Payments are handled by Stripe, so your card details never touch GradeLake. Once you're subscribed, <em>Manage subscription</em> on this page opens Stripe's portal to switch between monthly and yearly, update your card, download invoices or cancel. If a renewal payment fails, Pro stays on while Stripe retries the charge.</p></details>
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <div class="wrap">
+                <a href="/" class="brand"><img src="../public/images/logo-square.svg" alt="" width="24" height="23" />GradeLake</a>
+                <a href="/pricing">Pricing</a>
+                <a href="/policy">Privacy</a>
+                <a href="/terms">Terms</a>
+                <a href="/login">Sign in</a>
+                <a href="/register">Create account</a>
+            </div>
+        </footer>
+        <script type="module" src="./pricing.ts"></script>
+    </body>
+</html>

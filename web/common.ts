@@ -8,6 +8,7 @@ export interface Me {
     plan: "free" | "pro";
     isAdmin: boolean;
     canGrade: boolean;
+    billing: { trialAvailable: boolean; manageable: boolean; status: string | null; interval: "month" | "year" | null; periodEnd: number | null; cancelAtPeriodEnd: boolean };
     usage: { gradeRunsThisMonth: number };
 }
 
@@ -129,6 +130,7 @@ export async function startPage(active: string): Promise<{ me: Me; motd: string 
         ["browse", "/browse", "bi-globe2", "Browse"],
         ["generator", "/generator", "bi-ui-radios-grid", "Generator"],
         ["grader", "/grader", "bi-clipboard-check", "Grade"],
+        ["pricing", "/pricing", "bi-credit-card", user.plan === "pro" ? "Billing" : "Upgrade"],
     ];
     const nav = el("nav", "sidebar-nav");
     nav.ariaLabel = "Main";

@@ -1,4 +1,4 @@
-// Manage accounts from the server's shell (until Stripe sets plans):
+// Manage accounts from the server's shell (Stripe normally sets plans; this overrides them):
 //   bun scripts/user.ts list
 //   bun scripts/user.ts plan <email> free|pro
 //   bun scripts/user.ts admin <email> on|off

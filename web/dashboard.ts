@@ -6,6 +6,8 @@ $("name").textContent = me.displayName;
 const runs = me.usage.gradeRunsThisMonth;
 $("plan-line").textContent = `${me.plan === "pro" ? "Pro plan" : "Free plan"}${me.canGrade ? ` · ${runs} grading run${runs === 1 ? "" : "s"} this month` : " · grading needs a Pro plan"}`;
 
+if (new URLSearchParams(location.search).get("subscribed") === "1") $("subscribed").classList.remove("d-none");
+
 let currentMotd = motd;
 function showMotd(text: string): void {
     currentMotd = text;

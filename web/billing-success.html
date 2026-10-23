@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="darkreader-lock" />
+        <meta name="robots" content="noindex" />
+        <title>GradeLake - Setting up Pro</title>
+        <script>
+            let theme = null;
+            try {
+                theme = localStorage.getItem("theme");
+            } catch {}
+            document.documentElement.dataset.bsTheme = theme === "light" || theme === "dark" ? theme : matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        </script>
+        <link rel="stylesheet" href="../public/css/bootstrap.min.css" />
+        <link rel="stylesheet" href="../public/css/bootstrap-icons.min.css" />
+        <link rel="stylesheet" href="./app.css" />
+        <link rel="icon" href="../public/images/favicon.ico" sizes="48x48" />
+        <link rel="icon" type="image/svg+xml" href="../public/images/logo-square.svg" />
+    </head>
+    <body hidden>
+        <nav id="nav"></nav>
+        <main class="container py-7">
+            <div class="page-header">
+                <div class="page-header-icon"><i class="bi bi-stars"></i></div>
+                <div class="page-header-text">
+                    <h1 class="page-header-title" id="title">Setting up your Pro access…</h1>
+                    <p class="page-header-subtitle" id="subtitle">Stripe is confirming your subscription. This usually takes a few seconds.</p>
+                </div>
+            </div>
+            <a class="btn-solid theme-primary d-none" id="go" href="/grader">Go to the grader</a>
+        </main>
+        <script type="module" src="./billing-success.ts"></script>
+    </body>
+</html>

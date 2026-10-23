@@ -61,7 +61,7 @@ written answer's crop is in the review folder with the others.
 `.env.example` to `.env`; accounts live in a SQLite file (`DB_PATH`, default `data/gradelake.db`,
 created on first run).
 
-- **Pages:** `/` the public landing page (signed-in visitors see it too, with a button to `/dashboard`), `/dashboard` (message of the
+- **Pages:** `/policy` and `/terms` (static privacy policy and terms of service, public), `/` the public landing page (signed-in visitors see it too, with a button to `/dashboard`), `/dashboard` (message of the
   day and links), `/login`, `/register`, `/library` (your
   materials and nested groups), `/browse` (materials other users published), `/generator`, `/grader`.
   Everything except the landing, sign-in and register pages needs an account. `robots.txt`, `sitemap.xml`,
@@ -71,7 +71,19 @@ created on first run).
   tags, and a status: `draft` and `private` are yours alone, `published` is visible to and
   downloadable by every signed-in user, who can also copy it to their own library. A material is in
   one group (or the top level); groups nest, and deleting one deletes what is inside.
-- **Grading** needs a Pro plan. Until Stripe sets plans, manage them from the server:
+- **Pricing** (`/pricing`, public): everything is free except grading, which is the Pro plan: $5/month or $40/year, with a one-time
+  7-day free trial (card required, once per account). Pro is a Stripe subscription. The pricing page starts Stripe Checkout
+  (`POST /api/billing/checkout`, body `{"interval":"monthly"|"yearly"}`) or, for subscribers, the Stripe customer portal
+  (`POST /api/billing/portal`) where they switch plans, update a card, cancel and see invoices. Checkout returns to
+  `/billing/success`, which waits for the webhook to flip the plan. `POST /api/stripe/webhook` is the only writer of `users.plan`:
+  `pro` while the subscription is `active`, `trialing` or `past_due` (Pro is kept while Stripe retries a failed renewal), `free`
+  otherwise. Events are re-fetched from Stripe and recorded in `processed_stripe_events`, so replays are harmless.
+  To set up, create a Product with a monthly and a yearly Price, set the `STRIPE_*` variables in `.env.example`, point a webhook
+  at `/api/stripe/webhook` and turn on the customer portal. Without them the billing endpoints answer 503; with a partial or
+  mismatched config the server refuses to start. Locally: `stripe listen --forward-to localhost:3000/api/stripe/webhook`.
+  Sandbox customer and subscription IDs mean nothing in live, so keep a separate `DB_PATH` per mode or clear the Stripe columns
+  and `plan` of test users before switching.
+- **Grading** needs a Pro plan (or an admin account). You can also set plans by hand from the server:
   `bun run user plan you@example.com pro`, `bun run user admin you@example.com on`, `bun run user list`.
   Grading runs and downloads are recorded in `usage_events`.
 - Emails in `ADMIN_EMAILS` become admins when they register and can edit the message of the day.

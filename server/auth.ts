@@ -19,6 +19,8 @@ export interface User {
     displayName: string;
     plan: Plan;
     isAdmin: boolean;
+    /** Stripe billing state, for display; access checks read only `plan`. */
+    billing: { hasCustomer: boolean; trialUsed: boolean; status: string | null; interval: "month" | "year" | null; periodEnd: number | null; cancelAtPeriodEnd: boolean };
 }
 
 export interface AuthOptions {
@@ -112,15 +114,23 @@ export function createAuth(db: Database, opts: AuthOptions = {}) {
         const hash = sha256(token);
         const row = db
             .query(
-                `SELECT u.id, u.email, u.display_name, u.plan, u.is_admin, s.last_seen_at
+                `SELECT u.id, u.email, u.display_name, u.plan, u.is_admin, u.stripe_customer_id, u.trial_used_at, u.subscription_status, u.billing_interval, u.current_period_end, u.cancel_at_period_end, s.last_seen_at
                  FROM sessions s JOIN users u ON u.id = s.user_id
                  WHERE s.token_hash = ? AND s.expires_at > ?`,
             )
-            .get(hash, now()) as { id: number; email: string; display_name: string; plan: Plan; is_admin: number; last_seen_at: number } | null;
+            .get(hash, now()) as { id: number; email: string; display_name: string; plan: Plan; is_admin: number; stripe_customer_id: string | null; trial_used_at: number | null; subscription_status: string | null; billing_interval: "month" | "year" | null; current_period_end: number | null; cancel_at_period_end: number; last_seen_at: number } | null;
         if (!row) return null;
         const t = now();
         if (t - row.last_seen_at > TOUCH_AFTER) db.query("UPDATE sessions SET last_seen_at = ?, expires_at = ? WHERE token_hash = ?").run(t, t + SESSION_TTL, hash);
-        return { id: row.id, email: row.email, displayName: row.display_name, plan: row.plan, isAdmin: !!row.is_admin };
+        return { id: row.id, email: row.email, displayName: row.display_name, plan: row.plan, isAdmin: !!row.is_admin, billing: {
+                hasCustomer: !!row.stripe_customer_id,
+                trialUsed: row.trial_used_at != null,
+                status: row.subscription_status,
+                interval: row.billing_interval,
+                periodEnd: row.current_period_end,
+                cancelAtPeriodEnd: !!row.cancel_at_period_end,
+            },
+        };
     }
 
     /** The signed-in user, or a 401 response. */
@@ -153,6 +163,7 @@ export function createAuth(db: Database, opts: AuthOptions = {}) {
             plan: user.plan,
             isAdmin: user.isAdmin,
             canGrade: canGrade(user),
+            billing: { trialAvailable: !user.billing.trialUsed, manageable: user.billing.hasCustomer, status: user.billing.status, interval: user.billing.interval, periodEnd: user.billing.periodEnd, cancelAtPeriodEnd: user.billing.cancelAtPeriodEnd },
             usage: { gradeRunsThisMonth: usageSince(db, user.id, "grade_run", monthStart()) },
         };
     }

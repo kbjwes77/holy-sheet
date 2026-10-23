@@ -10,8 +10,8 @@
 
 ## Pricing and access
 
-- Free plan: create an account, generate sheets, keep a library.
-- Pro plan: required to grade scanned sheets.
+- Free plan: browse, create and share study material, generate study guides, quizzes and exams from any material, print answer sheets, keep a library.
+- Pro plan ($5/month, 7-day free trial): required to grade scanned sheets.
 
 ## Privacy note
 
@@ -20,5 +20,8 @@
 ## Pages
 
 - [Home](https://gradelake.com/): overview, how it works, features and FAQ
+- [Pricing](https://gradelake.com/pricing): Free and Pro plans
+- [Privacy Policy](https://gradelake.com/policy)
+- [Terms of Service](https://gradelake.com/terms)
 - [Create an account](https://gradelake.com/register)
 - [Sign in](https://gradelake.com/login)

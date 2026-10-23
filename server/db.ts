@@ -79,6 +79,32 @@ const MIGRATIONS: string[] = [
     );
     CREATE INDEX material_tags_tag ON material_tags(tag);
     `,
+    // Stripe: the current subscription, and whether the one-time free trial has been used.
+    `
+    ALTER TABLE users ADD COLUMN stripe_subscription_id TEXT;
+    ALTER TABLE users ADD COLUMN trial_used INTEGER NOT NULL DEFAULT 0;
+    CREATE INDEX users_stripe_customer ON users(stripe_customer_id);
+    `,
+    // Stripe subscription state for display (access reads only \`plan\`), the trial as a timestamp, and webhook idempotency.
+    `
+    ALTER TABLE users ADD COLUMN subscription_status TEXT;
+    ALTER TABLE users ADD COLUMN subscription_created INTEGER;
+    ALTER TABLE users ADD COLUMN price_id TEXT;
+    ALTER TABLE users ADD COLUMN billing_interval TEXT;
+    ALTER TABLE users ADD COLUMN current_period_end INTEGER;
+    ALTER TABLE users ADD COLUMN cancel_at_period_end INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE users ADD COLUMN trial_used_at INTEGER;
+    UPDATE users SET trial_used_at = strftime('%s', 'now') WHERE trial_used = 1;
+    ALTER TABLE users DROP COLUMN trial_used;
+    DROP INDEX users_stripe_customer;
+    CREATE UNIQUE INDEX users_stripe_customer ON users(stripe_customer_id) WHERE stripe_customer_id IS NOT NULL;
+
+    CREATE TABLE processed_stripe_events (
+        event_id TEXT PRIMARY KEY,
+        type TEXT NOT NULL,
+        received_at INTEGER NOT NULL
+    );
+    `,
 ];
 
 /** Opens (creating if needed) the database at `path`, or in memory for ":memory:", and migrates it. */

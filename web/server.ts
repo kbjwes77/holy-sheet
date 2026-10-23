@@ -1,5 +1,7 @@
 // The web server: `bun run web` (dev, hot reload) or `bun run start` (production), then open the URL.
 //   /            Landing page (public; signed-in visitors get a link to /dashboard)
+//   /pricing     Free vs Pro (public); Pro is a Stripe subscription (server/billing.ts)
+//   /policy, /terms   Privacy policy and terms of service (public, static)
 //   /dashboard   Dashboard (MOTD and links)         /login, /register   Accounts
 //   /library     My materials and groups           /browse             Published by the community
 //   /generator   Sheet Generator
@@ -11,8 +13,10 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { createApp } from "../server/app.ts";
+import { billingOptionsFromEnv } from "../server/billing.ts";
 import { openDb } from "../server/db.ts";
 import { createStatic } from "../server/static.ts";
+import billingSuccess from "./billing-success.html";
 import browse from "./browse.html";
 import dashboard from "./dashboard.html";
 import landing from "./landing.html";
@@ -20,7 +24,10 @@ import generator from "./index.html";
 import grader from "./grader.html";
 import library from "./library.html";
 import login from "./login.html";
+import policy from "./policy.html";
+import pricing from "./pricing.html";
 import register from "./register.html";
+import terms from "./terms.html";
 
 const root = join(import.meta.dir, "..");
 
@@ -41,6 +48,7 @@ const app = (g.app = createApp({
     secureCookies: production && process.env.INSECURE_COOKIES !== "1",
     adminEmails: (process.env.ADMIN_EMAILS ?? "").split(","),
     trustProxy: process.env.TRUST_PROXY === "1",
+    billing: billingOptionsFromEnv(process.env),
 }));
 
 const port = Number(process.env.PORT ?? 3000);
@@ -48,7 +56,7 @@ const options = {
     port,
     // Phone photos add up: allow large zips.
     maxRequestBodySize: 1024 * 1024 * 1024,
-    routes: { "/": landing, "/dashboard": dashboard, "/login": login, "/register": register, "/library": library, "/browse": browse, "/generator": generator, "/grader": grader, ...createStatic(join(root, "public"), production), ...app.routes },
+    routes: { "/": landing, "/pricing": pricing, "/policy": policy, "/terms": terms, "/billing/success": billingSuccess, "/dashboard": dashboard, "/login": login, "/register": register, "/library": library, "/browse": browse, "/generator": generator, "/grader": grader, ...createStatic(join(root, "public"), production), ...app.routes },
     development: !production,
 };
 const hosts = [...new Set(["127.0.0.1", process.env.HOST?.trim()].filter((h): h is string => !!h))];
