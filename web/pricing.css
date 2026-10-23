@@ -5,7 +5,7 @@
 
 .price-head { text-align: center; padding-block: clamp(1.5rem, 5vw, 3.5rem) 2rem; }
 .price-head h1 { font-size: clamp(3rem, 8vw, 5.2rem); margin-bottom: 1rem; }
-.price-head p { margin: 0 auto; font-size: 1.25rem; font-weight: 600; color: var(--muted); }
+.price-head p { margin: 0 auto; font-size: 1.25rem; font-weight: 600; color: var(--muted); text-wrap: pretty; }
 
 .price-plans { padding-bottom: clamp(3rem, 7vw, 5rem); }
 .plans { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(1.25rem, 3vw, 2rem); max-width: 56rem; }
@@ -28,7 +28,7 @@
 .plan .btn:disabled { opacity: 0.6; cursor: progress; }
 .btn-outline { border-color: var(--ink); color: var(--ink); background: transparent; }
 .btn-outline:hover { background: var(--panel); }
-.plan-note { margin: 0; min-height: 1.4em; font-size: 0.9rem; color: var(--muted); text-align: center; }
+.plan-note { margin: 0; min-height: 1.4em; font-size: 0.9rem; color: var(--muted); text-align: center; text-wrap: pretty; }
 .plan-error { margin: 0; padding: 0.6rem 0.9rem; border-radius: 10px; font-size: 0.95rem; font-weight: 600; background: rgba(226, 82, 63, 0.12); color: var(--coral); }
 
 .price-faq h2 { margin-bottom: 1.5rem; }
