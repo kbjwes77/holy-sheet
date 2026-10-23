@@ -46,6 +46,8 @@ export interface TestDef {
      * prompts and figures only, with no rings, bubble rows, timing markers, QR or corner squares.
      */
     studyGuide?: boolean;
+    /** Print every question full width, never in two columns (the default packs short ones into columns). */
+    singleColumn?: boolean;
     /** Page 1's instruction line, in place of the default for the sheet's kind (wrapped to fit). */
     instructions?: string;
 }
@@ -396,6 +398,7 @@ class Packer {
      * there. Free-response questions never do; their box is full width.
      */
     fitsColumn(index: number): boolean {
+        if (this.test.singleColumn) return false;
         let n = this.narrow.get(index);
         if (n === undefined && isFree(this.test.questions[index]!)) this.narrow.set(index, (n = false));
         if (n === undefined) {

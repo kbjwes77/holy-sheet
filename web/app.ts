@@ -30,9 +30,11 @@ const previews = $("previews");
 const printRoot = $("print-root");
 const keyLine = $<HTMLInputElement>("key-line");
 const answerSheet = $<HTMLInputElement>("answer-sheet");
+const twoColumns = $<HTMLInputElement>("two-columns");
 const keyNone = $("key-none");
 const KEY_NONE_DEFAULT = keyNone.innerHTML;
 const ANSWER_SHEET_KEY = "sheet-generator.answer-sheet";
+const TWO_COLUMNS_KEY = "sheet-generator.two-columns";
 
 interface Generated {
     source: string;
@@ -118,7 +120,7 @@ function showNotes(notes: ValidationIssue[]): void {
 
 function generate(): void {
     const source = input.value;
-    const result = parseSheetJson(source, { answerSheet: answerSheet.checked });
+    const result = parseSheetJson(source, { answerSheet: answerSheet.checked, singleColumn: !twoColumns.checked });
     if (!result.ok) {
         showErrors(result.errors);
         return;
@@ -317,6 +319,19 @@ try {
 } catch {
     // Storage unavailable (e.g. blocked by the browser): start off.
 }
+try {
+    twoColumns.checked = localStorage.getItem(TWO_COLUMNS_KEY) !== "0";
+} catch {
+    // Storage unavailable: start on.
+}
+twoColumns.addEventListener("change", () => {
+    try {
+        localStorage.setItem(TWO_COLUMNS_KEY, twoColumns.checked ? "1" : "0");
+    } catch {
+        // Not remembered, but still applies now.
+    }
+    if (current) generate();
+});
 answerSheet.addEventListener("change", () => {
     try {
         localStorage.setItem(ANSWER_SHEET_KEY, answerSheet.checked ? "1" : "0");

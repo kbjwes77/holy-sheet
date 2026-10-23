@@ -49,7 +49,7 @@ export type ParseResult =
       }
     | { ok: false; errors: ValidationIssue[] };
 
-const ROOT_KEYS = ["test", "questions", "figures", "instructions"];
+const ROOT_KEYS = ["test", "questions", "figures", "instructions", "columns"];
 const QUESTION_KEYS = ["type", "prompt", "figures", "choices", "answer", "points", "rubric", "lines"];
 const FIGURE_KEYS = ["type", "content", "width", "caption"];
 const ALIASES: Record<string, string> = {
@@ -137,6 +137,8 @@ function describeSyntaxError(text: string, err: unknown): string {
 export interface ParseOptions {
     /** Lay the test out as question pages plus a separate answer sheet (see booklet.ts). */
     answerSheet?: boolean;
+    /** Print every question full width, whatever the JSON's "columns" says. */
+    singleColumn?: boolean;
     /** False skips laying the test out (the grader, reading a test already printed); `pageCount` is then 0. */
     layout?: boolean;
 }
@@ -185,6 +187,13 @@ export function parseSheetJson(text: string, opts: ParseOptions = {}): ParseResu
     let instructions: string | null = null;
     if ("instructions" in doc && checkText(doc.instructions, "instructions", "Instructions", MAX_TEXT)) {
         instructions = doc.instructions.trim();
+    }
+
+    // "columns": 1 prints every question full width; 2 (the default) packs short ones into two columns.
+    let singleColumn = !!opts.singleColumn;
+    if ("columns" in doc) {
+        if (doc.columns === 1) singleColumn = true;
+        else if (doc.columns !== 2) add("columns", "Columns", `"columns" must be 1 (full width) or 2 (the default, two columns where questions fit), got ${JSON.stringify(doc.columns)}.`);
     }
 
     // A study guide: no question has choices or an answer, so nothing is marked or graded. The
@@ -371,6 +380,7 @@ export function parseSheetJson(text: string, opts: ParseOptions = {}): ParseResu
             ...(parsed[i]!.free ? { lines: parsed[i]!.lines } : {}),
         })),
         ...(isStudyGuide ? { studyGuide: true } : {}),
+        ...(singleColumn ? { singleColumn: true } : {}),
         ...(instructions ? { instructions } : {}),
     };
     const notes: ValidationIssue[] = figureIds

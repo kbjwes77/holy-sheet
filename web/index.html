@@ -193,7 +193,13 @@
                                     <i class="bi bi-gear-wide-connected me-1"></i>Generate sheet
                                 </button>
                                 <span class="small fg-secondary d-none sm:d-inline"><kbd>Ctrl</kbd> + <kbd>Enter</kbd></span>
-                                <div class="form-field ms-auto mb-0" title="Print the questions on plain pages, with every answer on an answer sheet at the end. Only the answer sheet is scanned.">
+                                <div class="form-field ms-auto mb-0" title="Pack short questions into two columns where they fit. Turn off to print every question full width.">
+                                    <div class="switch">
+                                        <input type="checkbox" role="switch" switch id="two-columns" checked />
+                                    </div>
+                                    <label class="small" for="two-columns">Two columns</label>
+                                </div>
+                                <div class="form-field mb-0" title="Print the questions on plain pages, with every answer on an answer sheet at the end. Only the answer sheet is scanned.">
                                     <div class="switch">
                                         <input type="checkbox" role="switch" switch id="answer-sheet" />
                                     </div>

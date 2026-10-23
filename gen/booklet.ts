@@ -78,10 +78,10 @@ export const MAX_ANSWER_PAYLOAD_BYTES = 42;
 // ---- Question pages ----------------------------------------------------------
 
 /** The question pages' text area: the same left and right edges as the scanned sheets' text. */
-function bookletArea(L: LayoutSpec) {
+function bookletArea(L: LayoutSpec, singleColumn = false) {
     const left = colX(L.promptCol, L);
     const right = colX(L.cornerSquares[1].col1, L);
-    const colW = (right - left - COLUMN_GAP) / 2;
+    const colW = singleColumn ? right - left : (right - left - COLUMN_GAP) / 2;
     return {
         colW,
         colX: (c: number) => left + c * (colW + COLUMN_GAP),
@@ -207,7 +207,7 @@ export interface BookletPage {
  * never splits. One taller than a whole column throws QuestionTooLongError.
  */
 export function layoutBooklet(test: TestDef, L: LayoutSpec = LAYOUT): BookletPage[] {
-    const area = bookletArea(L);
+    const area = bookletArea(L, test.singleColumn);
     const pages: BookletPage[] = [{ pageNumber: 1, columns: [[], []] }];
     let col = 0;
     let y = area.top(1);
@@ -218,7 +218,7 @@ export function layoutBooklet(test: TestDef, L: LayoutSpec = LAYOUT): BookletPag
         const need = m.height - QUESTION_GAP;
         if (need > full) throw new QuestionTooLongError(index, 0, "column");
         while (y + need > area.bottom) {
-            if (col === 0) col = 1;
+            if (col === 0 && !test.singleColumn) col = 1;
             else {
                 pages.push({ pageNumber: pages.length + 1, columns: [[], []] });
                 col = 0;
@@ -232,7 +232,7 @@ export function layoutBooklet(test: TestDef, L: LayoutSpec = LAYOUT): BookletPag
 }
 
 function renderBookletPage(test: TestDef, page: BookletPage, totalPages: number, L: LayoutSpec): string {
-    const area = bookletArea(L);
+    const area = bookletArea(L, test.singleColumn);
     const parts: string[] = [];
     if (page.pageNumber === 1) {
         parts.push(titleSvg(test.title, L), svgText(area.colX(0), rowY(4, L) + L.cellH * 0.72, BOOKLET_INSTRUCTIONS, INSTRUCTIONS_ATTRS));
