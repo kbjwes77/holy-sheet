@@ -39,21 +39,21 @@ if (me.isAdmin) {
     });
 }
 
-const tiles: [string, string, string, string, boolean][] = [
-    ["/library?new=1", "bi-plus-circle", "Create Study Material", "Write or paste a worksheet, quiz, exam or study guide and save it.", true],
-    ["/library", "bi-collection", "Organize into Groups", "Arrange your materials in nested groups and choose what to publish.", false],
-    ["/browse", "bi-globe2", "Browse the Community", "View and download materials published by other users.", false],
-    ["/generator", "bi-ui-radios-grid", "Sheet Generator", "Turn a test into a printable answer sheet the grader can read.", false],
-    ["/grader", "bi-clipboard-check", "Grader", me.canGrade ? "Grade scanned answer sheets." : "Grade scanned answer sheets (Pro plan).", false],
+const tiles: [string, string, string, string, string][] = [
+    ["/library?new=1", "bi-plus-circle", "Create Study Material", "Write or paste a worksheet, quiz, exam or study guide and save it.", "primary"],
+    ["/library", "bi-collection", "Organize into Groups", "Arrange your materials in nested groups and choose what to publish.", "info"],
+    ["/browse", "bi-globe2", "Browse the Community", "View and download materials published by other users.", "success"],
+    ["/generator", "bi-ui-radios-grid", "Sheet Generator", "Turn a test into a printable answer sheet the grader can read.", "warning"],
+    ["/grader", "bi-clipboard-check", "Grader", me.canGrade ? "Grade scanned answer sheets." : "Grade scanned answer sheets (Pro plan).", "accent"],
 ];
 $("tiles").replaceChildren(
-    ...tiles.map(([href, icon, title, text, primary]) => {
+    ...tiles.map(([href, icon, title, text, tint]) => {
         const col = el("div", "md:col-6 lg:col-4");
-        const a = el("a", "card shadow-sm h-100 text-decoration-none");
+        const a = el("a", "card shadow-sm h-100 text-decoration-none hover-lift");
         a.href = href;
         const body = el("div", "card-body");
-        const h = el("h2", "h5 mb-2");
-        h.innerHTML = `<i class="bi ${icon} me-3 ${primary ? "fg-primary" : ""}"></i>`;
+        const h = el("h2", "h5 d-flex align-items-center gap-3 mb-3");
+        h.innerHTML = `<span class="tile-icon tint-${tint}"><i class="bi ${icon}"></i></span>`;
         h.append(title);
         body.append(h, el("p", "mb-0 fg-secondary", text));
         a.append(body);

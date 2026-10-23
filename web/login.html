@@ -6,7 +6,11 @@
         <meta name="darkreader-lock" />
         <title>GradeLake - Sign in</title>
         <script>
-            document.documentElement.dataset.bsTheme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+            let theme = null;
+            try {
+                theme = localStorage.getItem("theme");
+            } catch {}
+            document.documentElement.dataset.bsTheme = theme === "light" || theme === "dark" ? theme : matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
         </script>
         <link rel="stylesheet" href="../public/css/bootstrap.min.css" />
         <link rel="stylesheet" href="../public/css/bootstrap-icons.min.css" />

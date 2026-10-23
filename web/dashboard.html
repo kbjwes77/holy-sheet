@@ -6,7 +6,11 @@
         <meta name="darkreader-lock" />
         <title>GradeLake - Dashboard</title>
         <script>
-            document.documentElement.dataset.bsTheme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+            let theme = null;
+            try {
+                theme = localStorage.getItem("theme");
+            } catch {}
+            document.documentElement.dataset.bsTheme = theme === "light" || theme === "dark" ? theme : matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
         </script>
         <link rel="stylesheet" href="../public/css/bootstrap.min.css" />
         <link rel="stylesheet" href="../public/css/bootstrap-icons.min.css" />
@@ -19,6 +23,13 @@
     <body hidden>
         <nav id="nav"></nav>
         <main class="container py-7">
+            <div class="page-header">
+                <div class="page-header-icon"><i class="bi bi-house"></i></div>
+                <div class="page-header-text">
+                    <h1 class="page-header-title">Welcome, <span id="name"></span></h1>
+                    <p class="page-header-subtitle" id="plan-line"></p>
+                </div>
+            </div>
             <div class="alert theme-info mb-5" id="motd-box" role="note">
                 <div class="d-flex align-items-start gap-3">
                     <i class="bi bi-megaphone"></i>
@@ -36,8 +47,6 @@
                     </div>
                 </form>
             </div>
-            <h1 class="h3 mb-2">Welcome, <span id="name"></span></h1>
-            <p class="fg-secondary mb-6" id="plan-line"></p>
             <div class="row g-5" id="tiles"></div>
         </main>
         <script type="module" src="./dashboard.ts"></script>

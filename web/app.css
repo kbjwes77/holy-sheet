@@ -454,3 +454,221 @@
 .curve-points {
     width: 5rem !important;
 }
+
+/* App shell: a sidebar on desktop that becomes a Bootstrap drawer (opened by the top bar's burger) below md. */
+.app-shell {
+    display: flex;
+    min-height: 100vh;
+}
+.app-content {
+    flex: 1;
+    min-width: 0;
+}
+.app-sidebar {
+    display: contents;
+}
+.app-sidebar-drawer {
+    --bs-drawer-width: 18rem;
+    --bs-drawer-padding-x: 0.75rem;
+    --bs-drawer-padding-y: 0.75rem;
+}
+.app-sidebar-drawer .drawer-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--bs-drawer-padding-y) var(--bs-drawer-padding-x);
+    border-bottom: 1px solid var(--bs-border-color);
+}
+.app-sidebar-drawer .drawer-body {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    gap: 0.25rem;
+    min-height: 0;
+    overflow-y: auto;
+    padding: var(--bs-drawer-padding-y) var(--bs-drawer-padding-x);
+}
+.sidebar-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--bs-fg-body);
+    text-decoration: none;
+}
+/* The drawer's header already shows the brand below md. */
+.sidebar-brand-desk {
+    display: none;
+}
+.sidebar-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+.sidebar-link {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: var(--bs-radius-5);
+    color: var(--bs-secondary-fg);
+    font-weight: 500;
+    text-decoration: none;
+}
+.sidebar-link:hover {
+    background: var(--bs-bg-3);
+    color: var(--bs-fg-body);
+}
+.sidebar-link.active {
+    background: color-mix(in oklch, var(--bs-primary-base) 14%, transparent);
+    color: var(--bs-primary-fg);
+}
+.sidebar-footer {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-top: auto;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--bs-border-color);
+}
+.app-topbar {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 1rem;
+    background: var(--bs-bg-2);
+    border-bottom: 1px solid var(--bs-border-color);
+}
+@media (width >= 768px) {
+    .app-sidebar {
+        display: flex;
+        flex-direction: column;
+        flex: none;
+        position: sticky;
+        top: 0;
+        width: 16rem;
+        height: 100vh;
+        background: var(--bs-bg-2);
+        border-right: 1px solid var(--bs-border-color);
+    }
+    /* Bootstrap makes the drawer static and transparent from md up; it just has to fill the column. */
+    .app-sidebar-drawer {
+        min-height: 0;
+    }
+    .app-sidebar-drawer .drawer-header,
+    .app-topbar {
+        display: none;
+    }
+    .sidebar-brand-desk {
+        display: flex;
+    }
+}
+
+/* Page header: icon, title and subtitle at the top of each page. */
+.page-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 1.75rem;
+    background: var(--bs-bg-body);
+    border-radius: 0.75rem;
+    border: 1px solid var(--bs-border-color);
+    box-shadow: var(--bs-box-shadow-sm);
+}
+.page-header-icon {
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: 0.625rem;
+    background: linear-gradient(135deg, var(--bs-primary-base), color-mix(in oklch, var(--bs-primary-base) 70%, black));
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+    flex-shrink: 0;
+}
+.page-header-text {
+    flex: 1;
+    min-width: 0;
+}
+.page-header-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    margin: 0;
+    line-height: 1.3;
+}
+.page-header-subtitle {
+    font-size: 0.8rem;
+    color: var(--bs-secondary-fg);
+    margin: 0.125rem 0 0;
+    line-height: 1.4;
+}
+@media (width < 576px) {
+    .page-header {
+        padding: 1rem;
+        gap: 0.75rem;
+    }
+    .page-header-icon {
+        width: 2rem;
+        height: 2rem;
+        border-radius: 0.5rem;
+        font-size: 1rem;
+    }
+}
+
+/* Dashboard cards: a tinted square behind each icon, and the card lifts on hover. */
+.tile-icon {
+    --tint: var(--bs-primary-base);
+    --tint-fg: var(--bs-primary-fg);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: var(--bs-radius-6);
+    background: color-mix(in oklch, var(--tint) 16%, transparent);
+    color: var(--tint-fg);
+    font-size: 1.25rem;
+}
+.tile-icon.tint-info {
+    --tint: var(--bs-info-base);
+    --tint-fg: var(--bs-info-fg);
+}
+.tile-icon.tint-success {
+    --tint: var(--bs-success-base);
+    --tint-fg: var(--bs-success-fg);
+}
+.tile-icon.tint-warning {
+    --tint: var(--bs-warning-base);
+    --tint-fg: var(--bs-warning-fg);
+}
+.tile-icon.tint-accent {
+    --tint: var(--bs-accent-base);
+    --tint-fg: var(--bs-accent-fg);
+}
+
+/* From the Bootstrap docs site. */
+.hover-lift {
+    --bs-hover-lift-transition-duration: 0.2s;
+    --bs-hover-lift-transition-timing: ease;
+    --bs-hover-lift-transform: translateY(-0.25rem);
+    --bs-hover-lift-box-shadow: var(--bs-box-shadow-lg);
+}
+.hover-lift:hover {
+    transform: var(--bs-hover-lift-transform);
+    box-shadow: var(--bs-hover-lift-box-shadow);
+}
+@media (prefers-reduced-motion: no-preference) {
+    .hover-lift {
+        transition:
+            transform var(--bs-hover-lift-transition-duration) var(--bs-hover-lift-transition-timing),
+            box-shadow var(--bs-hover-lift-transition-duration) var(--bs-hover-lift-transition-timing);
+    }
+}

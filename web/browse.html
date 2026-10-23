@@ -6,7 +6,11 @@
         <meta name="darkreader-lock" />
         <title>GradeLake - Browse</title>
         <script>
-            document.documentElement.dataset.bsTheme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+            let theme = null;
+            try {
+                theme = localStorage.getItem("theme");
+            } catch {}
+            document.documentElement.dataset.bsTheme = theme === "light" || theme === "dark" ? theme : matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
         </script>
         <link rel="stylesheet" href="../public/css/bootstrap.min.css" />
         <link rel="stylesheet" href="../public/css/bootstrap-icons.min.css" />
@@ -19,8 +23,13 @@
     <body hidden>
         <nav id="nav"></nav>
         <main class="container py-7">
-            <h1 class="h3 mb-2">Browse Community</h1>
-            <p class="fg-secondary mb-5">Study materials other GradeLake users have published.</p>
+            <div class="page-header">
+                <div class="page-header-icon"><i class="bi bi-globe2"></i></div>
+                <div class="page-header-text">
+                    <h1 class="page-header-title">Browse Community</h1>
+                    <p class="page-header-subtitle">Study materials other GradeLake users have published.</p>
+                </div>
+            </div>
             <div class="alert theme-danger d-none" id="error" role="alert"></div>
             <div class="d-flex gap-3 flex-wrap mb-5">
                 <input class="form-control flex-fill" type="search" id="filter-q" placeholder="Search by name" aria-label="Search by name" />

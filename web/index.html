@@ -7,8 +7,12 @@
         <meta name="darkreader-lock" />
         <title>Sheet Generator</title>
         <script>
-            // Follow the OS light/dark preference before first paint.
-            document.documentElement.dataset.bsTheme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+            // Apply the saved theme (else the OS preference) before first paint.
+            let theme = null;
+            try {
+                theme = localStorage.getItem("theme");
+            } catch {}
+            document.documentElement.dataset.bsTheme = theme === "light" || theme === "dark" ? theme : matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
         </script>
         <link rel="stylesheet" href="../public/css/bootstrap.min.css" />
         <link rel="stylesheet" href="../public/css/bootstrap-icons.min.css" />
@@ -18,21 +22,18 @@
         <link rel="icon" type="image/png" sizes="16x16" href="../public/images/favicon-16x16.png" />
         <link rel="apple-touch-icon" href="../public/images/apple-touch-icon.png" />
     </head>
-    <body>
+    <body hidden>
         <div class="app">
-            <nav class="navbar border-bottom bg-2">
-                <div class="container">
-                    <span class="navbar-brand fw-semibold"><i class="bi bi-ui-radios-grid me-3 fg-primary"></i>Sheet Generator</span>
-                    <span class="navbar-text small fg-secondary d-none md:d-inline me-auto">
-                        Build printable answer sheets the grader can read
-                    </span>
-                    <a class="btn-sm btn-outline theme-secondary" href="/"><i class="bi bi-house me-1"></i>Dashboard</a>
-                    <a class="btn-sm btn-outline theme-secondary" href="/library"><i class="bi bi-collection me-1"></i>My Library</a>
-                    <a class="btn-sm btn-outline theme-secondary" href="/grader" id="grader-link"><i class="bi bi-clipboard-check me-1"></i>Grader</a>
-                </div>
-            </nav>
+            <nav id="nav"></nav>
 
             <main class="container py-7">
+                <div class="page-header">
+                    <div class="page-header-icon"><i class="bi bi-ui-radios-grid"></i></div>
+                    <div class="page-header-text">
+                        <h1 class="page-header-title">Sheet Generator</h1>
+                        <p class="page-header-subtitle">Build printable answer sheets the grader can read.</p>
+                    </div>
+                </div>
                 <div class="row g-7">
                     <!-- Input -->
                     <div class="lg:col-5">

@@ -22,7 +22,10 @@ import {
     type Verdict,
 } from "../src/review.ts";
 import type { JobEvent } from "./grader-api.ts";
+import { startPage } from "./common.ts";
 import { pickMaterial } from "./library-dialogs.ts";
+
+await startPage("grader");
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 

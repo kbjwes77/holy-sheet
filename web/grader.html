@@ -6,8 +6,12 @@
         <meta name="darkreader-lock" />
         <title>Grader</title>
         <script>
-            // Follow the OS light/dark preference before first paint.
-            document.documentElement.dataset.bsTheme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+            // Apply the saved theme (else the OS preference) before first paint.
+            let theme = null;
+            try {
+                theme = localStorage.getItem("theme");
+            } catch {}
+            document.documentElement.dataset.bsTheme = theme === "light" || theme === "dark" ? theme : matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
         </script>
         <link rel="stylesheet" href="../public/css/bootstrap.min.css" />
         <link rel="stylesheet" href="../public/css/bootstrap-icons.min.css" />
@@ -17,18 +21,17 @@
         <link rel="icon" type="image/png" sizes="16x16" href="../public/images/favicon-16x16.png" />
         <link rel="apple-touch-icon" href="../public/images/apple-touch-icon.png" />
     </head>
-    <body>
-        <nav class="navbar border-bottom bg-2">
-            <div class="container">
-                <span class="navbar-brand fw-semibold"><i class="bi bi-clipboard-check me-3 fg-primary"></i>Grader</span>
-                <span class="navbar-text small fg-secondary d-none md:d-inline me-auto">Grade scanned answer sheets</span>
-                <a class="btn-outline theme-secondary btn-sm" href="/"><i class="bi bi-house me-1"></i>Dashboard</a>
-                <a class="btn-outline theme-secondary btn-sm" href="/library"><i class="bi bi-collection me-1"></i>My Library</a>
-                <a class="btn-outline theme-secondary btn-sm" href="/generator"><i class="bi bi-ui-radios-grid me-1"></i>Sheet Generator</a>
-            </div>
-        </nav>
+    <body hidden>
+        <nav id="nav"></nav>
 
         <main class="container py-7">
+            <div class="page-header">
+                <div class="page-header-icon"><i class="bi bi-clipboard-check"></i></div>
+                <div class="page-header-text">
+                    <h1 class="page-header-title">Grader</h1>
+                    <p class="page-header-subtitle">Grade scanned answer sheets.</p>
+                </div>
+            </div>
             <div class="alert theme-warning mb-5 d-none" id="plan-warning" role="alert">
                 <i class="bi bi-lock me-1"></i>
                 Grading needs a Pro plan. You can look around, but starting a grading run is disabled for your account.

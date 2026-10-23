@@ -6,8 +6,10 @@ import example from "../examples/ap-macro-unit-4.json";
 import { renderSeparate } from "../gen/booklet.ts";
 import { renderTest, type TestDef } from "../gen/sheet.ts";
 import { parseSheetJson, type ValidationIssue } from "../gen/testdef.ts";
-import type { Material } from "./common.ts";
+import { startPage, type Material } from "./common.ts";
 import { editMaterial, pickMaterial } from "./library-dialogs.ts";
+
+await startPage("generator");
 
 const MAX_FILE_BYTES = 2 * 1024 * 1024;
 const LETTER_PT = { w: 612, h: 792 };
