@@ -1,0 +1,24 @@
+# GradeLake
+
+> GradeLake is a web app for teachers and tutors that turns a test into printable, scannable answer sheets and grades the scanned or photographed sheets into a CSV. It handles multiple-choice questions and handwritten free-response questions.
+
+## What it does
+
+- Sheet Generator: loads a test (questions, choices, answer key, point values, optional graphs, diagrams and tables) and produces answer sheets for US Letter paper, previewable in the browser and downloadable as a PDF. Each sheet has a QR code and corner marks so it can be read from a scan or phone photo.
+- Grader: reads scanned or photographed sheets, reads the filled bubbles, transcribes handwritten free-response answers with an AI model, and grades them against a model answer and rubric. The teacher reviews names, unclear marks and written answers before exporting a CSV, and can curve selected questions.
+- Library: stores tests in nested groups; tests can be published for other signed-in teachers to copy.
+
+## Pricing and access
+
+- Free plan: create an account, generate sheets, keep a library.
+- Pro plan: required to grade scanned sheets.
+
+## Privacy note
+
+- Filled bubbles are read by GradeLake itself. Images of the name box and of handwritten answers are sent to AI models to be read and graded.
+
+## Pages
+
+- [Home](https://gradelake.com/): overview, how it works, features and FAQ
+- [Create an account](https://gradelake.com/register)
+- [Sign in](https://gradelake.com/login)

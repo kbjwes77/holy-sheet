@@ -1,0 +1,13 @@
+User-agent: *
+Allow: /$
+Allow: /login
+Allow: /register
+Allow: /llms.txt
+Disallow: /dashboard
+Disallow: /library
+Disallow: /browse
+Disallow: /generator
+Disallow: /grader
+Disallow: /api/
+
+Sitemap: https://gradelake.com/sitemap.xml

@@ -1,7 +1,9 @@
-// Serves public/{images,fonts,css} at /images/*, /fonts/*, /css/*, plus /favicon.ico from public/images.
+// Serves public/{images,fonts,css} at /images/*, /fonts/*, /css/*, plus /favicon.ico from public/images and the
+// crawler files at the site root (robots.txt, sitemap.xml, llms.txt, site.webmanifest) from public/.
 import { join, resolve, sep } from "node:path";
 
 export const PUBLIC_DIRS = ["images", "fonts", "css"] as const;
+export const ROOT_FILES = ["robots.txt", "sitemap.xml", "llms.txt", "site.webmanifest"] as const;
 
 export function createStatic(publicRoot: string, production: boolean) {
     const cache = production ? "public, max-age=86400" : "no-cache";
@@ -18,6 +20,7 @@ export function createStatic(publicRoot: string, production: boolean) {
     const routes: Record<string, (req: Request) => Promise<Response>> = {
         "/favicon.ico": () => serve(join("images", "favicon.ico")),
     };
+    for (const name of ROOT_FILES) routes[`/${name}`] = () => serve(name);
     for (const dir of PUBLIC_DIRS) {
         routes[`/${dir}/*`] = (req) => {
             let name: string;

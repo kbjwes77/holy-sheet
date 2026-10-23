@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="darkreader-lock" />
+        <title>GradeLake – Printable Answer Sheets &amp; Fast Exam Grading</title>
+        <meta name="description" content="Turn your test into scannable answer sheets, scan or photograph the stack, and get every grade as a CSV. Handles multiple choice and handwritten free response." />
+        <link rel="canonical" href="https://gradelake.com/" />
+        <meta name="robots" content="index, follow, max-image-preview:large" />
+        <meta name="theme-color" content="#1a3fd1" />
+
+        <meta property="og:type" content="website" />
+        <meta property="og:site_name" content="GradeLake" />
+        <meta property="og:url" content="https://gradelake.com/" />
+        <meta property="og:title" content="GradeLake – Smooth sailing on grading day" />
+        <meta property="og:description" content="Turn your test into scannable answer sheets, scan or photograph the stack, and get every grade as a CSV. Handles multiple choice and handwritten free response." />
+        <meta property="og:image" content="https://gradelake.com/images/og-image.jpg" />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+        <meta property="og:image:alt" content="Painted sailboats on a cobalt sea beneath the headline Smooth sailing on grading day." />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="GradeLake – Smooth sailing on grading day" />
+        <meta name="twitter:description" content="Turn your test into scannable answer sheets, scan or photograph the stack, and get every grade as a CSV." />
+        <meta name="twitter:image" content="https://gradelake.com/images/og-image.jpg" />
+
+        <script>
+            let theme = null;
+            try {
+                theme = localStorage.getItem("theme");
+            } catch {}
+            document.documentElement.dataset.bsTheme = theme === "light" || theme === "dark" ? theme : matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        </script>
+        <link rel="stylesheet" href="./landing.css" />
+        <link rel="icon" href="../public/images/favicon.ico" sizes="48x48" />
+        <link rel="icon" type="image/svg+xml" href="../public/images/logo-square.svg" />
+        <link rel="icon" type="image/png" sizes="32x32" href="../public/images/favicon-32x32.png" />
+        <link rel="icon" type="image/png" sizes="16x16" href="../public/images/favicon-16x16.png" />
+        <link rel="apple-touch-icon" href="../public/images/apple-touch-icon.png" />
+        <link rel="manifest" href="../public/site.webmanifest" />
+
+        <script type="application/ld+json">
+            {
+                "@context": "https://schema.org",
+                "@graph": [
+                    {
+                        "@type": "Organization",
+                        "@id": "https://gradelake.com/#org",
+                        "name": "GradeLake",
+                        "url": "https://gradelake.com/",
+                        "logo": "https://gradelake.com/images/android-chrome-512x512.png"
+                    },
+                    {
+                        "@type": "SoftwareApplication",
+                        "@id": "https://gradelake.com/#app",
+                        "name": "GradeLake",
+                        "url": "https://gradelake.com/",
+                        "applicationCategory": "EducationalApplication",
+                        "operatingSystem": "Web",
+                        "description": "A web app that turns a test into printable, scannable answer sheets and grades the scanned or photographed sheets, including handwritten free-response answers, into a CSV.",
+                        "audience": { "@type": "EducationalAudience", "educationalRole": "teacher" },
+                        "image": "https://gradelake.com/images/og-image.jpg",
+                        "publisher": { "@id": "https://gradelake.com/#org" }
+                    },
+                    {
+                        "@type": "FAQPage",
+                        "mainEntity": [
+                            {
+                                "@type": "Question",
+                                "name": "What kinds of tests can GradeLake grade?",
+                                "acceptedAnswer": { "@type": "Answer", "text": "Multiple-choice questions, including questions with more than one correct answer, and handwritten free-response questions. Questions can include graphs, diagrams and tables, and each question can be worth a different number of points." }
+                            },
+                            {
+                                "@type": "Question",
+                                "name": "How does GradeLake grade handwritten answers?",
+                                "acceptedAnswer": { "@type": "Answer", "text": "GradeLake crops each answer box, has an AI model transcribe the handwriting, then has an AI model compare the transcript with your model answer and rubric and award whole points. You can review every written answer and change its points before you export." }
+                            },
+                            {
+                                "@type": "Question",
+                                "name": "Do I need special paper or a special scanner?",
+                                "acceptedAnswer": { "@type": "Answer", "text": "No. Print the answer sheets on ordinary US Letter paper at 100% scale. Students fill in bubbles with a pencil or pen, and you scan the sheets or photograph them with a phone." }
+                            },
+                            {
+                                "@type": "Question",
+                                "name": "Can I check the results before I export them?",
+                                "acceptedAnswer": { "@type": "Answer", "text": "Yes. GradeLake shows each student's name as read from the sheet, any marks it can't call, and every written answer for you to confirm or correct. You can also apply a curve to selected questions." }
+                            },
+                            {
+                                "@type": "Question",
+                                "name": "What does GradeLake cost?",
+                                "acceptedAnswer": { "@type": "Answer", "text": "You can create an account, build answer sheets and keep a library of your tests on the free plan. Grading scanned sheets needs a Pro plan." }
+                            },
+                            {
+                                "@type": "Question",
+                                "name": "Is student work sent to an AI service?",
+                                "acceptedAnswer": { "@type": "Answer", "text": "Bubbles are read by GradeLake itself. Images of the name box and of handwritten answers are sent to AI models so they can be read and graded." }
+                            }
+                        ]
+                    }
+                ]
+            }
+        </script>
+    </head>
+    <body>
+        <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+            <symbol id="sail" viewBox="0 0 22 24"><path d="M12 1 C5 8 2 16 1 22 L19 20 C18 13 16 7 12 1 Z" fill="#fff" stroke="#0b1747" stroke-width="1.6" stroke-linejoin="round" /><path d="M5 12 h6 M4 16 h8" stroke="#f4b63a" stroke-width="2" stroke-linecap="round" /></symbol>
+            <symbol id="check" viewBox="0 0 20 20"><path d="M3 11 L8 16 L17 4" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" /></symbol>
+        </svg>
+        <section class="hero">
+            <img class="hero-img" src="../public/images/hero-painting.jpg" width="2400" height="1400" alt="" />
+            <div class="wrap">
+                <header class="nav">
+                    <a href="/" class="brand"><img src="../public/images/logo-square.svg" alt="" width="36" height="35" />GradeLake</a>
+                    <a href="/login" class="btn btn-line">Sign in</a>
+                    <a href="/register" class="btn btn-solid">Create account</a>
+                </header>
+            </div>
+            <div class="wrap hero-copy">
+                <p class="kicker">For teachers and tutors</p>
+                <h1>Smooth sailing on grading day.</h1>
+                <div class="cta-row">
+                    <a href="/register" class="btn btn-solid">Create a free account</a>
+                    <a href="/login" class="btn btn-line">Sign in</a>
+                </div>
+            </div>
+        </section>
+
+        <div class="legend" aria-label="How it works in three lines">
+            <div class="wrap"><span><svg aria-hidden="true"><use href="#sail" /></svg>Print the sheets</span><span><svg aria-hidden="true"><use href="#sail" /></svg>Scan the stack</span><span><svg aria-hidden="true"><use href="#sail" /></svg>Get the grades</span></div>
+        </div>
+        <img class="strip" src="../public/images/fleet-strip.png" width="2400" height="190" alt="" loading="lazy" />
+
+        <main>
+            <section class="intro">
+                <div class="wrap">
+                    <p>GradeLake turns your test into scannable answer sheets, then reads a stack of scanned or photographed sheets and hands you every grade as a CSV. It handles <mark>multiple choice</mark> and <mark>handwritten free response</mark>.</p>
+                </div>
+            </section>
+
+            <section class="section" id="why">
+                <div class="wrap why">
+                    <div>
+                        <h2><span class="brush">Why GradeLake?</span></h2>
+                        <p>Grading a class set by hand takes an evening. Most grading apps ask you to rebuild your test in their system or buy special forms. GradeLake starts from the test you already wrote.</p>
+                    </div>
+                    <div class="why-list">
+                        <div class="why-item"><span class="dot"><svg aria-hidden="true"><use href="#check" /></svg></span><div><h3>Bring your own test</h3><p>Paste or upload your questions as JSON, or save them in your library. Graphs, diagrams and tables print right with the question.</p></div></div>
+                        <div class="why-item"><span class="dot"><svg aria-hidden="true"><use href="#check" /></svg></span><div><h3>Plain paper, any scanner</h3><p>Print on US Letter at 100%. Every sheet carries its own QR code, so the grader knows which test and page it is looking at. Scan it or photograph it with a phone.</p></div></div>
+                        <div class="why-item"><span class="dot"><svg aria-hidden="true"><use href="#check" /></svg></span><div><h3>You stay at the helm</h3><p>Confirm each name, settle unclear marks and adjust any written-answer score before a single grade is exported.</p></div></div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="section how" id="how">
+                <img class="how-bg" src="../public/images/how-bg.jpg" width="2400" height="1000" alt="" loading="lazy" />
+                <div class="wrap">
+                    <div class="how-panel">
+                        <h2>How it works</h2>
+                        <ol class="steps">
+                            <li><span class="num">1</span><div><h3>Generate</h3><p>Load your test in the Sheet Generator and print a sheet for every student, or print a separate answer sheet so the question pages can stay stapled while only the answer sheet is handed in.</p></div></li>
+                            <li><span class="num">2</span><div><h3>Scan</h3><p>Students mark their answers and write any free responses in the boxes. Scan the stack, or snap photos, and upload the images.</p></div></li>
+                            <li><span class="num">3</span><div><h3>Grade</h3><p>Review the flagged items, apply a curve if you want one, and download a CSV with a score for every student.</p></div></li>
+                        </ol>
+                    </div>
+                    <img class="boat" src="../public/images/boat-painting.png" width="1000" height="1020" alt="A painted sailboat with a curved white and yellow sail on choppy blue water." loading="lazy" />
+                </div>
+            </section>
+
+            <section class="section" id="features">
+                <div class="wrap">
+                    <h2><span class="brush">Core features</span></h2>
+                    <div class="features">
+                        <div class="feature"><h3>Sheet Generator</h3><p>Scannable answer sheets in two columns, with optional separate answer sheet, ready to print or download as a PDF.</p></div>
+                        <div class="feature"><h3>Multiple choice</h3><p>Two to eight choices, single or multiple correct answers, and a different point value for each question.</p></div>
+                        <div class="feature"><h3>Free response</h3><p>Students write in a box. GradeLake transcribes the handwriting and grades it against your model answer and rubric.</p></div>
+                        <div class="feature"><h3>Graphs and tables</h3><p>Put SVG graphs, diagrams and tables beside any question. They print identically in the preview and the PDF.</p></div>
+                        <div class="feature"><h3>Review and curve</h3><p>Check names, unclear marks and written answers, then curve selected questions before exporting.</p></div>
+                        <div class="feature"><h3>Library and sharing</h3><p>Keep tests in groups, and publish the ones you want to share so other teachers can copy them.</p></div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="calm" aria-hidden="true">
+                <div class="drift" id="drift"></div>
+            </section>
+
+            <section class="section" id="screens">
+                <div class="wrap">
+                    <h2><span class="brush">See it on a real exam</span></h2>
+                    <p style="margin-top: 1.5rem; color: var(--muted)">An AP Microeconomics Unit 2 quiz, generated in the Sheet Generator with its graphs and tables in place.</p>
+                    <div class="plates">
+                        <figure class="plate">
+                            <div class="mat"><img src="../public/images/sheet-page-1.png" width="1200" height="1553" alt="Page 1 of a generated answer sheet: two columns of numbered questions with tables and answer bubbles, a QR code and corner marks." loading="lazy" /></div>
+                            <figcaption>The answer sheet<span>AP Microeconomics Unit 2, Quiz A, page 1</span></figcaption>
+                        </figure>
+                        <figure class="plate">
+                            <div class="mat"><img src="../public/images/generator-mobile.png" width="389" height="690" alt="The GradeLake Sheet Generator on a phone, showing the generated sheet." loading="lazy" /></div>
+                            <figcaption>The generator<span>Seen on a phone</span></figcaption>
+                        </figure>
+                    </div>
+                </div>
+            </section>
+
+            <section class="section" id="faq" style="padding-top: 0">
+                <div class="wrap faq-wrap">
+                    <h2 style="margin-bottom: 2rem"><span class="brush">Questions, answered</span></h2>
+                    <details class="faq"><summary>What kinds of tests can GradeLake grade?</summary><p>Multiple-choice questions, including questions with more than one correct answer, and handwritten free-response questions. Questions can include graphs, diagrams and tables, and each question can be worth a different number of points.</p></details>
+                    <details class="faq"><summary>How does GradeLake grade handwritten answers?</summary><p>GradeLake crops each answer box, has an AI model transcribe the handwriting, then has an AI model compare the transcript with your model answer and rubric and award whole points. You can review every written answer and change its points before you export.</p></details>
+                    <details class="faq"><summary>Do I need special paper or a special scanner?</summary><p>No. Print the answer sheets on ordinary US Letter paper at 100% scale. Students fill in bubbles with a pencil or pen, and you scan the sheets or photograph them with a phone.</p></details>
+                    <details class="faq"><summary>Can I check the results before I export them?</summary><p>Yes. GradeLake shows each student's name as read from the sheet, any marks it can't call, and every written answer for you to confirm or correct. You can also apply a curve to selected questions.</p></details>
+                    <details class="faq"><summary>What does GradeLake cost?</summary><p>You can create an account, build answer sheets and keep a library of your tests on the free plan. Grading scanned sheets needs a Pro plan.</p></details>
+                    <details class="faq"><summary>Is student work sent to an AI service?</summary><p>Bubbles are read by GradeLake itself. Images of the name box and of handwritten answers are sent to AI models so they can be read and graded.</p></details>
+                </div>
+            </section>
+
+            <section class="close">
+                <img src="../public/images/closing-fleet.jpg" width="2400" height="900" alt="" loading="lazy" />
+                <div class="wrap">
+                    <h2>Spend less time grading. More time teaching.</h2>
+                    <div class="cta-row">
+                        <a href="/register" class="btn btn-solid">Create a free account</a>
+                        <a href="/login" class="btn btn-line">Sign in</a>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <div class="wrap">
+                <a href="/" class="brand"><img src="../public/images/logo-square.svg" alt="" width="24" height="23" />GradeLake</a>
+                <a href="/login">Sign in</a>
+                <a href="/register">Create account</a>
+            </div>
+        </footer>
+        <script type="module" src="./landing.ts"></script>
+    </body>
+</html>

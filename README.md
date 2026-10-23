@@ -61,9 +61,11 @@ written answer's crop is in the review folder with the others.
 `.env.example` to `.env`; accounts live in a SQLite file (`DB_PATH`, default `data/gradelake.db`,
 created on first run).
 
-- **Pages:** `/` dashboard (message of the day and links), `/login`, `/register`, `/library` (your
+- **Pages:** `/` the public landing page (signed-in visitors see it too, with a button to `/dashboard`), `/dashboard` (message of the
+  day and links), `/login`, `/register`, `/library` (your
   materials and nested groups), `/browse` (materials other users published), `/generator`, `/grader`.
-  Everything needs an account.
+  Everything except the landing, sign-in and register pages needs an account. `robots.txt`, `sitemap.xml`,
+  `llms.txt` and `site.webmanifest` are served from `public/`.
 - **Sessions:** an HttpOnly cookie, 30 days from last use; only a hash of its token is stored.
 - **Materials:** a test's JSON with a type (`StudyGuide`, `Worksheet`, `Quiz`, `Exam`), name and
   tags, and a status: `draft` and `private` are yours alone, `published` is visible to and

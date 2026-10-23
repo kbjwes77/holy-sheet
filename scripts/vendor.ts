@@ -1,4 +1,4 @@
-// Links Bootstrap and Bootstrap Icons from node_modules into public/{css,fonts}: `bun run vendor`
+// Links Bootstrap, Bootstrap Icons and the landing page fonts from node_modules into public/{css,fonts}: `bun run vendor`
 // (also runs after `bun install`). The links are relative, so they survive moving the checkout.
 // Where symlinks aren't allowed (Windows without Developer Mode) it copies the files instead.
 import { copyFileSync, existsSync, lstatSync, mkdirSync, rmSync, symlinkSync } from "node:fs";
@@ -17,6 +17,11 @@ const files: [string, string][] = [
     // The icon stylesheet loads "fonts/…" relative to itself, i.e. /css/fonts/.
     ["css/fonts/bootstrap-icons.woff2", "bootstrap-icons/font/fonts/bootstrap-icons.woff2"],
     ["css/fonts/bootstrap-icons.woff", "bootstrap-icons/font/fonts/bootstrap-icons.woff"],
+    // Landing page type: Caveat Brush for headlines, Karla for text (Latin subset).
+    ["fonts/caveat-brush-400.woff2", "@fontsource/caveat-brush/files/caveat-brush-latin-400-normal.woff2"],
+    ["fonts/karla-400.woff2", "@fontsource/karla/files/karla-latin-400-normal.woff2"],
+    ["fonts/karla-600.woff2", "@fontsource/karla/files/karla-latin-600-normal.woff2"],
+    ["fonts/karla-800.woff2", "@fontsource/karla/files/karla-latin-800-normal.woff2"],
 ];
 
 for (const dir of ["images", "fonts", "css", "css/fonts"]) mkdirSync(join(pub, dir), { recursive: true });

@@ -124,7 +124,7 @@ export async function startPage(active: string): Promise<{ me: Me; motd: string 
     const brandHtml = '<i class="bi bi-water fg-primary"></i>GradeLake';
 
     const links: [string, string, string, string][] = [
-        ["dashboard", "/", "bi-house", "Dashboard"],
+        ["dashboard", "/dashboard", "bi-house", "Dashboard"],
         ["library", "/library", "bi-collection", "My Library"],
         ["browse", "/browse", "bi-globe2", "Browse"],
         ["generator", "/generator", "bi-ui-radios-grid", "Generator"],
@@ -201,7 +201,7 @@ export async function startPage(active: string): Promise<{ me: Me; motd: string 
 /** Where to go after signing in: the `next` page if it is on this site. */
 export function nextPage(): string {
     const next = new URLSearchParams(location.search).get("next") ?? "";
-    return next.startsWith("/") && !next.startsWith("//") ? next : "/";
+    return next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
 }
 
 export function download(name: string, blob: Blob): void {

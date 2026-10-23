@@ -1,0 +1,13 @@
+{
+    "name": "GradeLake",
+    "short_name": "GradeLake",
+    "description": "Printable answer sheets and fast exam grading for teachers.",
+    "start_url": "/dashboard",
+    "display": "browser",
+    "theme_color": "#092991",
+    "background_color": "#ffffff",
+    "icons": [
+        { "src": "/images/android-chrome-192x192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+        { "src": "/images/android-chrome-512x512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+    ]
+}

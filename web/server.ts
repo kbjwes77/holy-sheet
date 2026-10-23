@@ -1,9 +1,10 @@
 // The web server: `bun run web` (dev, hot reload) or `bun run start` (production), then open the URL.
-//   /            Dashboard (MOTD and links)         /login, /register   Accounts
+//   /            Landing page (public; signed-in visitors get a link to /dashboard)
+//   /dashboard   Dashboard (MOTD and links)         /login, /register   Accounts
 //   /library     My materials and groups           /browse             Published by the community
 //   /generator   Sheet Generator
 //   /grader      Grader: a GUI that drives the grading CLI (grade.ts) through web/grader-api.ts
-// The pages are static shells; each checks /api/me and redirects to /login. Everything under
+// The landing page is public. The other pages are static shells; each checks /api/me and redirects to /login. Everything under
 // /api needs a session, and the grader needs a plan that can grade.
 // It listens on localhost only by default: the grader runs commands and uses the OpenRouter key.
 // HOST adds one more address to listen on, e.g. HOST=100.93.67.7 for a Tailscale IP.
@@ -14,6 +15,7 @@ import { openDb } from "../server/db.ts";
 import { createStatic } from "../server/static.ts";
 import browse from "./browse.html";
 import dashboard from "./dashboard.html";
+import landing from "./landing.html";
 import generator from "./index.html";
 import grader from "./grader.html";
 import library from "./library.html";
@@ -46,7 +48,7 @@ const options = {
     port,
     // Phone photos add up: allow large zips.
     maxRequestBodySize: 1024 * 1024 * 1024,
-    routes: { "/": dashboard, "/login": login, "/register": register, "/library": library, "/browse": browse, "/generator": generator, "/grader": grader, ...createStatic(join(root, "public"), production), ...app.routes },
+    routes: { "/": landing, "/dashboard": dashboard, "/login": login, "/register": register, "/library": library, "/browse": browse, "/generator": generator, "/grader": grader, ...createStatic(join(root, "public"), production), ...app.routes },
     development: !production,
 };
 const hosts = [...new Set(["127.0.0.1", process.env.HOST?.trim()].filter((h): h is string => !!h))];

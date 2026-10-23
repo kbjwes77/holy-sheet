@@ -45,3 +45,5 @@ data/
 public/css/bootstrap*.css
 public/css/fonts/bootstrap-icons.*
 public/fonts/bootstrap-icons.*
+public/fonts/caveat-brush-*
+public/fonts/karla-*
