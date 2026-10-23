@@ -9,6 +9,7 @@ import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSyn
 import { tmpdir } from "node:os";
 import { basename, join, relative, resolve, sep } from "node:path";
 import { zipSync } from "fflate";
+import { sameOrigin } from "../server/http.ts";
 import { DEFAULT_THRESHOLDS } from "../src/pipeline.ts";
 import { StderrParser, summarizeStderr, type StderrEvent } from "../src/report.ts";
 import { REVIEW_FILE, REVIEW_START_RE, type ReviewFile, type ReviewItem, type ReviewThresholds } from "../src/review.ts";
@@ -74,12 +75,6 @@ const MAX_TEST_BYTES = 8 * 1024 * 1024;
 
 const json = (body: unknown, status = 200) => Response.json(body, { status });
 const fail = (status: number, error: string) => json({ error }, status);
-
-/** POSTs from other sites (a page can post to localhost) are refused. */
-function sameOrigin(req: Request): boolean {
-    const origin = req.headers.get("origin");
-    return !origin || origin === new URL(req.url).origin;
-}
 
 export function createGraderApi(o: GraderApiOptions) {
     const env = o.env ?? process.env;

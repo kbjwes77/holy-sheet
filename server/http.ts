@@ -3,10 +3,18 @@
 export const json = (body: unknown, status = 200, headers?: HeadersInit) => Response.json(body, { status, headers });
 export const fail = (status: number, error: string) => json({ error }, status);
 
-/** POSTs from other sites (a page can post to this server) are refused. */
+/**
+ * POSTs from other sites (a page can post to this server) are refused. Compares hosts rather than
+ * full origins: behind a TLS-terminating proxy the request URL says http while the browser says https.
+ */
 export function sameOrigin(req: Request): boolean {
     const origin = req.headers.get("origin");
-    return !origin || origin === new URL(req.url).origin;
+    if (!origin) return true;
+    try {
+        return new URL(origin).host === (req.headers.get("host") ?? new URL(req.url).host);
+    } catch {
+        return false;
+    }
 }
 
 /** The request's JSON object body, or a 400 response. */
