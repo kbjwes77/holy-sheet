@@ -32,6 +32,8 @@
     "start": "NODE_ENV=production bun web/server.ts",
     "user": "bun scripts/user.ts",
     "vendor": "bun scripts/vendor.ts",
+    "paint": "bun scripts/paint.ts",
+    "og": "bun scripts/render-og.ts",
     "postinstall": "bun scripts/vendor.ts"
   }
 }

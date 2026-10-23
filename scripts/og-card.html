@@ -1,0 +1,33 @@
+<!doctype html>
+<!-- The 1200×630 social card (public/images/og-image.jpg), rendered by scripts/render-og.ts. -->
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <title>GradeLake social card</title>
+        <style>
+            @font-face { font-family: "Caveat Brush"; src: url("../public/fonts/caveat-brush-400.woff2") format("woff2"); }
+            @font-face { font-family: "Karla"; font-weight: 800; src: url("../public/fonts/karla-800.woff2") format("woff2"); }
+            * { box-sizing: border-box; }
+            html, body { margin: 0; background: #0b1747; }
+            .card { position: relative; width: 1200px; height: 630px; overflow: hidden; color: #fff; font-family: "Karla", system-ui, sans-serif; }
+            .card img.bg { position: absolute; left: 0; top: -50px; width: 1340px; height: 782px; object-fit: cover; }
+            .shade { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(8, 20, 90, 0.5) 0%, rgba(8, 20, 90, 0.2) 50%, rgba(8, 20, 90, 0) 72%); }
+            .brand { position: absolute; left: 64px; top: 44px; display: flex; align-items: center; gap: 14px; font: 400 44px/1 "Caveat Brush", cursive; }
+            .brand img { width: 50px; }
+            h1 { position: absolute; left: 64px; top: 120px; margin: 0; font: 400 124px/0.96 "Caveat Brush", cursive; letter-spacing: 0.01em; text-shadow: 0 4px 0 rgba(8, 20, 90, 0.35), 0 10px 34px rgba(8, 20, 90, 0.4); }
+            .sheet { position: absolute; left: 64px; top: 400px; width: 236px; padding: 9px; background: #fff; border-radius: 6px; transform: rotate(-3.5deg); box-shadow: 0 16px 36px rgba(4, 12, 70, 0.5), 0 0 0 3px #f4b63a; }
+            .sheet img { display: block; width: 100%; }
+            .sub { position: absolute; right: 48px; bottom: 56px; font-weight: 800; font-size: 30px; background: #f4b63a; color: #0b1747; padding: 12px 26px; border-radius: 999px; box-shadow: 0 5px 0 #c98d14, 0 12px 26px rgba(4, 12, 70, 0.7); }
+        </style>
+    </head>
+    <body>
+        <div class="card">
+            <img class="bg" src="../public/images/hero-painting.jpg" alt="" />
+            <div class="shade"></div>
+            <div class="brand"><img src="../public/images/logo-square.svg" alt="" />GradeLake</div>
+            <h1>Smooth sailing<br />on grading day.</h1>
+            <div class="sheet"><img src="../public/images/sheet-page-1.png" alt="" /></div>
+            <div class="sub">Spend less time grading, more time teaching.</div>
+        </div>
+    </body>
+</html>
