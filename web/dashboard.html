@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="darkreader-lock" />
+        <title>GradeLake - Dashboard</title>
+        <script>
+            document.documentElement.dataset.bsTheme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        </script>
+        <link rel="stylesheet" href="../public/css/bootstrap.min.css" />
+        <link rel="stylesheet" href="../public/css/bootstrap-icons.min.css" />
+        <link rel="stylesheet" href="./app.css" />
+        <link rel="icon" href="../public/images/favicon.ico" sizes="48x48" />
+        <link rel="icon" type="image/png" sizes="32x32" href="../public/images/favicon-32x32.png" />
+        <link rel="icon" type="image/png" sizes="16x16" href="../public/images/favicon-16x16.png" />
+        <link rel="apple-touch-icon" href="../public/images/apple-touch-icon.png" />
+    </head>
+    <body hidden>
+        <nav id="nav"></nav>
+        <main class="container py-7">
+            <div class="alert theme-info mb-5" id="motd-box" role="note">
+                <div class="d-flex align-items-start gap-3">
+                    <i class="bi bi-megaphone"></i>
+                    <div class="flex-fill">
+                        <div class="fw-semibold small mb-1">Message of the day</div>
+                        <div id="motd" style="white-space: pre-wrap"></div>
+                    </div>
+                    <button type="button" class="btn-sm btn-outline theme-secondary d-none" id="btn-edit-motd"><i class="bi bi-pencil me-1"></i>Edit</button>
+                </div>
+                <form class="mt-3 d-none" id="motd-form">
+                    <textarea class="form-control mb-3" id="motd-input" rows="3" maxlength="1000" aria-label="Message of the day"></textarea>
+                    <div class="d-flex gap-3 justify-content-end">
+                        <button type="button" class="btn-sm btn-outline theme-secondary" id="btn-cancel-motd">Cancel</button>
+                        <button type="submit" class="btn-sm btn-solid theme-primary">Save</button>
+                    </div>
+                </form>
+            </div>
+            <h1 class="h3 mb-2">Welcome, <span id="name"></span></h1>
+            <p class="fg-secondary mb-6" id="plan-line"></p>
+            <div class="row g-5" id="tiles"></div>
+        </main>
+        <script type="module" src="./dashboard.ts"></script>
+    </body>
+</html>

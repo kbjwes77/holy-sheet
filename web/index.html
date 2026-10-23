@@ -10,34 +10,25 @@
             // Follow the OS light/dark preference before first paint.
             document.documentElement.dataset.bsTheme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
         </script>
-        <link rel="stylesheet" href="../node_modules/bootstrap/dist/css/bootstrap.min.css" />
-        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+        <link rel="stylesheet" href="../public/css/bootstrap.min.css" />
+        <link rel="stylesheet" href="../public/css/bootstrap-icons.min.css" />
         <link rel="stylesheet" href="./app.css" />
+        <link rel="icon" href="../public/images/favicon.ico" sizes="48x48" />
+        <link rel="icon" type="image/png" sizes="32x32" href="../public/images/favicon-32x32.png" />
+        <link rel="icon" type="image/png" sizes="16x16" href="../public/images/favicon-16x16.png" />
+        <link rel="apple-touch-icon" href="../public/images/apple-touch-icon.png" />
     </head>
     <body>
         <div class="app">
-            <!-- source-only:start -->
-            <div class="alert theme-warning rounded-0 mb-0 d-none" id="source-warning" role="alert">
-                <i class="bi bi-exclamation-triangle me-1"></i>
-                This is the app's source page and can't run from disk. Run <code>bun run web</code> and open
-                <code>http://localhost:3000</code>, or run <code>bun run build:web</code> and open
-                <code>dist/web/sheet-generator.html</code>.
-            </div>
-            <script>
-                if (location.protocol === "file:") document.getElementById("source-warning").classList.remove("d-none");
-            </script>
-            <!-- source-only:end -->
             <nav class="navbar border-bottom bg-2">
                 <div class="container">
                     <span class="navbar-brand fw-semibold"><i class="bi bi-ui-radios-grid me-3 fg-primary"></i>Sheet Generator</span>
                     <span class="navbar-text small fg-secondary d-none md:d-inline me-auto">
                         Build printable answer sheets the grader can read
                     </span>
-                    <!-- The grader needs the local server, so the link is hidden when opened from disk. -->
-                    <a class="btn-sm btn-outline theme-secondary d-none" href="/grader" id="grader-link"><i class="bi bi-clipboard-check me-1"></i>Grader</a>
-                    <script>
-                        if (location.protocol !== "file:") document.getElementById("grader-link").classList.remove("d-none");
-                    </script>
+                    <a class="btn-sm btn-outline theme-secondary" href="/"><i class="bi bi-house me-1"></i>Dashboard</a>
+                    <a class="btn-sm btn-outline theme-secondary" href="/library"><i class="bi bi-collection me-1"></i>My Library</a>
+                    <a class="btn-sm btn-outline theme-secondary" href="/grader" id="grader-link"><i class="bi bi-clipboard-check me-1"></i>Grader</a>
                 </div>
             </nav>
 
@@ -55,6 +46,12 @@
                                     </button>
                                     <button type="button" class="btn-outline theme-secondary" id="btn-example" title="Fill in an example test">
                                         <i class="bi bi-file-earmark-code"></i> Example
+                                    </button>
+                                    <button type="button" class="btn-outline theme-secondary" id="btn-open-library" title="Open a saved material">
+                                        <i class="bi bi-collection"></i> Library
+                                    </button>
+                                    <button type="button" class="btn-outline theme-secondary" id="btn-save-library" title="Save this test to your library">
+                                        <i class="bi bi-journal-plus"></i> Save
                                     </button>
                                     <button type="button" class="btn-outline theme-secondary" id="btn-clear" title="Clear the editor">
                                         <i class="bi bi-x-lg"></i> Clear

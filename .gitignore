@@ -21,6 +21,7 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 .env.test.local
 .env.production.local
 .env.local
+nginx.conf
 
 # caches
 .eslintcache
@@ -36,3 +37,11 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 .DS_Store
 dist/
 grade-*/
+
+# SQLite database
+data/
+
+# Linked from node_modules by scripts/vendor.ts
+public/css/bootstrap*.css
+public/css/fonts/bootstrap-icons.*
+public/fonts/bootstrap-icons.*

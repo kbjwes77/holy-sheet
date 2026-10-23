@@ -5,7 +5,8 @@
     "": {
       "name": "quiznotes",
       "dependencies": {
-        "bootstrap": "^6.0.0-alpha.1",
+        "bootstrap": "6.0.0-alpha.1",
+        "bootstrap-icons": "1.11.3",
         "fflate": "^0.8.3",
         "openai": "^7.38.0",
         "sharp": "^0.35.5",
@@ -147,6 +148,8 @@
     "base64-arraybuffer": ["base64-arraybuffer@1.0.2", "", {}, "sha512-I3yl4r9QB5ZRY3XuJVEPfc2XhZO6YweFPI+UovAzn+8/hb3oJ6lnysaFcjVpkCPfVWFUDvoZ8kmVDP7WyRtYtQ=="],
 
     "bootstrap": ["bootstrap@6.0.0-alpha.1", "", { "peerDependencies": { "@floating-ui/dom": "^1.7.6", "vanilla-calendar-pro": "^3.4.0" } }, "sha512-snAWSjKDVdQAyPOtR69Upy247tZq13gw86SMDMZS4wNfBXGNdzbHdIP6GAyaAVJwTX4LjWowY8YYaJkSDv2wGQ=="],
+
+    "bootstrap-icons": ["bootstrap-icons@1.11.3", "", {}, "sha512-+3lpHrCw/it2/7lBL15VR0HEumaBss0+f/Lb6ZvHISn1mlK83jjFpooTLsMWbIjJMDjDjOExMsTxnXSIT4k4ww=="],
 
     "bun-types": ["bun-types@1.4.2", "", { "dependencies": { "@types/node": "*" } }, "sha512-bxV1FgK7yBIzjRe5zBozIM4Bem11ZJcCXSrjWRG3YWLt8yFDePu4cLjpebO8OvPeIE9trbyPF4fuj3Cia4Fj3w=="],
 

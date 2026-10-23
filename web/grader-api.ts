@@ -34,6 +34,8 @@ interface Job {
     images: string[];
     debugDir?: string;
     review?: { dir: string; images: Set<string> };
+    /** The user who started it; only they may see or answer it. */
+    ownerId: number;
 }
 
 export interface GraderApiOptions {
@@ -44,6 +46,13 @@ export interface GraderApiOptions {
     env?: Record<string, string | undefined>;
     /** How long a finished job's results and files are kept. */
     keepMs?: number;
+    /**
+     * Decides who may use the API: the user, or the response to send instead (401/402). "job" is
+     * asked to start grading, "info" for everything else. Without it, anyone may.
+     */
+    authorize?: (req: Request, action: "info" | "job") => { userId: number } | Response;
+    /** Called when a job starts, e.g. to record usage. */
+    onJob?: (userId: number, info: { name: string; hasTest: boolean }) => void;
 }
 
 const OCR_VARS = ["OPENROUTER_API_KEY", "VISION_MODEL", "REASONING_MODEL"] as const;
@@ -77,6 +86,7 @@ export function createGraderApi(o: GraderApiOptions) {
     const command = o.command ?? [process.execPath, join(o.root, "grade.ts")];
     const keepMs = o.keepMs ?? 2 * 60 * 60 * 1000;
     const jobs = new Map<string, Job>();
+    const authorize = (req: Request, action: "info" | "job"): { userId: number } | Response => o.authorize?.(req, action) ?? { userId: 0 };
 
     function emit(job: Job, e: JobEvent): void {
         job.events.push(e);
@@ -151,6 +161,8 @@ export function createGraderApi(o: GraderApiOptions) {
      */
     async function create(req: Request): Promise<Response> {
         if (!sameOrigin(req)) return fail(403, "cross-origin request refused");
+        const who = authorize(req, "job");
+        if (who instanceof Response) return who;
         const url = new URL(req.url);
         let zip: Uint8Array;
         let test: { name: string; bytes: Uint8Array } | null = null;
@@ -201,8 +213,9 @@ export function createGraderApi(o: GraderApiOptions) {
             stderr: "pipe",
         });
         const id = crypto.randomUUID();
-        const job: Job = { id, dir, proc, events: [], listeners: new Set(), awaitingInput: false, waitingAt: null, cancelled: false, done: false, images: [] };
+        const job: Job = { id, dir, proc, events: [], listeners: new Set(), awaitingInput: false, waitingAt: null, cancelled: false, done: false, images: [], ownerId: who.userId };
         jobs.set(id, job);
+        o.onJob?.(who.userId, { name, hasTest: !!test });
         // The command as the user would type it: the test by its own name, not its temp path.
         const shown = test ? ["--test", test.name, ...args.slice(2)] : args;
         emit(job, { type: "start", command: ["bun run grade.ts", ...[name, ...shown].map((a) => (/\s/.test(a) ? `"${a}"` : a))].join(" ") });
@@ -300,17 +313,23 @@ export function createGraderApi(o: GraderApiOptions) {
     const withJob =
         (fn: (req: Req, job: Job, server: Bun.Server<unknown>) => Response | Promise<Response>) =>
         (req: Req, server: Bun.Server<unknown>) => {
+            const who = authorize(req, "info");
+            if (who instanceof Response) return who;
             const job = jobs.get(req.params.id ?? "");
-            return job ? fn(req, job, server) : fail(404, "no such job (finished jobs are kept for a while, then removed)");
+            // Another user's job is reported as missing, so its id can't be probed.
+            return job && job.ownerId === who.userId ? fn(req, job, server) : fail(404, "no such job (finished jobs are kept for a while, then removed)");
         };
 
     const routes = {
         "/api/grader/info": {
-            GET: () =>
-                json({
+            GET: (req: Request) => {
+                const who = authorize(req, "info");
+                if (who instanceof Response) return who;
+                return json({
                     missing: OCR_VARS.filter((v) => !env[v]),
                     thresholds: DEFAULT_THRESHOLDS,
-                }),
+                });
+            },
         },
         "/api/grader/jobs": { POST: create },
         "/api/grader/jobs/:id/events": { GET: withJob(events) },

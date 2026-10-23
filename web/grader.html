@@ -9,28 +9,30 @@
             // Follow the OS light/dark preference before first paint.
             document.documentElement.dataset.bsTheme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
         </script>
-        <link rel="stylesheet" href="../node_modules/bootstrap/dist/css/bootstrap.min.css" />
-        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+        <link rel="stylesheet" href="../public/css/bootstrap.min.css" />
+        <link rel="stylesheet" href="../public/css/bootstrap-icons.min.css" />
         <link rel="stylesheet" href="./app.css" />
+        <link rel="icon" href="../public/images/favicon.ico" sizes="48x48" />
+        <link rel="icon" type="image/png" sizes="32x32" href="../public/images/favicon-32x32.png" />
+        <link rel="icon" type="image/png" sizes="16x16" href="../public/images/favicon-16x16.png" />
+        <link rel="apple-touch-icon" href="../public/images/apple-touch-icon.png" />
     </head>
     <body>
-        <div class="alert theme-warning rounded-0 mb-0 d-none" id="file-warning" role="alert">
-            <i class="bi bi-exclamation-triangle me-1"></i>
-            The grader runs through its local server and can't be opened from disk. Run <code>bun run web</code> and open
-            <code>http://localhost:3000/grader</code>.
-        </div>
-        <script>
-            if (location.protocol === "file:") document.getElementById("file-warning").classList.remove("d-none");
-        </script>
         <nav class="navbar border-bottom bg-2">
             <div class="container">
                 <span class="navbar-brand fw-semibold"><i class="bi bi-clipboard-check me-3 fg-primary"></i>Grader</span>
                 <span class="navbar-text small fg-secondary d-none md:d-inline me-auto">Grade scanned answer sheets</span>
-                <a class="btn-outline theme-secondary btn-sm" href="/"><i class="bi bi-ui-radios-grid me-1"></i>Sheet Generator</a>
+                <a class="btn-outline theme-secondary btn-sm" href="/"><i class="bi bi-house me-1"></i>Dashboard</a>
+                <a class="btn-outline theme-secondary btn-sm" href="/library"><i class="bi bi-collection me-1"></i>My Library</a>
+                <a class="btn-outline theme-secondary btn-sm" href="/generator"><i class="bi bi-ui-radios-grid me-1"></i>Sheet Generator</a>
             </div>
         </nav>
 
         <main class="container py-7">
+            <div class="alert theme-warning mb-5 d-none" id="plan-warning" role="alert">
+                <i class="bi bi-lock me-1"></i>
+                Grading needs a Pro plan. You can look around, but starting a grading run is disabled for your account.
+            </div>
             <div class="alert theme-warning mb-5 d-none" id="config-warning" role="alert">
                 <i class="bi bi-exclamation-triangle me-1"></i>
                 Name reading isn't set up: <span id="config-missing"></span> must be set in <code>.env</code>. Restart
@@ -111,6 +113,7 @@
                             <span class="form-control text-truncate fg-secondary" id="test-name">No test chosen</span>
                             <input type="file" id="test-file" accept=".json,application/json" hidden />
                             <button type="button" class="btn-outline theme-secondary" id="btn-test-file"><i class="bi bi-folder2-open"></i> test.json</button>
+                            <button type="button" class="btn-outline theme-secondary" id="btn-test-library"><i class="bi bi-collection"></i> From library</button>
                         </div>
                         <div class="form-text" id="test-summary">
                             The test's JSON from the Sheet Generator, with an <code>answer</code> for every question. The grader takes the answer key,

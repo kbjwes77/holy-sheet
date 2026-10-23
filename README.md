@@ -55,13 +55,33 @@ that couldn't be graded needs the points typed. `-` skips the submission. Every 
 written answer is asked about, since a misread name files a score under the wrong student. A
 written answer's crop is in the review folder with the others.
 
+## Accounts and library (web)
+
+`bun run web` (dev) or `bun run start` (production) serves GradeLake with accounts. Copy
+`.env.example` to `.env`; accounts live in a SQLite file (`DB_PATH`, default `data/gradelake.db`,
+created on first run).
+
+- **Pages:** `/` dashboard (message of the day and links), `/login`, `/register`, `/library` (your
+  materials and nested groups), `/browse` (materials other users published), `/generator`, `/grader`.
+  Everything needs an account.
+- **Sessions:** an HttpOnly cookie, 30 days from last use; only a hash of its token is stored.
+- **Materials:** a test's JSON with a type (`StudyGuide`, `Worksheet`, `Quiz`, `Exam`), name and
+  tags, and a status: `draft` and `private` are yours alone, `published` is visible to and
+  downloadable by every signed-in user, who can also copy it to their own library. A material is in
+  one group (or the top level); groups nest, and deleting one deletes what is inside.
+- **Grading** needs a Pro plan. Until Stripe sets plans, manage them from the server:
+  `bun run user plan you@example.com pro`, `bun run user admin you@example.com on`, `bun run user list`.
+  Grading runs and downloads are recorded in `usage_events`.
+- Emails in `ADMIN_EMAILS` become admins when they register and can edit the message of the day.
+- Production: `bun run start` marks the cookie `Secure`, so serve it over HTTPS (a reverse proxy
+  forwarding to `127.0.0.1:3000`, with `TRUST_PROXY=1`). Back up the `data/` folder.
+
 ## Sheet Generator (web)
 
 Paste or load a test as JSON, then preview, print or download a PDF of the answer sheet.
 
 ```sh
-bun run web          # dev server at http://127.0.0.1:3000
-bun run build:web    # dist/web/sheet-generator.html: one file, opens straight from disk
+bun run web          # dev server at http://127.0.0.1:3000/generator
 ```
 
 The server listens on 127.0.0.1 only. Set `HOST` to also listen on one more address, e.g. a
@@ -69,8 +89,7 @@ Tailscale IP: add `HOST=100.93.67.7` to `.env` (a variable set in the shell take
 `PORT` works the same way. Anyone who can reach that address can run the grader with your
 OpenRouter key.
 
-`web/index.html` is the source page and can't be opened directly (browsers block its
-TypeScript module on `file://`). The format is
+The format is
 `{ "test": "...", "questions": [{ "prompt": "...", "choices": ["...", ...], "answer": "B" }] }`.
 There must be 1–256 questions, each with 2–8 choices. `answer` is optional, but if any question
 has one then every question must; the app then shows the grader's key line. Any question can
@@ -260,8 +279,7 @@ for the transcript and reason. The page also shows the diagnostic images. The AP
 a bare zip body without a test (the CLI then prompts for a letter key), and a multipart form
 with `zip` and `test` files. The server listens on
 127.0.0.1 only (plus `HOST` if set), refuses cross-origin POSTs, and keeps each run's files for 2 hours. The
-OpenRouter settings come from `.env` as for the CLI and never reach the browser. The page
-needs the server, so it has no standalone build.
+OpenRouter settings come from `.env` as for the CLI and never reach the browser.
 
 The CLI's stderr formats live in `src/report.ts` and the review prompts and replies in
 `src/review.ts`. Both are shared by the CLI and the page. Each reply the page sends names the

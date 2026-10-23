@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="darkreader-lock" />
+        <title>GradeLake - Create account</title>
+        <script>
+            document.documentElement.dataset.bsTheme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        </script>
+        <link rel="stylesheet" href="../public/css/bootstrap.min.css" />
+        <link rel="stylesheet" href="../public/css/bootstrap-icons.min.css" />
+        <link rel="stylesheet" href="./app.css" />
+        <link rel="icon" href="../public/images/favicon.ico" sizes="48x48" />
+        <link rel="icon" type="image/png" sizes="32x32" href="../public/images/favicon-32x32.png" />
+        <link rel="icon" type="image/png" sizes="16x16" href="../public/images/favicon-16x16.png" />
+        <link rel="apple-touch-icon" href="../public/images/apple-touch-icon.png" />
+    </head>
+    <body>
+        <main class="container py-7" style="max-width: 26rem">
+            <h1 class="h3 mb-5"><i class="bi bi-water me-3 fg-primary"></i>GradeLake</h1>
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h2 class="h5 mb-5">Create account</h2>
+                    <form id="form">
+                        <div class="mb-4">
+                            <label class="form-label" for="name">Display name</label>
+                            <input class="form-control" id="name" type="text" maxlength="60" autocomplete="nickname" required />
+                        </div>
+                        <div class="mb-4">
+                            <label class="form-label" for="email">Email</label>
+                            <input class="form-control" id="email" type="email" autocomplete="email" required />
+                        </div>
+                        <div class="mb-5">
+                            <label class="form-label" for="password">Password</label>
+                            <input class="form-control" id="password" type="password" minlength="8" maxlength="200" autocomplete="new-password" required />
+                            <div class="form-text">At least 8 characters.</div>
+                        </div>
+                        <div class="alert theme-danger d-none" id="error" role="alert"></div>
+                        <button class="btn-solid theme-primary w-100" type="submit" id="submit">Create account</button>
+                    </form>
+                </div>
+            </div>
+            <p class="small fg-secondary mt-4">Have an account? <a href="/login" id="alt-link">Sign in</a></p>
+        </main>
+        <script type="module" src="./register.ts"></script>
+    </body>
+</html>

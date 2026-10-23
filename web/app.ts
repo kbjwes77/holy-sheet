@@ -6,6 +6,8 @@ import example from "../examples/ap-macro-unit-4.json";
 import { renderSeparate } from "../gen/booklet.ts";
 import { renderTest, type TestDef } from "../gen/sheet.ts";
 import { parseSheetJson, type ValidationIssue } from "../gen/testdef.ts";
+import type { Material } from "./common.ts";
+import { editMaterial, pickMaterial } from "./library-dialogs.ts";
 
 const MAX_FILE_BYTES = 2 * 1024 * 1024;
 const LETTER_PT = { w: 612, h: 792 };
@@ -311,7 +313,7 @@ function markStale(): void {
 try {
     answerSheet.checked = localStorage.getItem(ANSWER_SHEET_KEY) === "1";
 } catch {
-    // Storage unavailable (e.g. blocked for file:// pages): start off.
+    // Storage unavailable (e.g. blocked by the browser): start off.
 }
 answerSheet.addEventListener("change", () => {
     try {
@@ -338,6 +340,46 @@ $("btn-download-key").addEventListener("click", () => {
 $("btn-download-test").addEventListener("click", () => {
     if (current) download(`${slug(current.test.title)}.json`, new Blob([current.source], { type: "application/json" }));
 });
+
+// ---- Library ----
+
+const loadMaterial = (m: Material) => {
+    input.value = m.content ?? "";
+    hideErrors();
+    markStale();
+    setStatus(`Loaded "${m.name}" from the library`);
+    savedAs = m.mine ? m : null;
+};
+/** The library material the editor was loaded from (when it's the user's own), so Save updates it. */
+let savedAs: Material | null = null;
+$("btn-open-library").addEventListener("click", async () => {
+    const m = await pickMaterial();
+    if (m) loadMaterial(m);
+});
+$("btn-save-library").addEventListener("click", async () => {
+    const parsed = parseSheetJson(input.value, { layout: false });
+    if (!parsed.ok) return showErrors(parsed.errors);
+    hideErrors();
+    try {
+        const saved = await editMaterial(savedAs ? { material: savedAs, content: input.value } : { content: input.value, name: parsed.test.title });
+        if (saved) {
+            savedAs = saved;
+            setStatus(`Saved "${saved.name}" to your library`);
+        }
+    } catch (e) {
+        showErrors([{ path: "", where: "Library", message: e instanceof Error ? e.message : String(e) }]);
+    }
+});
+// /generator?material=ID opens a saved or community material.
+const id = new URLSearchParams(location.search).get("material");
+if (id) {
+    fetch(`/api/materials/${encodeURIComponent(id)}`).then(async (r) => {
+        if (r.status === 401) return location.assign(`/login?next=${encodeURIComponent(location.pathname + location.search)}`);
+        const m = (await r.json()) as Material & { error?: string };
+        if (r.ok) loadMaterial(m);
+        else showErrors([{ path: "", where: "Library", message: m.error ?? "couldn't open that material" }]);
+    });
+}
 
 $("btn-load").addEventListener("click", () => fileInput.click());
 fileInput.addEventListener("change", () => {

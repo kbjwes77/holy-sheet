@@ -22,6 +22,7 @@ import {
     type Verdict,
 } from "../src/review.ts";
 import type { JobEvent } from "./grader-api.ts";
+import { pickMaterial } from "./library-dialogs.ts";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -83,7 +84,15 @@ function addFiles(list: File[]): void {
         input = { kind: "images", files: [...have, ...added].sort(byName) };
     }
     inputError(ignored ? `Ignored ${plural(ignored, "file")} that ${ignored === 1 ? "isn't" : "aren't"} PNG or JPG.` : null);
-    renderInput();
+    // Starting a run needs a plan that can grade; say so up front rather than after the upload.
+fetch("/api/me")
+    .then((r) => (r.ok ? (r.json() as Promise<{ user: { canGrade: boolean } }>) : null))
+    .then((me) => {
+        if (me && !me.user.canGrade) show($("plan-warning"));
+    })
+    .catch(() => {});
+
+renderInput();
 }
 
 function renderInput(): void {
@@ -1323,9 +1332,21 @@ for (const fi of [zipInput, imagesInput]) {
 $("btn-clear-files").addEventListener("click", () => {
     input = null;
     inputError(null);
-    renderInput();
+    // Starting a run needs a plan that can grade; say so up front rather than after the upload.
+fetch("/api/me")
+    .then((r) => (r.ok ? (r.json() as Promise<{ user: { canGrade: boolean } }>) : null))
+    .then((me) => {
+        if (me && !me.user.canGrade) show($("plan-warning"));
+    })
+    .catch(() => {});
+
+renderInput();
 });
 $("btn-test-file").addEventListener("click", () => testFile.click());
+$("btn-test-library").addEventListener("click", async () => {
+    const m = await pickMaterial();
+    if (m) void chooseTest(new File([m.content ?? ""], `${m.name.replace(/[^\w.\- ]+/g, "_").trim() || "test"}.json`, { type: "application/json" }));
+});
 testFile.addEventListener("change", () => {
     const f = testFile.files?.[0];
     testFile.value = "";
@@ -1409,7 +1430,10 @@ window.addEventListener("pagehide", () => {
 
 // Server info: thresholds defaults and whether OCR is configured.
 fetch("/api/grader/info")
-    .then((r) => r.json() as Promise<{ missing: string[]; thresholds: { markThreshold: number; blankThreshold: number } }>)
+    .then((r) => {
+        if (r.status === 401) location.assign(`/login?next=${encodeURIComponent(location.pathname)}`);
+        return r.json() as Promise<{ missing: string[]; thresholds: { markThreshold: number; blankThreshold: number } }>;
+    })
     .then((info) => {
         optMark.placeholder = `${info.thresholds.markThreshold} (default)`;
         optBlank.placeholder = `${info.thresholds.blankThreshold} (default)`;
@@ -1419,5 +1443,13 @@ fetch("/api/grader/info")
         }
     })
     .catch(() => inputError("Couldn't reach the grader server. Start it with `bun run web`."));
+
+// Starting a run needs a plan that can grade; say so up front rather than after the upload.
+fetch("/api/me")
+    .then((r) => (r.ok ? (r.json() as Promise<{ user: { canGrade: boolean } }>) : null))
+    .then((me) => {
+        if (me && !me.user.canGrade) show($("plan-warning"));
+    })
+    .catch(() => {});
 
 renderInput();

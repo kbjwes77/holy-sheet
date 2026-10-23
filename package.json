@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "bootstrap": "6.0.0-alpha.1",
+    "bootstrap-icons": "1.11.3",
     "fflate": "^0.8.3",
     "openai": "^7.38.0",
     "sharp": "^0.35.5",
@@ -25,6 +26,9 @@
     "make-fixture": "bun gen/make-fixture.ts",
     "check-pages": "bun gen/check-pages.ts",
     "web": "bun --hot web/server.ts",
-    "build:web": "bun web/build.ts"
+    "start": "NODE_ENV=production bun web/server.ts",
+    "user": "bun scripts/user.ts",
+    "vendor": "bun scripts/vendor.ts",
+    "postinstall": "bun scripts/vendor.ts"
   }
 }
