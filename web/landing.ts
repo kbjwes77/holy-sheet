@@ -3,7 +3,7 @@ import { initDrift } from "./drift.ts";
 // A few boats drift through the calm divider.
 const demo = document.getElementById("demo-app");
 if (demo) {
-    // The generator (QR codes, layout) loads only when the demo is near the viewport.
+    // Print Sheets (QR codes, layout) loads only when the demo is near the viewport.
     const load = () => import("./demo.ts").then((m) => m.initDemo(demo));
     if ("IntersectionObserver" in window) {
         const io = new IntersectionObserver(

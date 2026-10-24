@@ -142,7 +142,7 @@ async function chooseTest(f: File): Promise<void> {
         const parsed = parseSheetJson(await f.text(), { layout: false });
         if (!parsed.ok) fail([...parsed.errors.slice(0, 6).map((e) => `${e.where}: ${e.message}`), ...(parsed.errors.length > 6 ? [`…and ${parsed.errors.length - 6} more`] : [])]);
         else if (parsed.studyGuide) fail(['This is a study guide; there\'s nothing to grade. Change its top-level "type" to "Quiz" or "Exam" to grade it.']);
-        else if (!parsed.grading) fail([`This test has no answers. Give every question an "answer" in the Sheet Generator, then save its JSON again.`]);
+        else if (!parsed.grading) fail([`This test has no answers. Give every question an "answer" in Print Sheets, then save its JSON again.`]);
         else {
             test = { file: f, key: parsed.grading };
             const free = parsed.grading.filter((k) => k.type === "free").length;

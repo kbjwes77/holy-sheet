@@ -1,4 +1,4 @@
-// Dialogs for the material library, shared by the library page, the generator and the grader:
+// Dialogs for the material library, shared by the library page, Print Sheets and the grader:
 // pick a saved material, and create or edit one.
 import { api, apiMultipart, el, errorText, JSON_MATERIAL_TYPES, MATERIAL_TYPE_THEMES, STATUSES, type Group, type Material } from "./common.ts";
 import { openDialog } from "./dialog.ts";
@@ -57,7 +57,7 @@ export function pickMaterial(): Promise<Material | null> {
             try {
                 const params = new URLSearchParams({ scope, limit: "50" });
                 if (search.value.trim()) params.set("q", search.value.trim());
-                // Decks have no test JSON, so they aren't offered to the generator/grader. Ask the
+                // Decks have no test JSON, so they aren't offered to Print Sheets/the grader. Ask the
                 // server to skip them: filtering a page here could leave "Nothing here yet."
                 for (const t of JSON_MATERIAL_TYPES) params.append("type", t);
                 const { materials } = await api<{ materials: Material[] }>(`/api/materials?${params}`);
@@ -90,13 +90,13 @@ export function pickMaterial(): Promise<Material | null> {
 export interface EditOptions {
     /** The material being edited; omit to create one. */
     material?: Material;
-    /** Test JSON for a new material (the generator's editor); with `askContent` it pre-fills the box. */
+    /** Test JSON for a new material (the Print Sheets editor); with `askContent` it pre-fills the box. */
     content?: string;
-    /** Show a JSON box (the library page); the generator already has its content. */
+    /** Show a JSON box (the library page); Print Sheets already has its content. */
     askContent?: boolean;
     /** A name to pre-fill for a new material. */
     name?: string;
-    /** The type a new material starts as (the generator passes the sheet's root type). */
+    /** The type a new material starts as (Print Sheets passes the sheet's root type). */
     type?: Material["type"];
     /** The group a new material starts in. */
     groupId?: number | null;
@@ -179,7 +179,7 @@ export async function editMaterial(o: EditOptions): Promise<Material | null> {
             content.rows = 10;
             content.spellcheck = false;
             content.value = full?.content ?? o.content ?? "";
-            content.placeholder = "Test JSON (see the Sheet Generator for the format)";
+            content.placeholder = "Test JSON (see Print Sheets for the format)";
             form.append(field("Test JSON", content));
         }
         const error = el("div", "alert theme-danger d-none");

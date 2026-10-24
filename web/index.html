@@ -6,7 +6,7 @@
         <!-- The app has its own dark theme; stop Dark Reader from inverting the sheet previews. -->
         <meta name="darkreader-lock" />
         <meta name="robots" content="noindex" />
-        <title>Sheet Generator</title>
+        <title>Print Sheets</title>
         <script>
             // Apply the saved theme (else the OS preference) before first paint.
             let theme = null;
@@ -32,8 +32,8 @@
                 <div class="page-header">
                     <div class="page-header-icon"><i class="bi bi-ui-radios-grid"></i></div>
                     <div class="page-header-text">
-                        <h1 class="page-header-title">Sheet Generator</h1>
-                        <p class="page-header-subtitle">Build printable answer sheets the grader can read.</p>
+                        <h1 class="page-header-title">Print Sheets</h1>
+                        <p class="page-header-subtitle">Make printable study guides, quizzes, and exams. Use the Grade tool to score printed answer sheets</p>
                     </div>
                 </div>
                 <div class="row g-7">
@@ -215,10 +215,10 @@
                                         type="button"
                                         class="btn-solid theme-primary"
                                         id="btn-generate"
-                                        title="Generate sheet (Ctrl + Enter)"
+                                        title="Print sheets (Ctrl + Enter)"
                                         aria-keyshortcuts="Control+Enter"
                                     >
-                                        <i class="bi bi-gear-wide-connected me-1"></i>Generate sheet
+                                        <i class="bi bi-gear-wide-connected me-1"></i>Print sheets
                                     </button>
                                 </div>
                                 <div class="d-none mt-4 p-5 border rounded bg-2" id="layout-options">
@@ -272,7 +272,7 @@
                             <ul class="mb-0 ps-5 error-list" id="errors-list"></ul>
                         </div>
                         <div class="alert theme-info mt-5 d-none" id="notes" role="status">
-                            <div class="fw-semibold mb-3"><i class="bi bi-info-circle me-1"></i>Generated, with a note:</div>
+                            <div class="fw-semibold mb-3"><i class="bi bi-info-circle me-1"></i>Sheet ready, with a note:</div>
                             <ul class="mb-0 ps-5 error-list" id="notes-list"></ul>
                         </div>
                     </div>
@@ -283,14 +283,14 @@
                             <div class="card-body text-center fg-secondary py-12">
                                 <i class="bi bi-file-earmark-text fs-xl d-block mb-5"></i>
                                 <p class="mb-1 fw-semibold">No sheet yet</p>
-                                <p class="mb-0 small">Paste or load your test JSON, then choose <strong>Generate sheet</strong>.</p>
+                                <p class="mb-0 small">Paste or load your test JSON, then choose <strong>Print sheets</strong>.</p>
                             </div>
                         </div>
 
                         <div class="d-none" id="output">
                             <div class="alert theme-warning d-flex align-items-center gap-3 d-none" id="stale" role="status">
                                 <i class="bi bi-arrow-repeat"></i>
-                                <span>The JSON has changed since this sheet was generated. Generate again to update it.</span>
+                                <span>The JSON has changed since this sheet was prepared. Print again to update it.</span>
                             </div>
 
                             <div class="card shadow-sm mb-5">

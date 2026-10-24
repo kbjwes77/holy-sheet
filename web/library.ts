@@ -143,7 +143,7 @@ async function loadMaterials(): Promise<void> {
             return [
                 edit,
                 button("bi-download", "Download JSON", () => attempt(() => downloadMaterial(m))),
-                button("bi-ui-radios-grid", "Open in the Sheet Generator", () => location.assign(`/generator?material=${m.id}`)),
+                button("bi-ui-radios-grid", "Open in Print Sheets", () => location.assign(`/generator?material=${m.id}`)),
                 del,
             ];
         };

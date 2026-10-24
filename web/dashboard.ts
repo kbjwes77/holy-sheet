@@ -45,7 +45,7 @@ const tiles: [string, string, string, string, string][] = [
     ["/library?new=1", "bi-plus-circle", "Create Study Material", "Upload slides, or write a study guide, quiz or exam and save it.", "primary"],
     ["/library", "bi-collection", "Organize into Groups", "Arrange your materials in nested groups and choose what to publish.", "info"],
     ["/browse", "bi-globe2", "Browse the Community", "View and download materials published by other users.", "success"],
-    ["/generator", "bi-ui-radios-grid", "Sheet Generator", "Turn a test into a printable answer sheet the grader can read.", "warning"],
+    ["/generator", "bi-ui-radios-grid", "Print Sheets", "Print scannable answer sheets the grader can read.", "warning"],
     ["/grader", "bi-clipboard-check", "Grader", me.canGrade ? "Grade scanned answer sheets." : "Grade scanned answer sheets (Pro plan).", "accent"],
 ];
 $("tiles").replaceChildren(

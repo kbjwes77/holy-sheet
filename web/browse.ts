@@ -50,7 +50,7 @@ async function load(more = false): Promise<void> {
             }
             return materialRow(m, [
                 button("bi-download", "Download JSON", () => downloadMaterial(m).catch(fail)),
-                button("bi-ui-radios-grid", "Open in the Sheet Generator", () => location.assign(`/generator?material=${m.id}`)),
+                button("bi-ui-radios-grid", "Open in Print Sheets", () => location.assign(`/generator?material=${m.id}`)),
                 ...copy,
             ]);
         });

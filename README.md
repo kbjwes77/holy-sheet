@@ -13,7 +13,7 @@ bun run grade.ts sheets.zip --mark 0.45 --blank 0.15
 bun run grade.ts sheets.zip --review              # confirm names, settle unclear marks and written answers
 ```
 
-`--test` grades from the JSON the sheets were generated from, which needs an `answer` for every
+`--test` grades from the JSON the sheets were built from, which needs an `answer` for every
 question. The key, each question's `points` and the free-response model answers all come from
 it, so the CLI doesn't prompt for a key. It's fatal if the JSON doesn't match the sheets (its
 question count, which questions are free response, or an answer letter with no bubble). Sheets
@@ -93,7 +93,7 @@ created on first run).
 - Production: `bun run start` marks the cookie `Secure`, so serve it over HTTPS (a reverse proxy
   forwarding to `127.0.0.1:3000`, with `TRUST_PROXY=1`). Back up the `data/` folder.
 
-## Sheet Generator (web)
+## Print Sheets (web)
 
 Paste or load a test as JSON, then preview, print or download a PDF of the answer sheet.
 
@@ -125,10 +125,10 @@ squares or free-response writing boxes, since nothing is marked or graded. Its q
 carry `choices`, `answer` and `explanation` for the guide's solutions. An `explanation` prints with
 the answer in the solutions and must use the sheet's font.
 
-Solutions print after the questions by default; the Sheet Generator's **Solutions** menu can put
+Solutions print after the questions by default; Print Sheets' **Solutions** menu can put
 them inline under each question or turn them off. A top-level `"instructions"` string replaces the
 default instruction line on any sheet. A top-level `"columns": 1` prints every question full width
-(the default, `2`, packs short questions into two columns); the Sheet Generator's "Two columns"
+(the default, `2`, packs short questions into two columns); Print Sheets' "Two columns"
 switch does the same.
 
 ### Free-response questions
@@ -289,7 +289,7 @@ several questions. See `examples/figures-demo.json`.
 
 A GUI for the CLI at `http://127.0.0.1:3000/grader` (same `bun run web` server). Choose a
 `.zip` or a set of PNG/JPG page images (zipped in the browser, in file-name order) and the
-test's JSON (the Sheet Generator's **test.json** button), then Grade. The JSON is required. The
+test's JSON (Print Sheets' **test.json** button), then Grade. The JSON is required. The
 page checks it, needs an `answer` for every question, and shows its question count,
 free-response count and total points. The server (`web/grader-api.ts`) writes both files to a
 temp directory and runs `bun run grade.ts <zip> --test <json>` on them as a subprocess, so sheets

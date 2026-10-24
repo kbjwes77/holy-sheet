@@ -163,7 +163,7 @@ export async function startPage(active: string): Promise<{ me: Me; motd: string 
         ["dashboard", "/dashboard", "bi-house", "Dashboard"],
         ["library", "/library", "bi-collection", "My Library"],
         ["browse", "/browse", "bi-globe2", "Browse"],
-        ["generator", "/generator", "bi-ui-radios-grid", "Generator"],
+        ["generator", "/generator", "bi-ui-radios-grid", "Print"],
         ["grader", "/grader", "bi-clipboard-check", "Grade"],
         ["pricing", "/pricing", "bi-credit-card", user.plan === "pro" ? "Billing" : "Upgrade"],
     ];

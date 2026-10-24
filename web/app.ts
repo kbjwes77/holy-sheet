@@ -1,4 +1,4 @@
-// Sheet Generator UI: validates pasted/loaded sheet JSON, renders the pages with the shared
+// Print Sheets UI: validates pasted/loaded sheet JSON, renders the pages with the shared
 // reference renderer (same geometry the grader reads), and prints or exports them as a PDF.
 import { jsPDF } from "jspdf";
 import "svg2pdf.js";
@@ -109,7 +109,7 @@ function showErrors(errors: ValidationIssue[]): void {
     showNotes([]);
     errorsList.replaceChildren(...errors.map((e) => issueItem(e, "text-danger-emphasis")));
     errorsTitle.textContent =
-        errors.length === 1 ? "The sheet couldn't be generated:" : `The sheet couldn't be generated (${errors.length} problems):`;
+        errors.length === 1 ? "The sheet couldn't be printed:" : `The sheet couldn't be printed (${errors.length} problems):`;
     errorsBox.classList.remove("d-none");
     errorsBox.scrollIntoView({ block: "nearest", behavior: "smooth" });
 }
@@ -118,14 +118,14 @@ function hideErrors(): void {
     errorsBox.classList.add("d-none");
 }
 
-/** Non-blocking remarks about a sheet that was generated (e.g. an unused figure). */
+/** Non-blocking remarks about a sheet that was prepared (e.g. an unused figure). */
 function showNotes(notes: ValidationIssue[]): void {
     $("notes-list").replaceChildren(...notes.map((n) => issueItem(n, "text-info-emphasis")));
-    $("notes").firstElementChild!.lastChild!.textContent = notes.length === 1 ? "Generated, with a note:" : `Generated, with ${notes.length} notes:`;
+    $("notes").firstElementChild!.lastChild!.textContent = notes.length === 1 ? "Sheet ready, with a note:" : `Sheet ready, with ${notes.length} notes:`;
     $("notes").classList.toggle("d-none", !notes.length);
 }
 
-// ---- Generate --------------------------------------------------------------
+// ---- Print -----------------------------------------------------------------
 
 function generate(): void {
     const source = input.value;
@@ -257,7 +257,7 @@ async function downloadPdf(): Promise<void> {
     $("pdf-icon").classList.add("d-none");
     try {
         const doc = new jsPDF({ unit: "pt", format: "letter", orientation: "portrait" });
-        doc.setProperties({ title: current.test.title, creator: "Sheet Generator" });
+        doc.setProperties({ title: current.test.title, creator: "Print Sheets" });
         for (const [i, page] of current.pages.entries()) {
             if (i > 0) doc.addPage("letter", "portrait");
             const svg = new DOMParser().parseFromString(page, "image/svg+xml").documentElement;
@@ -399,7 +399,7 @@ $("btn-format-help").addEventListener("click", (e) => {
 $("btn-download-key").addEventListener("click", () => {
     if (current?.key) download(`${slug(current.test.title)}-key.txt`, new Blob([`${current.key}\n`], { type: "text/plain" }));
 });
-// The JSON the sheets were generated from, as the web grader's test file.
+// The JSON the sheets were built from, as the web grader's test file.
 $("btn-download-test").addEventListener("click", () => {
     if (current) download(`${slug(current.test.title)}.json`, new Blob([current.source], { type: "application/json" }));
 });

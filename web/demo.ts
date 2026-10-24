@@ -1,4 +1,4 @@
-// Landing page live demo: a small editable quiz rendered by the real Sheet Generator code, in the browser.
+// Landing page live demo: a small editable quiz rendered by the real Print Sheets code, in the browser.
 import { renderSeparate } from "../gen/booklet.ts";
 import { renderTest } from "../gen/sheet.ts";
 import { parseSheetJson } from "../gen/testdef.ts";

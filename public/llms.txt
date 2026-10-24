@@ -4,7 +4,7 @@
 
 ## What it does
 
-- Sheet Generator: loads a test (questions, choices, answer key, point values, optional graphs, diagrams and tables) and produces answer sheets for US Letter paper, previewable in the browser and downloadable as a PDF. Each sheet has a QR code and corner marks so it can be read from a scan or phone photo.
+- Print Sheets: loads a test (questions, choices, answer key, point values, optional graphs, diagrams and tables) and produces answer sheets for US Letter paper, previewable in the browser and downloadable as a PDF. Each sheet has a QR code and corner marks so it can be read from a scan or phone photo.
 - Grader: reads scanned or photographed sheets, reads the filled bubbles, transcribes handwritten free-response answers with an AI model, and grades them against a model answer and rubric. The teacher reviews names, unclear marks and written answers before exporting a CSV, and can curve selected questions.
 - Library: stores tests in nested groups; tests can be published for other signed-in teachers to copy.
 

@@ -4,7 +4,7 @@
 //   /policy, /terms   Privacy policy and terms of service (public, static)
 //   /dashboard   Dashboard (MOTD and links)         /login, /register   Accounts
 //   /library     My materials and groups           /browse             Published by the community
-//   /generator   Sheet Generator
+//   /generator   Print Sheets
 //   /grader      Grader: a GUI that drives the grading CLI (grade.ts) through web/grader-api.ts
 // The landing page is public. The other pages are static shells; each checks /api/me and redirects to /login. Everything under
 // /api needs a session, and the grader needs a plan that can grade.
