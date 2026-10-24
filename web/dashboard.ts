@@ -42,7 +42,7 @@ if (me.isAdmin) {
 }
 
 const tiles: [string, string, string, string, string][] = [
-    ["/library?new=1", "bi-plus-circle", "Create Study Material", "Write or paste a worksheet, quiz, exam or study guide and save it.", "primary"],
+    ["/library?new=1", "bi-plus-circle", "Create Study Material", "Upload slides, or write a study guide, quiz or exam and save it.", "primary"],
     ["/library", "bi-collection", "Organize into Groups", "Arrange your materials in nested groups and choose what to publish.", "info"],
     ["/browse", "bi-globe2", "Browse the Community", "View and download materials published by other users.", "success"],
     ["/generator", "bi-ui-radios-grid", "Sheet Generator", "Turn a test into a printable answer sheet the grader can read.", "warning"],

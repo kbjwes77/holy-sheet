@@ -63,14 +63,17 @@ created on first run).
 
 - **Pages:** `/policy` and `/terms` (static privacy policy and terms of service, public), `/` the public landing page (signed-in visitors see it too, with a button to `/dashboard`), `/dashboard` (message of the
   day and links), `/login`, `/register`, `/library` (your
-  materials and nested groups), `/browse` (materials other users published), `/generator`, `/grader`.
+  materials and nested groups), `/browse` (materials other users published), `/slides` (a read-only
+  slide-deck viewer), `/generator`, `/grader`.
   Everything except the landing, sign-in and register pages needs an account. `robots.txt`, `sitemap.xml`,
   `llms.txt` and `site.webmanifest` are served from `public/`.
 - **Sessions:** an HttpOnly cookie, 30 days from last use; only a hash of its token is stored.
-- **Materials:** a test's JSON with a type (`StudyGuide`, `Worksheet`, `Quiz`, `Exam`), name and
-  tags, and a status: `draft` and `private` are yours alone, `published` is visible to and
-  downloadable by every signed-in user, who can also copy it to their own library. A material is in
-  one group (or the top level); groups nest, and deleting one deletes what is inside.
+- **Materials:** a test's JSON with a type (`StudyGuide`, `Worksheet`, `Quiz`, `Exam`) or an
+  uploaded `.pptx` with type `Slides`, plus a name, tags, and a status: `draft` and `private` are
+  yours alone, `published` is visible to and downloadable by every signed-in user, who can also copy
+  it to their own library. Slide decks are rendered read-only in the browser (with lazy list
+  thumbnails and a `/slides?id=` viewer) and are never graded. A material is in one group (or the
+  top level); groups nest, and deleting one deletes what is inside.
 - **Pricing** (`/pricing`, public): everything is free except grading, which is the Pro plan: $5/month or $40/year, with a one-time
   7-day free trial (card required, once per account). Pro is a Stripe subscription. The pricing page starts Stripe Checkout
   (`POST /api/billing/checkout`, body `{"interval":"monthly"|"yearly"}`) or, for subscribers, the Stripe customer portal
@@ -104,21 +107,29 @@ Tailscale IP: add `HOST=100.93.67.7` to `.env` (a variable set in the shell take
 OpenRouter key.
 
 The format is
-`{ "test": "...", "questions": [{ "prompt": "...", "choices": ["...", ...], "answer": "B" }] }`.
+`{ "test": "...", "type": "Quiz", "questions": [{ "prompt": "...", "choices": ["...", ...], "answer": "B" }] }`.
 There must be 1–256 questions, each with 2–8 choices. `answer` is optional, but if any question
 has one then every question must; the app then shows the grader's key line. Any question can
 have `points`, a whole number from 1 to 100 (default 1). The key card's **test.json** button
 downloads the JSON for the web grader. See `examples/ap-macro-unit-4.json` and the validator in
 `gen/testdef.ts`.
 
-### Study guides
+### Sheet types
 
-A test whose questions have no `choices` and no `answer` is a study guide: the app prints each
-question's prompt and figures only — a title and an instruction line on page 1, then the numbered
-questions, with no choice rings, bubble sheet, timing marks, QR or corner squares, since nothing is
-marked or graded. A top-level `"instructions"` string replaces the default instruction line on any
-sheet. A top-level `"columns": 1` prints every question full width (the default, `2`, packs short
-questions into two columns); the Sheet Generator's "Two columns" switch does the same.
+A top-level `type` is `"Study Guide"`, `"Quiz"` or `"Exam"`. Quizzes and exams print and grade the
+same way. Without a `type`, a sheet whose questions have no `choices` and no `answer` is a study
+guide, and everything else is a quiz; the explicit `type` wins.
+
+A study guide prints its questions without choice rings, a bubble sheet, timing marks, QR, corner
+squares or free-response writing boxes, since nothing is marked or graded. Its questions may still
+carry `choices`, `answer` and `explanation` for the guide's solutions. An `explanation` prints with
+the answer in the solutions and must use the sheet's font.
+
+Solutions print after the questions by default; the Sheet Generator's **Solutions** menu can put
+them inline under each question or turn them off. A top-level `"instructions"` string replaces the
+default instruction line on any sheet. A top-level `"columns": 1` prints every question full width
+(the default, `2`, packs short questions into two columns); the Sheet Generator's "Two columns"
+switch does the same.
 
 ### Free-response questions
 

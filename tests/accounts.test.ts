@@ -1,5 +1,6 @@
 // Accounts, sessions, the material library and plan-gated grading, against a real server on an in-memory database.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { strToU8, zipSync } from "fflate";
 import { createApp } from "../server/app.ts";
 import { now, openDb } from "../server/db.ts";
 
@@ -36,10 +37,49 @@ class Client {
     async signUp(email: string, name = "Test User", password = "correct horse") {
         return this.call("POST", "/api/auth/register", { email, displayName: name, password });
     }
+    async upload(path: string, form: FormData, method = "POST") {
+        const res = await fetch(base + path, { method, headers: this.cookie ? { cookie: this.cookie } : {}, body: form });
+        const text = await res.text();
+        let data: any = text;
+        try {
+            data = JSON.parse(text);
+        } catch {
+            // binary or empty
+        }
+        return { status: res.status, data, res };
+    }
 }
 
 const TEST_JSON = JSON.stringify({ test: "Quiz 1", questions: [{ prompt: "2+2?", choices: ["3", "4"], answer: "B" }] });
 const material = (over: Record<string, unknown> = {}) => ({ name: "Quiz 1", type: "Quiz", tags: ["Math", " algebra "], content: TEST_JSON, ...over });
+
+const DECK_TYPE = "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+
+/** The smallest archive that passes the server's .pptx structural check. */
+function minimalPptx(): Uint8Array<ArrayBuffer> {
+    const zipped = zipSync({
+        "[Content_Types].xml": strToU8(
+            '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/><Override PartName="/ppt/presentation.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"/></Types>',
+        ),
+        "ppt/presentation.xml": strToU8('<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"/>'),
+    });
+    const copy = new Uint8Array(zipped.length);
+    copy.set(zipped);
+    return copy;
+}
+
+function deckForm(over: { name?: string; status?: string; fileName?: string; bytes?: Uint8Array } = {}): FormData {
+    const form = new FormData();
+    form.append("name", over.name ?? "Deck 1");
+    form.append("status", over.status ?? "draft");
+    form.append("tags", JSON.stringify(["slides", "unit 4"]));
+    form.append("groupId", "");
+    const bytes = over.bytes ?? minimalPptx();
+    const copy = new Uint8Array(bytes.length);
+    copy.set(bytes);
+    form.append("file", new Blob([copy], { type: DECK_TYPE }), over.fileName ?? "talk.pptx");
+    return form;
+}
 
 describe("accounts and sessions", () => {
     test("register signs in with an HttpOnly cookie; login and logout work", async () => {
@@ -178,6 +218,70 @@ describe("study materials", () => {
         expect(copy.data).toMatchObject({ mine: true, status: "draft", tags: ["shared"] });
         const kinds = db.query("SELECT kind FROM usage_events WHERE user_id = (SELECT id FROM users WHERE email = 'reader@example.com')").all() as { kind: string }[];
         expect(kinds.map((k) => k.kind)).toEqual(expect.arrayContaining(["material_downloaded", "material_copied"]));
+    });
+
+    test("slide decks upload, view, download, copy, and replace their file", async () => {
+        const author = new Client();
+        await author.signUp("decks@example.com", "Dana");
+        const other = new Client();
+        await other.signUp("deck-reader@example.com");
+
+        expect((await author.upload("/api/materials", deckForm({ fileName: "talk.ppt" }))).status).toBe(400);
+        expect((await author.upload("/api/materials", deckForm({ bytes: strToU8("not a zip") }))).status).toBe(400);
+
+        const made = await author.upload("/api/materials", deckForm({ status: "published" }));
+        expect(made.status).toBe(201);
+        expect(made.data).toMatchObject({ type: "Slides", name: "Deck 1", fileName: "talk.pptx", status: "published", mine: true, tags: ["slides", "unit 4"] });
+        expect(made.data.fileSize).toBeGreaterThan(0);
+        expect(made.data.content).toBeUndefined();
+        const id = made.data.id;
+
+        expect((await author.call("GET", "/api/materials?type=Slides")).data.materials.map((m: any) => m.name)).toEqual(["Deck 1"]);
+
+        // A signed-in reader can view the bytes and download the original file.
+        const inline = await fetch(`${base}/api/materials/${id}/file`, { headers: { cookie: other.cookie } });
+        expect(inline.status).toBe(200);
+        expect(inline.headers.get("content-type")).toBe(DECK_TYPE);
+        expect(inline.headers.get("content-disposition")).toContain("inline");
+        expect(new Uint8Array(await inline.arrayBuffer())[0]).toBe(0x50);
+
+        const dl = await other.call("GET", `/api/materials/${id}/download`);
+        expect(dl.status).toBe(200);
+        expect(dl.res.headers.get("content-disposition")).toContain("Deck 1.pptx");
+
+        const copy = await other.call("POST", `/api/materials/${id}/copy`, {});
+        expect(copy.status).toBe(201);
+        expect(copy.data).toMatchObject({ type: "Slides", status: "draft", mine: true, fileName: "talk.pptx" });
+        const copied = await fetch(`${base}/api/materials/${copy.data.id}/file`, { headers: { cookie: other.cookie } });
+        expect(new Uint8Array(await copied.arrayBuffer())).toEqual(minimalPptx());
+
+        // JSON creation and content edits can't create/convert a deck.
+        expect((await author.call("POST", "/api/materials", material({ type: "Slides" }))).status).toBe(400);
+        expect((await author.call("PATCH", `/api/materials/${id}`, { type: "Quiz" })).status).toBe(400);
+        expect((await author.call("PATCH", `/api/materials/${id}`, { content: TEST_JSON })).status).toBe(400);
+        expect((await author.call("PATCH", `/api/materials/${id}`, { name: "Renamed deck", tags: ["new"] })).data).toMatchObject({ name: "Renamed deck", tags: ["new"], type: "Slides" });
+
+        // The deck picker asks for the JSON types together; decks never appear.
+        expect((await author.call("GET", "/api/materials?type=Quiz&type=Exam")).data.materials).toEqual([]);
+
+        // A failed upload must not apply the metadata sent with it.
+        const bad = new FormData();
+        bad.append("name", "Should not stick");
+        bad.append("status", "private");
+        bad.append("file", new Blob([strToU8("not a zip")], { type: DECK_TYPE }), "bad.pptx");
+        expect((await author.upload(`/api/materials/${id}`, bad, "PATCH")).status).toBe(400);
+        expect((await author.call("GET", `/api/materials/${id}`)).data).toMatchObject({ name: "Renamed deck", status: "published" });
+
+        const replacement = new FormData();
+        replacement.append("name", "Replaced deck");
+        replacement.append("status", "draft");
+        replacement.append("tags", JSON.stringify(["newer"]));
+        replacement.append("groupId", "");
+        replacement.append("file", new Blob([minimalPptx()], { type: DECK_TYPE }), "newer.pptx");
+        const replaced = await author.upload(`/api/materials/${id}`, replacement, "PATCH");
+        expect(replaced.status).toBe(200);
+        expect(replaced.data).toMatchObject({ fileName: "newer.pptx", name: "Replaced deck", status: "draft", tags: ["newer"] });
+        expect((await other.upload(`/api/materials/${id}`, replacement, "PATCH")).status).toBe(404);
     });
 
     test("only the author edits or deletes", async () => {

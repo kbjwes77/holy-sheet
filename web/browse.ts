@@ -1,4 +1,5 @@
 import { $, api, errorText, MATERIAL_TYPES, startPage, type Material } from "./common.ts";
+import { previewDeck } from "./deck-modal.ts";
 import { button, copyToLibrary, downloadMaterial, materialRow, typeFilter } from "./materials-list.ts";
 
 await startPage("browse");
@@ -26,24 +27,33 @@ async function load(more = false): Promise<void> {
     for (const t of tag.value.split(",")) if (t.trim()) params.append("tag", t.trim());
     try {
         const { total, materials } = await api<{ total: number; materials: Material[] }>(`/api/materials?${params}`);
-        const rows = materials.map((m) =>
-            materialRow(m, [
+        const rows = materials.map((m) => {
+            const copy = m.mine
+                ? []
+                : [
+                      button("bi-journal-plus", "Copy to my library", async () => {
+                          try {
+                              await copyToLibrary(m);
+                              location.assign("/library");
+                          } catch (e) {
+                              fail(e);
+                          }
+                      }),
+                  ];
+            if (m.type === "Slides") {
+                return materialRow(m, [
+                    button("bi-eye", "Preview", () => previewDeck(m).catch(fail)),
+                    button("bi-easel", "Open full view", () => location.assign(`/slides?id=${m.id}`)),
+                    button("bi-download", "Download .pptx", () => downloadMaterial(m).catch(fail)),
+                    ...copy,
+                ]);
+            }
+            return materialRow(m, [
                 button("bi-download", "Download JSON", () => downloadMaterial(m).catch(fail)),
                 button("bi-ui-radios-grid", "Open in the Sheet Generator", () => location.assign(`/generator?material=${m.id}`)),
-                ...(m.mine
-                    ? []
-                    : [
-                          button("bi-journal-plus", "Copy to my library", async () => {
-                              try {
-                                  await copyToLibrary(m);
-                                  location.assign("/library");
-                              } catch (e) {
-                                  fail(e);
-                              }
-                          }),
-                      ]),
-            ]),
-        );
+                ...copy,
+            ]);
+        });
         if (more) list.append(...rows);
         else list.replaceChildren(...rows);
         shown += materials.length;

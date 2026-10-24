@@ -10,7 +10,15 @@ import type { GradingKey } from "../src/key.ts";
 import { CHOICE_LETTERS, LAYOUT } from "../src/layout.ts";
 import { FIGURE_ID, FIGURE_TYPES, MAX_FIGURE_CONTENT, prepareFigure, type Figure, type FigureType } from "./figures.ts";
 import { blankPagesAfter, layoutAnswerSheet, layoutBooklet } from "./booklet.ts";
-import { figureMaxWidth, paginate, QuestionTooLongError, type TestDef } from "./sheet.ts";
+import {
+    figureMaxWidth,
+    paginate,
+    QuestionTooLongError,
+    studyGuideSolutionPageCount,
+    type SheetType,
+    type SolutionPlacement,
+    type TestDef,
+} from "./sheet.ts";
 import { unprintable } from "./textwidth.ts";
 
 export const MIN_CHOICES = 2;
@@ -20,6 +28,8 @@ export const MAX_TEXT = 2000;
 export const MULTIPLE_CHOICE = "Multiple Choice";
 export const FREE_RESPONSE = "Free Response";
 export const QUESTION_TYPES = [MULTIPLE_CHOICE, FREE_RESPONSE];
+/** The root "type": studies print as references; quizzes and exams print and grade the same way. */
+export const SHEET_TYPES: readonly SheetType[] = ["Study Guide", "Quiz", "Exam"];
 /** A free-response question's writing lines when it gives none, and the most it may ask for. */
 export const DEFAULT_LINES = 3;
 export const MAX_LINES = 20;
@@ -41,7 +51,9 @@ export type ParseResult =
           key: string | null;
           /** How each question is graded and what it's worth, when every question has an answer, else null. */
           grading: GradingKey | null;
-          /** A study guide: no question has choices or an answer, so nothing is graded. */
+          /** What the root "type" says, or what the questions imply when it is absent. */
+          sheetType: SheetType;
+          /** A study guide: nothing is graded, whatever the questions carry. */
           studyGuide: boolean;
           pageCount: number;
           /** Non-blocking remarks, e.g. a figure no question uses. */
@@ -49,8 +61,8 @@ export type ParseResult =
       }
     | { ok: false; errors: ValidationIssue[] };
 
-const ROOT_KEYS = ["test", "questions", "figures", "instructions", "columns"];
-const QUESTION_KEYS = ["type", "prompt", "figures", "choices", "answer", "points", "rubric", "lines"];
+const ROOT_KEYS = ["test", "type", "questions", "figures", "instructions", "columns"];
+const QUESTION_KEYS = ["type", "prompt", "figures", "choices", "answer", "points", "rubric", "lines", "explanation"];
 const FIGURE_KEYS = ["type", "content", "width", "caption"];
 const ALIASES: Record<string, string> = {
     title: "test",
@@ -139,6 +151,8 @@ export interface ParseOptions {
     answerSheet?: boolean;
     /** Print every question full width, whatever the JSON's "columns" says. */
     singleColumn?: boolean;
+    /** Where a study guide prints its answers and explanations (default "end"). */
+    solutions?: SolutionPlacement;
     /** False skips laying the test out (the grader, reading a test already printed); `pageCount` is then 0. */
     layout?: boolean;
 }
@@ -196,12 +210,23 @@ export function parseSheetJson(text: string, opts: ParseOptions = {}): ParseResu
         else if (doc.columns !== 2) add("columns", "Columns", `"columns" must be 1 (full width) or 2 (the default, two columns where questions fit), got ${JSON.stringify(doc.columns)}.`);
     }
 
-    // A study guide: no question has choices or an answer, so nothing is marked or graded. The
-    // prompts and figures print on their own, with no rings, bubble sheet or QR.
-    const isStudyGuide =
+    // The root "type" says what the sheet is. Without one, a sheet whose questions have neither
+    // choices nor answers is a study guide, and everything else is a quiz (the old behaviour).
+    let sheetType: SheetType | undefined;
+    if ("type" in doc) {
+        const given = doc.type;
+        const match = typeof given === "string" ? SHEET_TYPES.find((t) => t.toLowerCase() === given.trim().toLowerCase()) : undefined;
+        if (match) sheetType = match;
+        else add("type", "Type", `"type" must be "Study Guide", "Quiz" or "Exam", got ${typeof given === "string" ? JSON.stringify(given) : typeName(given)}.`);
+    }
+    const inferredStudyGuide =
         Array.isArray(doc.questions) &&
         doc.questions.length > 0 &&
         doc.questions.every((q) => isObject(q) && !("choices" in q) && !("answer" in q));
+    // An explicit type wins: a quiz may have no answers yet, and a study guide may have them.
+    const isStudyGuide = sheetType ? sheetType === "Study Guide" : inferredStudyGuide;
+    const studyType: SheetType = sheetType ?? (isStudyGuide ? "Study Guide" : "Quiz");
+    const solutions: SolutionPlacement = opts.solutions ?? "end";
 
     // Figures first, so questions can be checked against their ids.
     const figures = new Map<string, Figure>();
@@ -245,7 +270,7 @@ export function parseSheetJson(text: string, opts: ParseOptions = {}): ParseResu
     const used = new Set<string>();
 
     /** Per question: whether it has an answer, and what the grader needs to grade it. */
-    const parsed: { answer: string | null; free: boolean; points: number; rubric?: string; lines: number }[] = [];
+    const parsed: { answer: string | null; free: boolean; points: number; rubric?: string; lines: number; explanation?: string }[] = [];
     if (!("questions" in doc)) add("questions", "Questions", `Missing "questions".`);
     else if (!Array.isArray(doc.questions)) add("questions", "Questions", `Expected an array, got ${typeName(doc.questions)}.`);
     else if (doc.questions.length === 0) add("questions", "Questions", "Must contain at least 1 question.");
@@ -264,7 +289,7 @@ export function parseSheetJson(text: string, opts: ParseOptions = {}): ParseResu
             for (const k of Object.keys(q)) {
                 if (!QUESTION_KEYS.includes(k)) add(`${path}.${k}`, where, `Unknown key "${k}".${suggest(k, QUESTION_KEYS)}`);
             }
-            if ("type" in q && !isStudyGuide) {
+            if ("type" in q) {
                 const t = typeof q.type === "string" ? QUESTION_TYPES.find((name) => name.toLowerCase() === (q.type as string).trim().toLowerCase()) : undefined;
                 if (t) entry.free = t === FREE_RESPONSE;
                 else add(`${path}.type`, where, `"type" must be "${MULTIPLE_CHOICE}" or "${FREE_RESPONSE}", got ${JSON.stringify(q.type)}.`);
@@ -290,13 +315,6 @@ export function parseSheetJson(text: string, opts: ParseOptions = {}): ParseResu
                 }
             }
 
-            if (isStudyGuide) {
-                for (const k of ["choices", "answer", "rubric", "lines"]) {
-                    if (k in q) add(`${path}.${k}`, where, `"${k}" isn't allowed in a study guide; its questions print only their prompt and figures.`);
-                }
-                return;
-            }
-
             if ("points" in q) {
                 const p = q.points;
                 if (typeof p !== "number" || !Number.isInteger(p) || p < 1 || p > MAX_POINTS) {
@@ -314,49 +332,62 @@ export function parseSheetJson(text: string, opts: ParseOptions = {}): ParseResu
                     } else entry.lines = n;
                 }
                 if ("rubric" in q && checkText(q.rubric, `${path}.rubric`, `${where}, rubric`, MAX_TEXT, false)) entry.rubric = q.rubric.trim();
-                if (!("answer" in q)) add(`${path}.answer`, where, `Missing "answer" (the model answer the grader compares the student's answer with).`);
-                else if (checkText(q.answer, `${path}.answer`, `${where}, answer`, MAX_TEXT, false)) entry.answer = q.answer.trim();
-                return;
-            }
-
-            const mcOnly = (k: string) => add(`${path}.${k}`, where, `"${k}" is only for "${FREE_RESPONSE}" questions; add "type": "${FREE_RESPONSE}" or remove it.`);
-            if ("lines" in q) mcOnly("lines");
-            if ("rubric" in q) mcOnly("rubric");
-            let choiceCount = 0;
-            if (!("choices" in q)) add(`${path}.choices`, where, `Missing "choices". A question without choices needs "type": "${FREE_RESPONSE}".`);
-            else if (!Array.isArray(q.choices)) add(`${path}.choices`, where, `"choices" must be an array, got ${typeName(q.choices)}.`);
-            else if (q.choices.length < MIN_CHOICES || q.choices.length > MAX_CHOICES) {
-                add(`${path}.choices`, where, `Expected ${MIN_CHOICES}–${MAX_CHOICES} choices, got ${q.choices.length}.`);
+                if ("answer" in q) {
+                    // A study guide prints model answers in its solutions, so they must be printable.
+                    if (checkText(q.answer, `${path}.answer`, `${where}, answer`, MAX_TEXT, isStudyGuide)) entry.answer = q.answer.trim();
+                } else if (!isStudyGuide) {
+                    add(`${path}.answer`, where, `Missing "answer" (the model answer the grader compares the student's answer with).`);
+                }
             } else {
-                choiceCount = q.choices.length;
-                q.choices.forEach((c, j) =>
-                    checkText(c, `${path}.choices[${j}]`, `${where}, choice ${CHOICE_LETTERS[j]}`, MAX_TEXT),
-                );
+                const mcOnly = (k: string) => add(`${path}.${k}`, where, `"${k}" is only for "${FREE_RESPONSE}" questions; add "type": "${FREE_RESPONSE}" or remove it.`);
+                if ("lines" in q) mcOnly("lines");
+                if ("rubric" in q) mcOnly("rubric");
+                let choiceCount = 0;
+                if (!("choices" in q)) {
+                    // A study guide may print a prompt with no choices at all.
+                    if (!isStudyGuide) add(`${path}.choices`, where, `Missing "choices". A question without choices needs "type": "${FREE_RESPONSE}".`);
+                } else if (!Array.isArray(q.choices)) add(`${path}.choices`, where, `"choices" must be an array, got ${typeName(q.choices)}.`);
+                else if (q.choices.length < MIN_CHOICES || q.choices.length > MAX_CHOICES) {
+                    add(`${path}.choices`, where, `Expected ${MIN_CHOICES}–${MAX_CHOICES} choices, got ${q.choices.length}.`);
+                } else {
+                    choiceCount = q.choices.length;
+                    q.choices.forEach((c, j) =>
+                        checkText(c, `${path}.choices[${j}]`, `${where}, choice ${CHOICE_LETTERS[j]}`, MAX_TEXT),
+                    );
+                }
+
+                if ("answer" in q) {
+                    const a = q.answer;
+                    const apath = `${path}.answer`;
+                    const awhere = `${where}, answer`;
+                    entry.answer = "";
+                    if (typeof a !== "string" || !/^[A-Za-z]+$/.test(a.trim())) {
+                        const hint = typeof a === "string" && /\s/.test(a.trim()) ? ` For a written answer, add "type": "${FREE_RESPONSE}".` : "";
+                        add(apath, awhere, `Expected choice letters such as "B" or "AC", got ${typeof a === "string" ? JSON.stringify(a) : typeName(a)}.${hint}`);
+                    } else {
+                        const letters = [...new Set(a.trim().toUpperCase())].sort();
+                        if (letters.length !== a.trim().length) add(apath, awhere, `Repeats a letter: "${a}".`);
+                        if (choiceCount) {
+                            const allowed = CHOICE_LETTERS.slice(0, choiceCount);
+                            const out = letters.filter((l) => !allowed.includes(l));
+                            if (out.length) add(apath, awhere, `"${out.join("")}" is not a choice (this question has ${allowed[0]}–${allowed.at(-1)}).`);
+                        }
+                        entry.answer = letters.join("");
+                    }
+                }
             }
 
-            if (!("answer" in q)) return;
-            const a = q.answer;
-            const apath = `${path}.answer`;
-            const awhere = `${where}, answer`;
-            entry.answer = "";
-            if (typeof a !== "string" || !/^[A-Za-z]+$/.test(a.trim())) {
-                const hint = typeof a === "string" && /\s/.test(a.trim()) ? ` For a written answer, add "type": "${FREE_RESPONSE}".` : "";
-                add(apath, awhere, `Expected choice letters such as "B" or "AC", got ${typeof a === "string" ? JSON.stringify(a) : typeName(a)}.${hint}`);
-                return;
+            if ("explanation" in q) {
+                // Explanations print in a study guide, so they must use the sheet's font.
+                if (checkText(q.explanation, `${path}.explanation`, `${where}, explanation`, MAX_TEXT, isStudyGuide)) {
+                    entry.explanation = q.explanation.trim();
+                }
             }
-            const letters = [...new Set(a.trim().toUpperCase())].sort();
-            if (letters.length !== a.trim().length) add(apath, awhere, `Repeats a letter: "${a}".`);
-            if (choiceCount) {
-                const allowed = CHOICE_LETTERS.slice(0, choiceCount);
-                const out = letters.filter((l) => !allowed.includes(l));
-                if (out.length) add(apath, awhere, `"${out.join("")}" is not a choice (this question has ${allowed[0]}–${allowed.at(-1)}).`);
-            }
-            entry.answer = letters.join("");
         });
 
-        // Free-response questions always have an answer, so a test with one needs every answer.
+        // Apart from a study guide, a test with any answer needs every answer.
         const given = parsed.filter((a) => a.answer !== null).length;
-        if (given > 0 && given < parsed.length) {
+        if (!isStudyGuide && given > 0 && given < parsed.length) {
             const missing = parsed.flatMap((a, i) => (a.answer === null ? [i + 1] : []));
             const shown = missing.length > 12 ? `${missing.slice(0, 12).join(", ")}, …` : missing.join(", ");
             const why = parsed.some((a) => a.free) ? " (a test with free-response questions is graded from this file, so it needs every answer)" : "";
@@ -373,13 +404,22 @@ export function parseSheetJson(text: string, opts: ParseOptions = {}): ParseResu
     const raw = doc as { test: string; questions: { prompt: string; choices?: string[]; figures?: string[] }[] };
     const test: TestDef = {
         title: raw.test.trim(),
-        questions: raw.questions.map((q, i) => ({
-            prompt: q.prompt.trim(),
-            choices: parsed[i]!.free || isStudyGuide ? [] : q.choices!.map((c) => c.trim()),
-            ...(q.figures?.length ? { figures: q.figures.map((id) => figures.get(id)!) } : {}),
-            ...(parsed[i]!.free ? { lines: parsed[i]!.lines } : {}),
-        })),
-        ...(isStudyGuide ? { studyGuide: true } : {}),
+        questions: raw.questions.map((q, i) => {
+            const entry = parsed[i]!;
+            return {
+                prompt: q.prompt.trim(),
+                // A study guide prints the choices it has (without rings); a free-response question has none.
+                choices: entry.free ? [] : (q.choices ?? []).map((c) => c.trim()),
+                ...(q.figures?.length ? { figures: q.figures.map((id) => figures.get(id)!) } : {}),
+                ...(entry.free ? { free: true } : {}),
+                // Study guides never print writing boxes, so their free-response questions carry no lines.
+                ...(entry.free && !isStudyGuide ? { lines: entry.lines } : {}),
+                ...(entry.answer !== null ? { answer: entry.answer } : {}),
+                ...(entry.explanation ? { explanation: entry.explanation } : {}),
+            };
+        }),
+        sheetType: studyType,
+        ...(isStudyGuide ? { studyGuide: true, solutions } : {}),
         ...(singleColumn ? { singleColumn: true } : {}),
         ...(instructions ? { instructions } : {}),
     };
@@ -399,7 +439,7 @@ export function parseSheetJson(text: string, opts: ParseOptions = {}): ParseResu
             const questionPages = layoutBooklet(test).length;
             pageCount = questionPages + blankPagesAfter(questionPages) + answerPages;
         } else {
-            pageCount = paginate(test).length;
+            pageCount = paginate(test).length + studyGuideSolutionPageCount(test);
         }
     } catch (e) {
         if (!(e instanceof QuestionTooLongError)) throw e;
@@ -425,7 +465,8 @@ export function parseSheetJson(text: string, opts: ParseOptions = {}): ParseResu
             errors: [{ path: "questions", where: "Questions", message: `Needs ${pageCount} pages; a sheet can have at most ${MAX_PAGES}.` }],
         };
     }
-    const answered = parsed.every((a) => a.answer !== null);
+    // A study guide is never graded, even when it carries answers for its solutions.
+    const answered = !isStudyGuide && parsed.every((a) => a.answer !== null);
     const key = answered && !parsed.some((a) => a.free) ? parsed.map((a) => a.answer).join(",") : null;
     const grading: GradingKey | null = answered
         ? parsed.map((a, i) =>
@@ -434,5 +475,5 @@ export function parseSheetJson(text: string, opts: ParseOptions = {}): ParseResu
                   : { type: "choice", answer: [...a.answer!].map((l) => CHOICE_LETTERS.indexOf(l)), points: a.points },
           )
         : null;
-    return { ok: true, test, key, grading, studyGuide: isStudyGuide, pageCount, notes };
+    return { ok: true, test, key, grading, sheetType: studyType, studyGuide: isStudyGuide, pageCount, notes };
 }

@@ -34,7 +34,7 @@
             </div>
             <div class="d-flex align-items-center justify-content-end gap-3 flex-wrap mb-5">
                 <button type="button" class="btn-outline theme-secondary" id="btn-new-group"><i class="bi bi-folder-plus me-1"></i>New group</button>
-                <button type="button" class="btn-solid theme-primary" id="btn-new-material"><i class="bi bi-plus-lg me-1"></i>New material</button>
+                <button type="button" class="btn-solid theme-primary" id="btn-new-material"><i class="bi bi-plus-lg me-1"></i>Create Study Material</button>
             </div>
             <div class="alert theme-danger d-none" id="error" role="alert"></div>
             <div class="row g-5">
@@ -67,6 +67,9 @@
                 </div>
             </div>
         </main>
+        <div id="deck-drop" class="deck-drop d-none" aria-hidden="true">
+            <div><i class="bi bi-easel me-2"></i>Drop a .pptx to upload</div>
+        </div>
         <script type="module" src="./library.ts"></script>
     </body>
 </html>

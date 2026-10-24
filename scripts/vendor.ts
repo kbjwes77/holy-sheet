@@ -22,9 +22,11 @@ const files: [string, string][] = [
     ["fonts/karla-400.woff2", "@fontsource/karla/files/karla-latin-400-normal.woff2"],
     ["fonts/karla-600.woff2", "@fontsource/karla/files/karla-latin-600-normal.woff2"],
     ["fonts/karla-800.woff2", "@fontsource/karla/files/karla-latin-800-normal.woff2"],
+    // Read-only PPTX renderer for the slide viewer and list thumbnails.
+    ["vendor/pptx-renderer/aiden0z-pptx-renderer.browser.es.js", "@aiden0z/pptx-renderer/dist/aiden0z-pptx-renderer.browser.es.js"],
 ];
 
-for (const dir of ["images", "fonts", "css", "css/fonts"]) mkdirSync(join(pub, dir), { recursive: true });
+for (const dir of ["images", "fonts", "css", "css/fonts", "vendor/pptx-renderer"]) mkdirSync(join(pub, dir), { recursive: true });
 
 let copied = 0;
 function link(linkPath: string, target: string): void {

@@ -97,6 +97,7 @@
                                         </button>
                                         <pre class="mb-3"><code>{
   "test": "Unit 4 Quiz",
+  "type": "Quiz",
   "questions": [
     {
       "prompt": "Question text",
@@ -116,7 +117,14 @@
 }</code></pre>
                                         <ul class="mb-0 ps-5">
                                             <li><code>test</code>: the test name (required).</li>
-                                            <li><code>questions</code>: 1–256 questions, each with a <code>prompt</code> and 2–8 <code>choices</code> (lettered A–H).</li>
+                                            <li>
+                                                <code>type</code> (optional): <code>"Study Guide"</code>, <code>"Quiz"</code> or <code>"Exam"</code>.
+                                                Quizzes and exams print and grade the same way. Without a <code>type</code>, a sheet whose
+                                                questions have no <code>choices</code> and no <code>answer</code> is a study guide; everything else
+                                                is a quiz. A study guide prints its questions without choice rings or writing boxes, and may keep
+                                                <code>choices</code>, <code>answer</code> and <code>explanation</code> for its solutions.
+                                            </li>
+                                            <li><code>questions</code>: 1–256 questions, each with a <code>prompt</code> and 2–8 <code>choices</code> (lettered A–H). A study guide question may omit its choices.</li>
                                             <li>
                                                 <code>answer</code> (optional): the correct letters, e.g. <code>"B"</code> or <code>"AC"</code> for
                                                 more than one. Give it for every question or none; with all of them you get the grader's answer key.
@@ -127,6 +135,10 @@
                                                 <code>answer</code> is the model answer the grader compares theirs with, so every question then needs an
                                                 <code>answer</code>. It may also have a <code>rubric</code> (what earns each point) and <code>lines</code>
                                                 (writing lines, 1–20, default 3).
+                                            </li>
+                                            <li>
+                                                <code>explanation</code> (optional): shown with the answer in a study guide's solutions. It prints
+                                                in the sheet's font.
                                             </li>
                                             <li><code>points</code> (optional): what the question is worth, a whole number from 1 to 100 (default 1).</li>
                                             <li>
@@ -188,22 +200,69 @@
                                     </div>
                                 </div>
                             </div>
-                            <div class="card-footer d-flex align-items-center gap-5">
-                                <button type="button" class="btn-solid theme-primary" id="btn-generate">
-                                    <i class="bi bi-gear-wide-connected me-1"></i>Generate sheet
-                                </button>
-                                <span class="small fg-secondary d-none sm:d-inline"><kbd>Ctrl</kbd> + <kbd>Enter</kbd></span>
-                                <div class="form-field ms-auto mb-0" title="Pack short questions into two columns where they fit. Turn off to print every question full width.">
-                                    <div class="switch">
-                                        <input type="checkbox" role="switch" switch id="two-columns" checked />
-                                    </div>
-                                    <label class="small" for="two-columns">Two columns</label>
+                            <div class="card-footer">
+                                <div class="d-flex justify-content-end align-items-center gap-3">
+                                    <button
+                                        type="button"
+                                        class="btn-outline theme-secondary"
+                                        id="btn-layout-options"
+                                        aria-expanded="false"
+                                        aria-controls="layout-options"
+                                    >
+                                        <i class="bi bi-sliders me-1"></i>Sheet layout<i class="bi bi-chevron-down ms-2" id="layout-chevron"></i>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="btn-solid theme-primary"
+                                        id="btn-generate"
+                                        title="Generate sheet (Ctrl + Enter)"
+                                        aria-keyshortcuts="Control+Enter"
+                                    >
+                                        <i class="bi bi-gear-wide-connected me-1"></i>Generate sheet
+                                    </button>
                                 </div>
-                                <div class="form-field mb-0" title="Print the questions on plain pages, with every answer on an answer sheet at the end. Only the answer sheet is scanned.">
-                                    <div class="switch">
-                                        <input type="checkbox" role="switch" switch id="answer-sheet" />
+                                <div class="d-none mt-4 p-5 border rounded bg-2" id="layout-options">
+                                    <div class="row g-6 align-items-center">
+                                        <div class="col-12 col-sm-6 col-lg-4">
+                                            <div class="form-group">
+                                                <label class="form-label"><i class="bi bi-layout-split me-2"></i>Question layout</label>
+                                                <div class="form-field">
+                                                    <input type="radio" class="radio" id="two-columns" name="two-columns" checked />
+                                                    <label for="two-columns">Two columns</label>
+                                                </div>
+                                                <div class="form-field">
+                                                    <input type="radio" class="radio" id="two-columns-full" name="two-columns" />
+                                                    <label for="two-columns-full">Full width</label>
+                                                </div>
+                                                <small class="form-text">Pack short questions into two columns where they fit.</small>
+                                            </div>
+                                        </div>
+                                        <div class="col-12 col-sm-6 col-lg-4">
+                                            <div class="form-group">
+                                                <label class="form-label"><i class="bi bi-ui-checks me-2"></i>Answer sheet</label>
+                                                <div class="form-field">
+                                                    <input type="radio" class="radio" id="answer-sheet-inline" name="answer-sheet" checked />
+                                                    <label for="answer-sheet-inline">Inline (Next to Questions)</label>
+                                                </div>
+                                                <div class="form-field">
+                                                    <input type="radio" class="radio" id="answer-sheet" name="answer-sheet" />
+                                                    <label for="answer-sheet">Separated (On a Different Page)</label>
+                                                </div>
+                                                <small class="form-text">A separate answer sheet prints at the end and is the only page scanned.</small>
+                                            </div>
+                                        </div>
+                                        <div class="col-12 col-sm-6 col-lg-4">
+                                            <div class="form-field mb-0" title="Where a Study Guide prints its answers and explanations.">
+                                                <label class="form-label" for="solutions"><i class="bi bi-lightbulb me-2"></i>Solutions</label>
+                                                <select id="solutions" class="form-control form-control-sm">
+                                                    <option value="end">At the end</option>
+                                                    <option value="inline">Inline</option>
+                                                    <option value="none">None</option>
+                                                </select>
+                                                <small class="form-text">Where a Study Guide prints its answers and explanations.</small>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <label class="small" for="answer-sheet">Separate answer sheet</label>
                                 </div>
                             </div>
                         </div>

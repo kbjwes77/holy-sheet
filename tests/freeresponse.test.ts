@@ -32,7 +32,13 @@ describe("test JSON", () => {
     test("free-response questions: type, model answer, rubric, lines and points", () => {
         const r = parseSheetJson(json([mc(), frq({ rubric: "1 pt: lone pairs", lines: 2, points: 3 }), { ...mc(), points: 2, type: "multiple choice" }]));
         if (!r.ok) throw new Error(JSON.stringify(r.errors));
-        expect(r.test.questions[1]).toEqual({ prompt: "Explain why water is bent.", choices: [], lines: 2 });
+        expect(r.test.questions[1]).toEqual({
+            prompt: "Explain why water is bent.",
+            choices: [],
+            lines: 2,
+            free: true,
+            answer: "Lone pairs repel the bonds.",
+        });
         expect(r.key).toBeNull(); // no letter line for a test with free response
         expect(r.grading).toEqual([
             { type: "choice", answer: [0], points: 1 },

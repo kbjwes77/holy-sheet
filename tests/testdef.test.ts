@@ -97,6 +97,94 @@ describe("parseSheetJson", () => {
     });
 });
 
+describe("sheet type and study guide solutions", () => {
+    test("an explicit Study Guide may keep choices, answers and explanations", () => {
+        const r = parseSheetJson(
+            doc({
+                test: "T",
+                type: "study guide",
+                questions: [{ prompt: "Which is even?", choices: ["3", "4"], answer: "b", explanation: "4 is even." }],
+            }),
+        );
+        if (!r.ok) throw new Error(JSON.stringify(r.errors));
+        expect(r.sheetType).toBe("Study Guide");
+        expect(r.studyGuide).toBe(true);
+        expect(r.key).toBeNull();
+        expect(r.grading).toBeNull();
+        expect(r.test.questions[0]).toMatchObject({ choices: ["3", "4"], answer: "B", explanation: "4 is even." });
+    });
+
+    test("an explicit Quiz or Exam is not inferred as a study guide", () => {
+        const noChoices = errors(parseSheetJson(doc({ test: "T", type: "Quiz", questions: [{ prompt: "p" }] })));
+        expect(noChoices[0]).toContain(`Missing "choices"`);
+        const exam = parseSheetJson(doc({ test: "T", type: "Exam", questions: [q()] }));
+        expect(exam.ok && exam.sheetType).toBe("Exam");
+        expect(exam.ok && exam.studyGuide).toBe(false);
+    });
+
+    test("without a type, the old inference still applies", () => {
+        const guide = parseSheetJson(doc({ test: "T", questions: [{ prompt: "p" }] }));
+        expect(guide.ok && guide.sheetType).toBe("Study Guide");
+        const quiz = parseSheetJson(doc({ test: "T", questions: [q()] }));
+        expect(quiz.ok && quiz.sheetType).toBe("Quiz");
+    });
+
+    test("bad root types are reported", () => {
+        expect(errors(parseSheetJson(doc({ test: "T", type: "Worksheet", questions: [q()] })))[0]).toContain(`"type" must be "Study Guide", "Quiz" or "Exam"`);
+    });
+
+    test("a study guide prints choices without rings and its solutions at the end", () => {
+        const r = parseSheetJson(
+            doc({
+                test: "T",
+                type: "Study Guide",
+                questions: [{ prompt: "Which is even?", choices: ["3", "4"], answer: "B", explanation: "4 is even." }],
+            }),
+        );
+        if (!r.ok) throw new Error(JSON.stringify(r.errors));
+        const pages = renderTest(r.test);
+        expect(pages).toHaveLength(2);
+        expect(r.pageCount).toBe(2);
+        expect(pages[0]!.svg).toContain("B)");
+        expect(pages[0]!.svg).not.toContain("<circle");
+        expect(pages[1]!.svg).toContain("Solutions");
+        expect(pages[1]!.svg).toContain("Answer: B) 4");
+        expect(pages[1]!.svg).toContain("Explanation: 4 is even.");
+    });
+
+    test("solutions can print inline or not at all", () => {
+        const source = doc({
+            test: "T",
+            type: "Study Guide",
+            questions: [{ prompt: "Which is even?", choices: ["3", "4"], answer: "B", explanation: "4 is even." }],
+        });
+        const inline = parseSheetJson(source, { solutions: "inline" });
+        if (!inline.ok) throw new Error(JSON.stringify(inline.errors));
+        const inlinePages = renderTest(inline.test);
+        expect(inlinePages).toHaveLength(1);
+        expect(inlinePages[0]!.svg).toContain("Answer: B) 4");
+
+        const none = parseSheetJson(source, { solutions: "none" });
+        if (!none.ok) throw new Error(JSON.stringify(none.errors));
+        expect(renderTest(none.test)).toHaveLength(1);
+        expect(renderTest(none.test)[0]!.svg).not.toContain("Explanation:");
+    });
+
+    test("a study guide's free-response question prints no writing box", () => {
+        const r = parseSheetJson(
+            doc({
+                test: "T",
+                type: "Study Guide",
+                questions: [{ type: "Free Response", prompt: "Explain.", answer: "Because.", explanation: "It follows." }],
+            }),
+        );
+        if (!r.ok) throw new Error(JSON.stringify(r.errors));
+        expect(r.test.questions[0]).toMatchObject({ free: true, answer: "Because." });
+        expect(r.test.questions[0]!.lines).toBeUndefined();
+        expect(renderTest(r.test)[0]!.page.questions[0]!.box).toBeUndefined();
+    });
+});
+
 describe("renderer text fitting", () => {
     test("truncate adds an ellipsis only when needed", () => {
         expect(truncate("Short", 100, 11)).toBe("Short");

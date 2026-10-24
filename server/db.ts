@@ -4,7 +4,7 @@ import { Database } from "bun:sqlite";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 
-export const MATERIAL_TYPES = ["StudyGuide", "Worksheet", "Quiz", "Exam"] as const;
+export const MATERIAL_TYPES = ["StudyGuide", "Worksheet", "Quiz", "Exam", "Slides"] as const;
 export type MaterialType = (typeof MATERIAL_TYPES)[number];
 export const STATUSES = ["draft", "private", "published"] as const;
 export type Status = (typeof STATUSES)[number];
@@ -105,6 +105,31 @@ const MIGRATIONS: string[] = [
         received_at INTEGER NOT NULL
     );
     `,
+    // Slide decks are uploaded .pptx files: a binary blob alongside the metadata. Rebuilding the
+    // table is the only way to widen a SQLite CHECK constraint, so the type list moves into the
+    // application and the new file columns land here too.
+    `
+    CREATE TABLE study_materials_new (
+        id INTEGER PRIMARY KEY,
+        owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        group_id INTEGER REFERENCES material_groups(id) ON DELETE CASCADE,
+        type TEXT NOT NULL,
+        name TEXT NOT NULL,
+        content TEXT NOT NULL,
+        file BLOB,
+        file_name TEXT,
+        file_size INTEGER NOT NULL DEFAULT 0,
+        status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'private', 'published')),
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+    );
+    INSERT INTO study_materials_new (id, owner_id, group_id, type, name, content, status, created_at, updated_at)
+        SELECT id, owner_id, group_id, type, name, content, status, created_at, updated_at FROM study_materials;
+    DROP TABLE study_materials;
+    ALTER TABLE study_materials_new RENAME TO study_materials;
+    CREATE INDEX materials_owner_group ON study_materials(owner_id, group_id);
+    CREATE INDEX materials_status_type ON study_materials(status, type);
+    `,
 ];
 
 /** Opens (creating if needed) the database at `path`, or in memory for ":memory:", and migrates it. */
@@ -112,14 +137,22 @@ export function openDb(path: string): Database {
     if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
     const db = new Database(path, { create: true, strict: true });
     db.run("PRAGMA journal_mode = WAL");
-    db.run("PRAGMA foreign_keys = ON");
     db.run("PRAGMA busy_timeout = 5000");
-    const version = (db.query("PRAGMA user_version").get() as { user_version: number }).user_version;
-    for (let i = version; i < MIGRATIONS.length; i++) {
-        db.transaction(() => {
-            db.run(MIGRATIONS[i]!);
-            db.run(`PRAGMA user_version = ${i + 1}`);
-        })();
+    // Table rebuilds must not cascade-delete child rows; check the whole database afterwards.
+    db.run("PRAGMA foreign_keys = OFF");
+    try {
+        const version = (db.query("PRAGMA user_version").get() as { user_version: number }).user_version;
+        for (let i = version; i < MIGRATIONS.length; i++) {
+            db.transaction(() => {
+                db.run(MIGRATIONS[i]!);
+                db.run(`PRAGMA user_version = ${i + 1}`);
+            })();
+        }
+        const broken = db.query("PRAGMA foreign_key_check").all();
+        // Report rather than refuse to start: a pre-existing orphan isn't caused by this migration.
+        if (broken.length) console.warn(`database has ${broken.length} orphaned row(s) with a missing foreign key`);
+    } finally {
+        db.run("PRAGMA foreign_keys = ON");
     }
     return db;
 }

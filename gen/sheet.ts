@@ -22,6 +22,11 @@ import {
 import { renderFigure, type Figure } from "./figures.ts";
 import { textWidth, truncate, wrapWidth } from "./textwidth.ts";
 
+/** What a sheet is for. Quizzes and exams print and grade the same way. */
+export type SheetType = "Study Guide" | "Quiz" | "Exam";
+/** Where a study guide prints its answers and explanations. */
+export type SolutionPlacement = "end" | "inline" | "none";
+
 export interface QuestionDef {
     prompt: string;
     /** Choice texts, one bubble each (1–8); none for a free-response question. */
@@ -30,22 +35,33 @@ export interface QuestionDef {
     figures?: Figure[];
     /**
      * Makes it a free-response question: a full-width box with this many handwriting lines
-     * (ROWS_PER_LINE grid rows each) instead of choices.
+     * (ROWS_PER_LINE grid rows each) instead of choices. A study guide's free-response questions
+     * have no box, so they may carry `free` without `lines`.
      */
     lines?: number;
+    /** The question is free response, whether or not it has a writing box. */
+    free?: boolean;
+    /** A multiple-choice answer ("B" or "AC"), or the model answer for a free-response question. */
+    answer?: string;
+    /** Shown with the answer in a study guide's solutions. */
+    explanation?: string;
 }
 
-/** Whether a question is free response (a writing box) rather than multiple choice. */
-export const isFree = (q: QuestionDef): boolean => q.lines !== undefined;
+/** Whether a question is free response rather than multiple choice. */
+export const isFree = (q: QuestionDef): boolean => q.free === true || q.lines !== undefined;
 
 export interface TestDef {
     title: string;
     questions: QuestionDef[];
+    /** The root JSON's "type"; Quiz and Exam behave identically. */
+    sheetType?: SheetType;
     /**
-     * A study guide: every question has no choices to mark and nothing is graded. Pages print the
-     * prompts and figures only, with no rings, bubble rows, timing markers, QR or corner squares.
+     * A study guide: nothing is graded and pages print no bubbles, bubble rows, timing markers,
+     * QR or corner squares. Its questions may still carry choices, answers and explanations.
      */
     studyGuide?: boolean;
+    /** Where the study guide's answers and explanations print (default "end"). */
+    solutions?: SolutionPlacement;
     /** Print every question full width, never in two columns (the default packs short ones into columns). */
     singleColumn?: boolean;
     /** Page 1's instruction line, in place of the default for the sheet's kind (wrapped to fit). */
@@ -80,11 +96,13 @@ export interface PlacedQuestion {
     choices: PlacedChoice[];
     /** A free-response question's writing box, full width over grid rows [row, row + rows). */
     box?: { row: number; rows: number };
+    /** A study guide's inline answer and explanation below the question. */
+    solution?: { row: number; lines: SolutionLine[] };
 }
 
-/** The row of a question's first bubble, or of its writing box. */
+/** The row of a question's first bubble, of its writing box, or of the row after its prompt. */
 export function answerStartRow(q: PlacedQuestion): number {
-    return q.box ? q.box.row : q.choices[0]!.row;
+    return q.box ? q.box.row : (q.choices[0]?.row ?? q.promptRow + q.promptLines.length);
 }
 
 /** The hairline between a band's columns, over grid rows [fromRow, toRow). */
@@ -152,6 +170,36 @@ export function instructionText(test: TestDef): string {
 export function instructionLines(test: TestDef, L: LayoutSpec = LAYOUT): string[] {
     const width = textRightEdge(L.instructionsRow, L) - colX(L.promptCol, L);
     return wrapWidth(instructionText(test), width, INSTRUCTION_SIZE);
+}
+
+/** One printed line of a study guide's solutions. */
+export interface SolutionLine {
+    text: string;
+    bold?: boolean;
+    italic?: boolean;
+}
+
+/** A question's answer as printed in solutions: the letters with their choice texts. */
+export function solutionAnswer(q: QuestionDef): string | null {
+    if (!q.answer) return null;
+    if (isFree(q)) return q.answer;
+    return q.answer
+        .toUpperCase()
+        .split("")
+        .map((letter) => {
+            const index = CHOICE_LETTERS.indexOf(letter);
+            return index >= 0 && q.choices[index] ? `${letter}) ${q.choices[index]}` : letter;
+        })
+        .join("; ");
+}
+
+/** The answer and explanation paragraphs a study guide prints for one question. */
+function solutionParagraphs(q: QuestionDef): SolutionLine[] {
+    const answer = solutionAnswer(q);
+    return [
+        ...(answer ? [{ text: `Answer: ${answer}`, bold: true }] : []),
+        ...(q.explanation ? [{ text: `Explanation: ${q.explanation}`, italic: true }] : []),
+    ];
 }
 
 /** Gap between figures side by side, and the space above and below a line of figures. */
@@ -272,7 +320,7 @@ interface Placement {
  * on the row each line lands on, since rows beside the QR are narrower. Null when its figures
  * are too wide for the column.
  */
-function placeStacked(q: QuestionDef, index: number, column: QuestionColumn, row: number, L: LayoutSpec): Placement | null {
+function placeStacked(q: QuestionDef, index: number, column: QuestionColumn, row: number, L: LayoutSpec, test?: TestDef): Placement | null {
     const g = geometry(column, L);
     row = Math.max(row, g.firstRow);
     const indent = promptIndent(index);
@@ -281,7 +329,7 @@ function placeStacked(q: QuestionDef, index: number, column: QuestionColumn, row
     if (!figs) return null;
     const placed: PlacedQuestion = { index, column, promptRow: row, promptLines, figures: figs.placed, choices: [] };
     let at = figs.end;
-    if (isFree(q)) {
+    if (isFree(q) && q.lines !== undefined) {
         // The box is full width, so it starts below the QR.
         placed.box = { row: Math.max(at, L.qrClearRow), rows: q.lines! * ROWS_PER_LINE };
         return { placed, end: placed.box.row + placed.box.rows };
@@ -292,6 +340,19 @@ function placeStacked(q: QuestionDef, index: number, column: QuestionColumn, row
         const lines = wrapWidth(c, (i) => g.right(start + i) - textX, TEXT_SIZE);
         placed.choices.push({ row: start, lines });
         at += lines.length;
+    }
+    if (test?.studyGuide && test.solutions === "inline") {
+        const paragraphs = solutionParagraphs(q);
+        if (paragraphs.length) {
+            at++; // a blank row between the question and its solution
+            const lines: SolutionLine[] = [];
+            for (const paragraph of paragraphs) {
+                const wrapped = wrapWidth(paragraph.text, (i) => g.right(at + lines.length + i) - g.promptX, TEXT_SIZE, paragraph.bold);
+                for (const text of wrapped) lines.push({ text, bold: paragraph.bold, italic: paragraph.italic });
+            }
+            placed.solution = { row: at, lines };
+            at += lines.length;
+        }
     }
     return { placed, end: at };
 }
@@ -307,8 +368,10 @@ const BESIDE_GAP = 2 * FIGURE_GAP;
  * Null when it has no figures, one is wider than a column, a choice would wrap, or it is free
  * response (its box takes the full width).
  */
-function placeBeside(q: QuestionDef, index: number, row: number, L: LayoutSpec): Placement | null {
+function placeBeside(q: QuestionDef, index: number, row: number, L: LayoutSpec, test?: TestDef): Placement | null {
     if (isFree(q)) return null;
+    // Inline solutions run the full width below the question, so figures can't sit beside it.
+    if (test?.studyGuide && test.solutions === "inline") return null;
     const figs = q.figures ?? [];
     const colW = textRightEdge(L.qrClearRow, L) - colX(L.columns.right.promptCol, L);
     if (!figs.length || figs.some((fig) => fig.boxW > colW + 0.5)) return null;
@@ -366,10 +429,10 @@ function placeBeside(q: QuestionDef, index: number, row: number, L: LayoutSpec):
  * Lays question `index` out in `column` from `row`. A full-width question with figures that each
  * fit a column prints them beside its text when that ends on an earlier row than stacking them.
  */
-function place(q: QuestionDef, index: number, column: QuestionColumn, row: number, L: LayoutSpec): Placement | null {
-    const stacked = placeStacked(q, index, column, row, L);
+function place(q: QuestionDef, index: number, column: QuestionColumn, row: number, L: LayoutSpec, test?: TestDef): Placement | null {
+    const stacked = placeStacked(q, index, column, row, L, test);
     if (column !== "full") return stacked;
-    const beside = placeBeside(q, index, row, L);
+    const beside = placeBeside(q, index, row, L, test);
     return beside && (!stacked || beside.end < stacked.end) ? beside : stacked;
 }
 
@@ -389,7 +452,7 @@ class Packer {
     place(index: number, column: QuestionColumn, row: number): Placement | null {
         const key = `${index}|${column}|${row}`;
         let p = this.placements.get(key);
-        if (p === undefined) this.placements.set(key, (p = place(this.test.questions[index]!, index, column, row, this.L)));
+        if (p === undefined) this.placements.set(key, (p = place(this.test.questions[index]!, index, column, row, this.L, this.test)));
         return p;
     }
 
@@ -520,7 +583,8 @@ export function paginate(test: TestDef, L: LayoutSpec = LAYOUT): PageLayout[] {
     const minChoices = test.questions.some(isFree) ? 2 : 1;
     test.questions.forEach((q, index) => {
         if (isFree(q)) {
-            if (q.choices.length || !Number.isInteger(q.lines) || q.lines! < 1) throw new RangeError(`free-response question ${index + 1} needs whole lines and no choices`);
+            if (q.choices.length) throw new RangeError(`free-response question ${index + 1} has choices`);
+            if (q.lines !== undefined && (!Number.isInteger(q.lines) || q.lines < 1)) throw new RangeError(`free-response question ${index + 1} needs whole lines`);
         } else if (!studyGuide && (q.choices.length < minChoices || q.choices.length > L.ring.maxChoices)) {
             throw new RangeError(`question ${index + 1} has ${q.choices.length} choices`);
         }
@@ -542,7 +606,7 @@ export function paginate(test: TestDef, L: LayoutSpec = LAYOUT): PageLayout[] {
         ids = [index];
         const fresh = packer.layoutPage(ids, startOf(pages.length + 1));
         if (!fresh) {
-            const p = placeStacked(test.questions[index]!, index, "full", L.firstRowContinued, L)!.placed;
+            const p = placeStacked(test.questions[index]!, index, "full", L.firstRowContinued, L, test)!.placed;
             const figureRows = p.figures.length ? Math.max(...p.figures.map((pf) => Math.ceil((pf.y + pf.figure.boxH - rowY(p.promptRow + p.promptLines.length, L)) / L.cellH))) : 0;
             const answerRows = p.box || !p.choices.length ? figureRows : answerStartRow(p) - p.promptRow - p.promptLines.length;
             throw new QuestionTooLongError(index, answerRows);
@@ -715,15 +779,84 @@ export function titleLayout(title: string, width: number): { lines: string[]; si
     return { lines: [lines[0]!, truncate(lines.slice(1).join(" "), width, TITLE_MIN_SIZE, true)], size: TITLE_MIN_SIZE };
 }
 
+/** The rows a solutions page has for text: page 1 leaves room for the title and heading. */
+function solutionStartRow(pageNumber: number, L: LayoutSpec): number {
+    return pageNumber === 1 ? L.firstRowPage1 : L.topRowContinued;
+}
+
+/** The pages a study guide's answers and explanations need at the end, as lines per page. */
+export function studyGuideSolutionPages(test: TestDef, L: LayoutSpec = LAYOUT): SolutionLine[][] {
+    if (!test.studyGuide || test.solutions === "inline" || test.solutions === "none") return [];
+    const left = colX(L.promptCol, L);
+    const width = textRightEdge(L.bodyLastRow, L) - left;
+    const blocks = test.questions.flatMap((q, index) => {
+        const paragraphs = solutionParagraphs(q);
+        if (!paragraphs.length) return [];
+        const lines: SolutionLine[] = wrapWidth(`${index + 1}. ${q.prompt}`, width, TEXT_SIZE, true).map((text) => ({ text, bold: true }));
+        for (const paragraph of paragraphs) {
+            for (const text of wrapWidth(paragraph.text, width, TEXT_SIZE, paragraph.bold)) {
+                lines.push({ text, bold: paragraph.bold, italic: paragraph.italic });
+            }
+        }
+        return [lines];
+    });
+    if (!blocks.length) return [];
+    const capacity = (page: number) => L.bodyLastRow - solutionStartRow(page + 1, L) + 1;
+
+    const pages: SolutionLine[][] = [];
+    let page: SolutionLine[] = [];
+    const flush = () => {
+        if (!page.length) return;
+        pages.push(page);
+        page = [];
+    };
+    for (const block of blocks) {
+        // Keep a blank row between solutions, but never start a page with one.
+        if (page.length && page.length + 1 + block.length > capacity(pages.length)) flush();
+        else if (page.length) page.push({ text: "" });
+        for (const line of block) {
+            if (page.length >= capacity(pages.length)) flush();
+            page.push(line);
+        }
+    }
+    flush();
+    return pages;
+}
+
+/** How many pages a study guide's solutions add after its questions. */
+export function studyGuideSolutionPageCount(test: TestDef, L: LayoutSpec = LAYOUT): number {
+    return studyGuideSolutionPages(test, L).length;
+}
+
+/** A solutions page after the questions: its lines, and the page numbers shared with them. */
+function renderSolutionPage(test: TestDef, lines: SolutionLine[], pageNumber: number, totalPages: number, L: LayoutSpec, first: boolean): string {
+    const parts: string[] = [];
+    const x = colX(L.promptCol, L);
+    const start = solutionStartRow(first ? 1 : 2, L);
+    if (first) {
+        parts.push(titleSvg(test.title, L));
+        parts.push(svgText(x, instructionsBaseline(L), "Solutions", `font-size="12" font-weight="bold"`));
+    }
+    lines.forEach((line, i) => {
+        const attrs = `font-size="${TEXT_SIZE}"${line.bold ? ` font-weight="bold"` : ""}${line.italic ? ` font-style="italic" fill="#333"` : ""}`;
+        parts.push(svgText(x, rowY(start + i, L) + L.cellH * 0.72, line.text, attrs));
+    });
+    parts.push(footerSvg(test.title, `Page ${pageNumber} of ${totalPages}`, L));
+    return pageSvg(parts.join(""), L);
+}
+
 /**
  * Renders a study guide: page 1 carries the test name and instruction line(s); every page then
- * prints its questions' numbers, prompts and figures. Nothing is scanned or graded, so there is no
- * QR, corner squares, timing markers or writing box, and no choices are drawn.
+ * prints its questions' numbers, prompts, figures and (if it has any) choices. Nothing is scanned
+ * or graded, so there is no QR, corner squares, timing markers or writing box, and no choice rings.
+ * Answers and explanations print at the end, or inline, when `solutions` says so.
  */
 export function renderStudyGuide(test: TestDef, opts: RenderOptions = {}): RenderedPage[] {
     const L = opts.layout ?? LAYOUT;
     const pages = paginate(test, L);
-    return pages.map((page) => {
+    const solutions = studyGuideSolutionPages(test, L);
+    const totalPages = pages.length + solutions.length;
+    const questionPages: RenderedPage[] = pages.map((page) => {
         const parts: string[] = [];
         const text = (x: number, y: number, s: string, attrs = "") => parts.push(svgText(x, y, s, attrs));
         const baseline = (r: number) => rowY(r, L) + L.cellH * 0.72;
@@ -734,7 +867,7 @@ export function renderStudyGuide(test: TestDef, opts: RenderOptions = {}): Rende
                 text(colX(L.promptCol, L), instructionsBaseline(L) + i * L.cellH, line, INSTRUCTIONS_ATTRS),
             );
         }
-        parts.push(footerSvg(test.title, `Page ${page.pageNumber} of ${pages.length}`, L));
+        parts.push(footerSvg(test.title, `Page ${page.pageNumber} of ${totalPages}`, L));
 
         let figureCount = 0;
         for (const q of page.questions) {
@@ -743,10 +876,27 @@ export function renderStudyGuide(test: TestDef, opts: RenderOptions = {}): Rende
             parts.push(numberBadge(q.index, g.promptX, rowY(q.promptRow, L) + L.cellH / 2, q.promptLines[0] ?? ""));
             q.promptLines.forEach((line, i) => text(px, baseline(q.promptRow + i), line, `font-size="${TEXT_SIZE}" font-weight="bold"`));
             for (const pf of q.figures) parts.push(renderFigure(pf.figure, pf.x, pf.y, `p${page.pageNumber}f${++figureCount}-`));
+            // Choices print as text, without the rings a scanned sheet needs.
+            const labelX = choiceLabelX(q.column, L);
+            q.choices.forEach((c, i) => {
+                text(labelX, baseline(c.row), `${CHOICE_LETTERS[i]})`, `font-size="${TEXT_SIZE}" font-weight="bold"`);
+                c.lines.forEach((line, k) => text(labelX + CHOICE_LABEL_W, baseline(c.row + k), line, `font-size="${TEXT_SIZE}"`));
+            });
+            if (q.solution) {
+                q.solution.lines.forEach((line, i) => {
+                    const attrs = `font-size="${TEXT_SIZE}"${line.bold ? ` font-weight="bold"` : ""}${line.italic ? ` font-style="italic" fill="#333"` : ""}`;
+                    text(g.promptX, baseline(q.solution!.row + i), line.text, attrs);
+                });
+            }
         }
         if (opts.overlay) parts.push(opts.overlay(page));
         return { page, payload: payloadFor(test, pages, page), svg: pageSvg(parts.join(""), L) };
     });
+    const solutionPages: RenderedPage[] = solutions.map((lines, i) => {
+        const page: PageLayout = { pageNumber: pages.length + i + 1, questions: [], dividers: [], sectionBreaks: [] };
+        return { page, payload: payloadFor(test, pages, page), svg: renderSolutionPage(test, lines, page.pageNumber, totalPages, L, i === 0) };
+    });
+    return [...questionPages, ...solutionPages];
 }
 
 export function renderTest(test: TestDef, opts: RenderOptions = {}): RenderedPage[] {

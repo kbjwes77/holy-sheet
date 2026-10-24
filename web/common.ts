@@ -12,8 +12,19 @@ export interface Me {
     usage: { gradeRunsThisMonth: number };
 }
 
-export const MATERIAL_TYPES = ["StudyGuide", "Worksheet", "Quiz", "Exam"] as const;
+export const MATERIAL_TYPES = ["StudyGuide", "Worksheet", "Quiz", "Exam", "Slides"] as const;
 export const STATUSES = ["draft", "private", "published"] as const;
+/** Materials whose content is test JSON rather than an uploaded .pptx. */
+export const JSON_MATERIAL_TYPES = MATERIAL_TYPES.filter((t) => t !== "Slides");
+
+/** The theme used for each material type's badge and icon. */
+export const MATERIAL_TYPE_THEMES: Record<(typeof MATERIAL_TYPES)[number], string> = {
+    Slides: "theme-accent",
+    StudyGuide: "theme-success",
+    Worksheet: "theme-secondary",
+    Quiz: "theme-info",
+    Exam: "theme-info",
+};
 
 export interface Material {
     id: number;
@@ -27,6 +38,9 @@ export interface Material {
     createdAt: number;
     updatedAt: number;
     content?: string;
+    /** Slides only: the uploaded file's original name and size. */
+    fileName?: string | null;
+    fileSize?: number;
 }
 
 export interface Group {
@@ -63,6 +77,27 @@ export async function api<T = unknown>(path: string, init: { method?: string; bo
     const data = (await res.json().catch(() => ({}))) as { error?: string };
     if (!res.ok) throw new ApiError(res.status, data.error ?? `request failed (${res.status})`);
     return data as T;
+}
+
+/** A multipart API call (file uploads). Behaves like `api`, but sends `FormData` untouched. */
+export async function apiMultipart<T = unknown>(path: string, form: FormData, method = "POST"): Promise<T> {
+    const res = await fetch(path, { method, body: form });
+    if (res.status === 401) toLogin();
+    if (res.status === 204) return undefined as T;
+    const data = (await res.json().catch(() => ({}))) as { error?: string };
+    if (!res.ok) throw new ApiError(res.status, data.error ?? `request failed (${res.status})`);
+    return data as T;
+}
+
+/** Fetches a material's original bytes (a .pptx for Slides). */
+export async function materialFile(id: number): Promise<ArrayBuffer> {
+    const res = await fetch(`/api/materials/${id}/file`);
+    if (res.status === 401) toLogin();
+    if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new ApiError(res.status, data.error ?? "couldn't load the file");
+    }
+    return res.arrayBuffer();
 }
 
 export function el<K extends keyof HTMLElementTagNameMap>(tag: K, className = "", text = ""): HTMLElementTagNameMap[K] {
@@ -122,7 +157,7 @@ function themeSwitch(): HTMLElement {
  */
 export async function startPage(active: string): Promise<{ me: Me; motd: string }> {
     const { user, motd } = await api<{ user: Me; motd: string }>("/api/me");
-    const brandHtml = '<i class="bi bi-water fg-primary"></i>Grade Lake';
+    const brandHtml = '<img src="/images/logo-square.svg" alt="" width="28" height="27" />Grade Lake';
 
     const links: [string, string, string, string][] = [
         ["dashboard", "/dashboard", "bi-house", "Dashboard"],

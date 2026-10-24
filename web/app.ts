@@ -4,7 +4,7 @@ import { jsPDF } from "jspdf";
 import "svg2pdf.js";
 import example from "../examples/ap-macro-unit-4.json";
 import { renderSeparate } from "../gen/booklet.ts";
-import { renderTest, type TestDef } from "../gen/sheet.ts";
+import { isFree, renderTest, type SheetType, type SolutionPlacement, type TestDef } from "../gen/sheet.ts";
 import { parseSheetJson, type ValidationIssue } from "../gen/testdef.ts";
 import { startPage, type Material } from "./common.ts";
 import { editMaterial, pickMaterial } from "./library-dialogs.ts";
@@ -30,11 +30,18 @@ const previews = $("previews");
 const printRoot = $("print-root");
 const keyLine = $<HTMLInputElement>("key-line");
 const answerSheet = $<HTMLInputElement>("answer-sheet");
+const answerSheetInline = $<HTMLInputElement>("answer-sheet-inline");
+const answerSheetRadios = [...document.querySelectorAll<HTMLInputElement>('input[name="answer-sheet"]')];
+const answerSheetGroup = answerSheet.closest<HTMLElement>(".form-group")!;
 const twoColumns = $<HTMLInputElement>("two-columns");
+const twoColumnsFull = $<HTMLInputElement>("two-columns-full");
+const twoColumnRadios = [...document.querySelectorAll<HTMLInputElement>('input[name="two-columns"]')];
+const solutions = $<HTMLSelectElement>("solutions");
 const keyNone = $("key-none");
 const KEY_NONE_DEFAULT = keyNone.innerHTML;
 const ANSWER_SHEET_KEY = "sheet-generator.answer-sheet";
 const TWO_COLUMNS_KEY = "sheet-generator.two-columns";
+const SOLUTIONS_KEY = "sheet-generator.solutions";
 
 interface Generated {
     source: string;
@@ -42,7 +49,9 @@ interface Generated {
     key: string | null;
     /** Whether every question has an answer, so the grader can grade from the JSON. */
     gradable: boolean;
-    /** A study guide: no choices or answers, so nothing is graded and no answer sheet applies. */
+    /** The root JSON's type, or what the questions imply. */
+    sheetType: SheetType;
+    /** A study guide: nothing is graded and no answer sheet applies. */
     studyGuide: boolean;
     /** Free-response questions in the test. */
     free: number;
@@ -120,16 +129,20 @@ function showNotes(notes: ValidationIssue[]): void {
 
 function generate(): void {
     const source = input.value;
-    const result = parseSheetJson(source, { answerSheet: answerSheet.checked, singleColumn: !twoColumns.checked });
+    const result = parseSheetJson(source, {
+        answerSheet: answerSheet.checked,
+        singleColumn: !twoColumns.checked,
+        solutions: solutions.value as SolutionPlacement,
+    });
     if (!result.ok) {
         showErrors(result.errors);
         return;
     }
     hideErrors();
     showNotes(result.notes);
-    // A study guide has nothing to grade, so the separate answer sheet switch doesn't apply.
-    answerSheet.disabled = result.studyGuide;
-    answerSheet.title = result.studyGuide
+    // A study guide has nothing to grade, so neither answer-sheet choice applies.
+    for (const radio of answerSheetRadios) radio.disabled = result.studyGuide;
+    answerSheetGroup.title = result.studyGuide
         ? "A study guide isn't marked or graded, so there's no answer sheet."
         : "Print the questions on plain pages, with every answer on an answer sheet at the end. Only the answer sheet is scanned.";
     const separate = answerSheet.checked && !result.studyGuide;
@@ -144,12 +157,13 @@ function generate(): void {
     } else {
         pages = renderTest(result.test).map((p) => p.svg);
     }
-    const free = result.test.questions.filter((q) => q.lines !== undefined).length;
+    const free = result.test.questions.filter(isFree).length;
     current = {
         source,
         test: result.test,
         key: result.key,
         gradable: !!result.grading,
+        sheetType: result.sheetType,
         studyGuide: result.studyGuide,
         free,
         pages,
@@ -186,10 +200,9 @@ function showOutput(g: Generated): void {
                   badge("bi-upc-scan", `Scan ${plural(answers, "page")} per student`),
               ]),
         badge("bi-file-earmark", "US Letter"),
+        badge("bi-journal-text", g.sheetType),
         ...(g.free ? [badge("bi-pencil", `${g.free} free response`)] : []),
-        ...(g.studyGuide
-            ? [badge("bi-journal-text", "Study guide")]
-            : [badge(g.gradable ? "bi-key" : "bi-key-fill", g.gradable ? "Answer key included" : "No answer key")]),
+        ...(g.studyGuide ? [] : [badge(g.gradable ? "bi-key" : "bi-key-fill", g.gradable ? "Answer key included" : "No answer key")]),
     );
     $("print-help").classList.toggle("d-none", answers !== null);
     $("print-help-separate").classList.toggle("d-none", answers === null);
@@ -198,7 +211,7 @@ function showOutput(g: Generated): void {
     $("key-group").classList.toggle("d-none", !g.key);
     $("key-none").classList.toggle("d-none", g.gradable);
     keyNone.innerHTML = g.studyGuide
-        ? "This is a study guide: its questions are printed on their own, with nothing to mark or grade, so there's no answer key."
+        ? "This is a study guide: nothing is marked or graded, so there's no answer key. Its answers and explanations print as solutions."
         : KEY_NONE_DEFAULT;
     keyLine.value = g.key ?? "";
     const help = g.key
@@ -313,32 +326,65 @@ function markStale(): void {
     if (current) stale.classList.toggle("d-none", input.value === current.source);
 }
 
-// The separate answer sheet setting is remembered in this browser; changing it regenerates a shown sheet.
+// The layout choices are remembered in this browser; changing one regenerates a shown sheet.
 try {
-    answerSheet.checked = localStorage.getItem(ANSWER_SHEET_KEY) === "1";
+    const separate = localStorage.getItem(ANSWER_SHEET_KEY) === "1";
+    answerSheet.checked = separate;
+    answerSheetInline.checked = !separate;
 } catch {
-    // Storage unavailable (e.g. blocked by the browser): start off.
+    // Storage unavailable (e.g. blocked by the browser): keep the default, answers on the test.
 }
 try {
-    twoColumns.checked = localStorage.getItem(TWO_COLUMNS_KEY) !== "0";
+    const columns = localStorage.getItem(TWO_COLUMNS_KEY) !== "0";
+    twoColumns.checked = columns;
+    twoColumnsFull.checked = !columns;
 } catch {
-    // Storage unavailable: start on.
+    // Storage unavailable: keep the default, two columns.
 }
-twoColumns.addEventListener("change", () => {
+try {
+    const saved = localStorage.getItem(SOLUTIONS_KEY);
+    if (saved === "end" || saved === "inline" || saved === "none") solutions.value = saved;
+} catch {
+    // Storage unavailable: keep the default, solutions at the end.
+}
+for (const radio of twoColumnRadios) {
+    radio.addEventListener("change", () => {
+        if (!radio.checked) return;
+        try {
+            localStorage.setItem(TWO_COLUMNS_KEY, twoColumns.checked ? "1" : "0");
+        } catch {
+            // Not remembered, but still applies now.
+        }
+        if (current) generate();
+    });
+}
+for (const radio of answerSheetRadios) {
+    radio.addEventListener("change", () => {
+        if (!radio.checked) return;
+        try {
+            localStorage.setItem(ANSWER_SHEET_KEY, answerSheet.checked ? "1" : "0");
+        } catch {
+            // Not remembered, but still applies now.
+        }
+        if (current) generate();
+    });
+}
+solutions.addEventListener("change", () => {
     try {
-        localStorage.setItem(TWO_COLUMNS_KEY, twoColumns.checked ? "1" : "0");
+        localStorage.setItem(SOLUTIONS_KEY, solutions.value);
     } catch {
         // Not remembered, but still applies now.
     }
     if (current) generate();
 });
-answerSheet.addEventListener("change", () => {
-    try {
-        localStorage.setItem(ANSWER_SHEET_KEY, answerSheet.checked ? "1" : "0");
-    } catch {
-        // Not remembered, but still applies now.
-    }
-    if (current) generate();
+
+const layoutOptions = $("layout-options");
+const layoutButton = $<HTMLButtonElement>("btn-layout-options");
+const layoutChevron = $("layout-chevron");
+layoutButton.addEventListener("click", () => {
+    const open = layoutOptions.classList.toggle("d-none") === false;
+    layoutButton.setAttribute("aria-expanded", String(open));
+    layoutChevron.className = `bi ${open ? "bi-chevron-up" : "bi-chevron-down"} ms-2`;
 });
 
 $("btn-generate").addEventListener("click", generate);
@@ -361,6 +407,10 @@ $("btn-download-test").addEventListener("click", () => {
 // ---- Library ----
 
 const loadMaterial = (m: Material) => {
+    if (m.type === "Slides") {
+        showErrors([{ path: "", where: m.name, message: "This is a slide deck, not test JSON. Open it from My Library instead." }]);
+        return;
+    }
     input.value = m.content ?? "";
     hideErrors();
     markStale();
@@ -373,12 +423,19 @@ $("btn-open-library").addEventListener("click", async () => {
     const m = await pickMaterial();
     if (m) loadMaterial(m);
 });
+/** The library type a sheet's root type maps to. */
+const materialType = (t: SheetType): Material["type"] => (t === "Study Guide" ? "StudyGuide" : t);
+
 $("btn-save-library").addEventListener("click", async () => {
-    const parsed = parseSheetJson(input.value, { layout: false });
+    const parsed = parseSheetJson(input.value, { layout: false, solutions: solutions.value as SolutionPlacement });
     if (!parsed.ok) return showErrors(parsed.errors);
     hideErrors();
     try {
-        const saved = await editMaterial(savedAs ? { material: savedAs, content: input.value } : { content: input.value, name: parsed.test.title });
+        const saved = await editMaterial(
+            savedAs
+                ? { material: savedAs, content: input.value, type: materialType(parsed.sheetType) }
+                : { content: input.value, name: parsed.test.title, type: materialType(parsed.sheetType) },
+        );
         if (saved) {
             savedAs = saved;
             setStatus(`Saved "${saved.name}" to your library`);

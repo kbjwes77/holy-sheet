@@ -12,6 +12,7 @@
     "typescript": "^7.0.2"
   },
   "dependencies": {
+    "@aiden0z/pptx-renderer": "^1.4.0",
     "bootstrap": "6.0.0-alpha.1",
     "bootstrap-icons": "1.11.3",
     "fflate": "^0.8.3",

@@ -1,3 +1,6 @@
+/* Brand title: the landing page headline font. */
+@font-face { font-family: "Caveat Brush"; font-style: normal; font-weight: 400; font-display: swap; src: url("../public/fonts/caveat-brush-400.woff2") format("woff2"); }
+
 #json-input {
     resize: vertical;
     min-height: 18rem;
@@ -24,6 +27,109 @@
 }
 .drop-zone.dragging .drop-hint {
     display: flex;
+}
+
+/* Create Study Material: a dotted deck drop target above two material-kind cards. */
+.create-upload {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    width: 100%;
+    padding: 2.5rem 1rem;
+    border: 2px dashed var(--bs-border-color, #8884);
+    border-radius: var(--bs-radius-5);
+    background: transparent;
+    color: inherit;
+    text-align: center;
+    transition:
+        border-color 0.15s ease,
+        background-color 0.15s ease;
+}
+.create-upload:hover,
+.create-upload:focus-visible,
+.create-upload.is-dragging {
+    border-color: var(--bs-accent-base);
+    background: color-mix(in oklab, var(--bs-accent-base) 8%, transparent);
+}
+.create-upload-icon {
+    margin-bottom: 0.5rem;
+    color: var(--bs-accent-fg);
+    font-size: 2rem;
+}
+.create-upload-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+}
+.create-upload-hint {
+    color: var(--bs-secondary-color, #888);
+    font-size: 0.875rem;
+}
+.create-divider {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin: 1.5rem 0;
+    color: var(--bs-secondary-color, #888);
+    font-size: 0.875rem;
+}
+.create-divider::before,
+.create-divider::after {
+    content: "";
+    flex: 1 1 auto;
+    border-top: 1px solid var(--bs-border-color, #8884);
+}
+.create-options {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+}
+@media (max-width: 575.98px) {
+    .create-options {
+        grid-template-columns: 1fr;
+    }
+}
+.create-option {
+    --create-tint: var(--bs-accent-base);
+    --create-tint-fg: var(--bs-accent-fg);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.35rem;
+    padding: 1.25rem;
+    border: 1px solid var(--bs-border-color, #8884);
+    border-radius: var(--bs-radius-5);
+    background: transparent;
+    color: inherit;
+    text-align: left;
+    transition:
+        border-color 0.15s ease,
+        background-color 0.15s ease;
+}
+.create-option.tint-success {
+    --create-tint: var(--bs-success-base);
+    --create-tint-fg: var(--bs-success-fg);
+}
+.create-option.tint-info {
+    --create-tint: var(--bs-info-base);
+    --create-tint-fg: var(--bs-info-fg);
+}
+.create-option:hover,
+.create-option:focus-visible {
+    border-color: var(--create-tint);
+    background: color-mix(in oklab, var(--create-tint) 8%, transparent);
+}
+.create-option-icon {
+    margin-bottom: 0.25rem;
+    color: var(--create-tint-fg);
+    font-size: 1.5rem;
+}
+.create-option-title {
+    font-weight: 600;
+}
+.create-option-text {
+    color: var(--bs-secondary-color, #888);
+    font-size: 0.875rem;
 }
 
 .format-help {
@@ -493,10 +599,15 @@
     align-items: center;
     gap: 0.5rem;
     padding: 0.5rem 0.75rem;
-    font-size: 1.125rem;
-    font-weight: 600;
+    font-family: "Caveat Brush", "Segoe Print", "Comic Sans MS", cursive;
+    font-size: 1.6rem;
+    font-weight: 400;
+    line-height: 1;
     color: var(--bs-fg-body);
     text-decoration: none;
+}
+.sidebar-brand img {
+    flex: none;
 }
 /* The drawer's header already shows the brand below md. */
 .sidebar-brand-desk {
@@ -671,4 +782,251 @@
             transform var(--bs-hover-lift-transition-duration) var(--bs-hover-lift-transition-timing),
             box-shadow var(--bs-hover-lift-transition-duration) var(--bs-hover-lift-transition-timing);
     }
+}
+
+.brand-title {
+    display: flex;
+    align-items: center;
+    font-family: "Caveat Brush", "Segoe Print", "Comic Sans MS", cursive;
+    font-size: 2.1rem;
+    font-weight: 400;
+    line-height: 1;
+}
+
+/* Slides: lazy first-slide thumbnails in Library/Browse lists. */
+.deck-thumb {
+    position: relative;
+    flex: 0 0 auto;
+    width: 88px;
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
+    border-radius: 0.375rem;
+    border: 1px solid var(--bs-border-color, #8884);
+    background: var(--bs-secondary-bg, #8881);
+    display: grid;
+    place-items: center;
+}
+.deck-thumb-fallback {
+    font-size: 1.25rem;
+    opacity: 0.55;
+}
+.deck-thumb-slide {
+    position: absolute;
+    inset: 0;
+    display: none;
+    overflow: hidden;
+}
+.deck-thumb.is-ready .deck-thumb-slide {
+    display: block;
+}
+.deck-thumb.is-ready .deck-thumb-fallback {
+    display: none;
+}
+.deck-thumb.is-error .deck-thumb-fallback {
+    opacity: 0.35;
+}
+
+/* Shared slide viewer: /slides and the quick-preview modal. */
+.deck-viewer {
+    display: flex;
+    gap: 1rem;
+    min-height: 22rem;
+}
+.deck-viewer-modal {
+    display: block;
+}
+.deck-sidebar {
+    flex: 0 0 10.5rem;
+    max-height: 72vh;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding-right: 0.25rem;
+}
+.deck-thumbnail {
+    display: grid;
+    grid-template-columns: 1.25rem 1fr;
+    align-items: start;
+    gap: 0.4rem;
+    padding: 0.25rem;
+    border: 1px solid transparent;
+    border-radius: 0.375rem;
+    background: transparent;
+    text-align: left;
+}
+.deck-thumbnail:hover,
+.deck-thumbnail.active {
+    border-color: var(--bs-primary, #6c5ce7);
+    background: var(--bs-secondary-bg, #8881);
+}
+.deck-thumb-num {
+    font-size: 0.75rem;
+    line-height: 1.5;
+    opacity: 0.65;
+    text-align: right;
+}
+.deck-thumb-mini {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
+    border-radius: 0.25rem;
+    background: var(--bs-secondary-bg, #8881);
+}
+.deck-main {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+.deck-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+}
+.deck-toolbar .btn-outline {
+    padding: 0.25rem 0.5rem;
+    line-height: 1.2;
+}
+.deck-stage-wrap {
+    position: relative;
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 18rem;
+    max-height: 74vh;
+    overflow: auto;
+    padding: 0.75rem;
+    border-radius: 0.5rem;
+    background: #1f2126;
+}
+.deck-stage {
+    width: 100%;
+}
+.deck-stage-wrap:fullscreen {
+    max-height: none;
+    border-radius: 0;
+    padding: 0;
+    background: #000;
+}
+.deck-status {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 1rem;
+    text-align: center;
+    color: #e9ecef;
+    background: #1f2126;
+}
+/* app.css loads after Bootstrap, so `.deck-status`'s display would otherwise override `.d-none`. */
+.deck-status.d-none {
+    display: none;
+}
+.deck-viewer-modal .deck-stage-wrap {
+    min-height: 20rem;
+    max-height: 72vh;
+}
+@media (max-width: 767.98px) {
+    .deck-sidebar {
+        display: none;
+    }
+}
+
+/* Drop target for uploading decks onto My Library. */
+.deck-drop {
+    position: fixed;
+    inset: 0;
+    z-index: 1090;
+    display: grid;
+    place-items: center;
+    pointer-events: none;
+    background: rgb(0 0 0 / 45%);
+}
+.deck-drop.d-none {
+    display: none;
+}
+.deck-drop > div {
+    padding: 2rem 3rem;
+    border: 2px dashed #fff;
+    border-radius: 0.75rem;
+    color: #fff;
+    font-size: 1.25rem;
+    font-weight: 600;
+    background: rgb(0 0 0 / 35%);
+}
+
+/* A material row: media at the left, then its name, metadata, badges and actions. */
+.material-main {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+}
+.material-icon {
+    flex: 0 0 auto;
+    display: grid;
+    place-items: center;
+    width: 88px;
+    aspect-ratio: 16 / 9;
+    border: 1px solid var(--bs-border-color, #8884);
+    border-radius: 0.375rem;
+    background: var(--bs-secondary-bg, #8881);
+    color: var(--bs-secondary-color, #888);
+    font-size: 1.5rem;
+}
+.material-content {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+.material-top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.25rem 1rem;
+}
+.material-name {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+.material-meta {
+    margin-inline-start: auto;
+    white-space: nowrap;
+}
+.material-bottom {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.35rem;
+}
+.material-actions {
+    margin-inline-start: auto;
+}
+
+/* A material's tags, folded away below the row. */
+.material-details {
+    margin-top: 0.5rem;
+}
+.material-details-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    width: fit-content;
+    cursor: pointer;
+    list-style: none;
+}
+.material-details-toggle::-webkit-details-marker,
+.material-details-toggle::marker {
+    content: "";
+    display: none;
+}
+.material-details-caret {
+    font-size: 0.7em;
+    transition: transform 0.15s ease;
+}
+.material-details[open] .material-details-caret {
+    transform: rotate(90deg);
 }
