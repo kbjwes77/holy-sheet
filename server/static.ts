@@ -1,8 +1,8 @@
-// Serves public/{images,fonts,css} at /images/*, /fonts/*, /css/*, plus /favicon.ico from public/images and the
+// Serves public/{images,fonts,css,video} at /images/*, /fonts/*, /css/*, /video/*, plus /favicon.ico from public/images and the
 // crawler files at the site root (robots.txt, sitemap.xml, llms.txt, site.webmanifest) from public/.
 import { join, resolve, sep } from "node:path";
 
-export const PUBLIC_DIRS = ["images", "fonts", "css", "vendor"] as const;
+export const PUBLIC_DIRS = ["images", "fonts", "css", "vendor", "video"] as const;
 export const ROOT_FILES = ["robots.txt", "sitemap.xml", "llms.txt", "site.webmanifest"] as const;
 
 export function createStatic(publicRoot: string, production: boolean) {

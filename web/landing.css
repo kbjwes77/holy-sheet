@@ -115,7 +115,19 @@ p { margin: 0 0 1rem; max-width: 62ch; }
 .steps .num { font-family: var(--display); font-size: 3.6rem; line-height: 0.9; color: var(--sun); text-shadow: 0 3px 0 rgba(8, 20, 90, 0.5); }
 .steps h3 { font-size: 1.35rem; margin-bottom: 0.2rem; }
 .steps p { margin: 0; color: rgba(255, 255, 255, 0.9); }
-.boat { width: 100%; height: auto; max-width: 30rem; justify-self: center; filter: drop-shadow(0 18px 24px rgba(5, 14, 70, 0.35)); }
+/* Demo video plate in the How section's right column (where the boat painting was). It is the
+   second plate on the page, so it picks up the cyan slab shadow from the .plates rules. */
+.how-plate { width: 100%; height: auto; max-width: 30rem; justify-self: center; }
+.how-plate .mat { position: relative; }
+.how-plate video { display: block; width: 100%; height: auto; border-radius: 6px; }
+.how-plate .mat > button { cursor: pointer; }
+.how-plate figcaption { color: #fff; text-shadow: 0 2px 0 rgba(4, 10, 60, 0.6); }
+.how-plate figcaption span { color: rgba(255, 255, 255, 0.85); }
+.plate-play { position: absolute; inset: 0; margin: auto; width: 4.5rem; height: 4.5rem; border-radius: 50%; border: none; background: var(--sun); color: var(--ink); display: grid; place-items: center; box-shadow: 0 4px 0 var(--sun-deep), 0 10px 22px rgba(4, 10, 60, 0.5); }
+.plate-play svg { width: 1.9rem; height: 1.9rem; margin-left: 0.25rem; }
+.plate-play:hover { transform: translateY(-2px); }
+.plate-play:active { transform: translateY(1px); box-shadow: 0 1px 0 var(--sun-deep), 0 3px 8px rgba(4, 10, 60, 0.5); }
+.how-plate.playing .plate-play { display: none; }
 
 /* Features */
 .features { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.25rem; margin-top: 2.5rem; }
@@ -165,7 +177,7 @@ footer .brand img { width: 24px; }
 @media (max-width: 860px) {
     .why, .how .wrap, .plates { grid-template-columns: minmax(0, 1fr); }
     .features { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .boat { max-width: 22rem; }
+    .how-plate { max-width: 26rem; }
 }
 @media (max-width: 560px) {
     .features { grid-template-columns: minmax(0, 1fr); }
