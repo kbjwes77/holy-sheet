@@ -103,7 +103,8 @@
       "prompt": "Question text",
       "figures": ["graph"],
       "choices": ["First", "Second", "Third"],
-      "answer": "B"
+      "answer": "B",
+      "explanation": "Why B is correct. Spell out symbols: 'delta x', not Δx."
     }
   ],
   "figures": {
@@ -152,6 +153,30 @@
                                                 when <em>Include explanations</em> is on. Every question needs an <code>answer</code>.
                                             </li>
                                             <li>No other keys are allowed. A sheet can be at most 16 pages.</li>
+                                        </ul>
+                                        <div class="fw-semibold mt-5 mb-1">Symbols</div>
+                                        <p class="mb-1">
+                                            The sheet prints in a standard PDF font, so text can only use letters and symbols that font has.
+                                            Anything else is reported as an error naming the character and the question, e.g.
+                                            <code>Contains "Δ" (U+0394), which can't be printed with the sheet's font.</code>
+                                            This covers the test name, <code>instructions</code>, prompts, choices, captions and, on a study guide or
+                                            Teacher's Copy, answers and explanations.
+                                        </p>
+                                        <ul class="mb-0 ps-5">
+                                            <li>
+                                                <strong>Works</strong>: letters, digits and keyboard punctuation, accented Latin letters, and these
+                                                symbols: <code>° ± × ÷ ² ³ ¼ ½ ¾ µ ¢ £ € § ¶ © ® ™ « » ¿ • – — … ‘ ’ “ ”</code>
+                                            </li>
+                                            <li>
+                                                <strong>Doesn't work</strong>: Greek letters (<code>Δ θ π Σ</code>), arrows (<code>→</code>),
+                                                math symbols (<code>≤ ≥ ≠ ≈ √ ∞ ∑ ∫</code>), superscripts and subscripts beyond <code>² ³</code>
+                                                (<code>⁴ ₂</code>), and emoji.
+                                            </li>
+                                            <li>
+                                                <strong>Instead</strong>: spell them out (<code>delta x</code>, <code>pi</code>, <code>-&gt;</code>,
+                                                <code>&lt;=</code>, <code>x^4</code>, <code>H2O</code>), or draw the expression in an SVG figure, which
+                                                can show any shape you can draw (but its text must still use Arial, Times or Courier).
+                                            </li>
                                         </ul>
                                         <div class="fw-semibold mt-5 mb-1">Layout</div>
                                         <p class="mb-0">
