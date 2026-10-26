@@ -37,11 +37,16 @@ const twoColumns = $<HTMLInputElement>("two-columns");
 const twoColumnsFull = $<HTMLInputElement>("two-columns-full");
 const twoColumnRadios = [...document.querySelectorAll<HTMLInputElement>('input[name="two-columns"]')];
 const solutions = $<HTMLSelectElement>("solutions");
+const teacherCopy = $<HTMLInputElement>("teacher-copy");
+const teacherExplanations = $<HTMLInputElement>("teacher-explanations");
+const teacherExplanationsField = $("teacher-explanations-field");
 const keyNone = $("key-none");
 const KEY_NONE_DEFAULT = keyNone.innerHTML;
 const ANSWER_SHEET_KEY = "sheet-generator.answer-sheet";
 const TWO_COLUMNS_KEY = "sheet-generator.two-columns";
 const SOLUTIONS_KEY = "sheet-generator.solutions";
+const TEACHER_COPY_KEY = "sheet-generator.teacher-copy";
+const TEACHER_EXPLANATIONS_KEY = "sheet-generator.teacher-explanations";
 
 interface Generated {
     source: string;
@@ -133,6 +138,8 @@ function generate(): void {
         answerSheet: answerSheet.checked,
         singleColumn: !twoColumns.checked,
         solutions: solutions.value as SolutionPlacement,
+        teacherCopy: teacherCopy.checked,
+        explanations: teacherExplanations.checked,
     });
     if (!result.ok) {
         showErrors(result.errors);
@@ -369,7 +376,40 @@ for (const radio of answerSheetRadios) {
         if (current) generate();
     });
 }
+/** Teacher's Copy locks Solutions to Inline; the user's own choice comes back when it is switched off. */
+let solutionsChoice = solutions.value;
+function syncTeacherCopy(): void {
+    const on = teacherCopy.checked;
+    teacherExplanationsField.classList.toggle("d-none", !on);
+    solutions.disabled = on;
+    solutions.value = on ? "inline" : solutionsChoice;
+}
+try {
+    teacherCopy.checked = localStorage.getItem(TEACHER_COPY_KEY) === "1";
+    teacherExplanations.checked = localStorage.getItem(TEACHER_EXPLANATIONS_KEY) !== "0";
+} catch {
+    // Storage unavailable: keep the defaults, off and with explanations.
+}
+syncTeacherCopy();
+teacherCopy.addEventListener("change", () => {
+    try {
+        localStorage.setItem(TEACHER_COPY_KEY, teacherCopy.checked ? "1" : "0");
+    } catch {
+        // Not remembered, but still applies now.
+    }
+    syncTeacherCopy();
+    if (current) generate();
+});
+teacherExplanations.addEventListener("change", () => {
+    try {
+        localStorage.setItem(TEACHER_EXPLANATIONS_KEY, teacherExplanations.checked ? "1" : "0");
+    } catch {
+        // Not remembered, but still applies now.
+    }
+    if (current) generate();
+});
 solutions.addEventListener("change", () => {
+    solutionsChoice = solutions.value;
     try {
         localStorage.setItem(SOLUTIONS_KEY, solutions.value);
     } catch {

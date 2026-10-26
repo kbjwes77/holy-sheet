@@ -153,6 +153,10 @@ export interface ParseOptions {
     singleColumn?: boolean;
     /** Where a study guide prints its answers and explanations (default "end"). */
     solutions?: SolutionPlacement;
+    /** Print a teacher's copy: a study guide with correct choices filled and model answers inline; every question needs an answer. */
+    teacherCopy?: boolean;
+    /** With `teacherCopy`, whether explanations print (default true). */
+    explanations?: boolean;
     /** False skips laying the test out (the grader, reading a test already printed); `pageCount` is then 0. */
     layout?: boolean;
 }
@@ -224,9 +228,11 @@ export function parseSheetJson(text: string, opts: ParseOptions = {}): ParseResu
         doc.questions.length > 0 &&
         doc.questions.every((q) => isObject(q) && !("choices" in q) && !("answer" in q));
     // An explicit type wins: a quiz may have no answers yet, and a study guide may have them.
-    const isStudyGuide = sheetType ? sheetType === "Study Guide" : inferredStudyGuide;
-    const studyType: SheetType = sheetType ?? (isStudyGuide ? "Study Guide" : "Quiz");
-    const solutions: SolutionPlacement = opts.solutions ?? "end";
+    // A teacher's copy is always a study guide, with its solutions inline.
+    const teacherCopy = !!opts.teacherCopy;
+    const isStudyGuide = teacherCopy || (sheetType ? sheetType === "Study Guide" : inferredStudyGuide);
+    const studyType: SheetType = teacherCopy ? "Study Guide" : (sheetType ?? (isStudyGuide ? "Study Guide" : "Quiz"));
+    const solutions: SolutionPlacement = teacherCopy ? "inline" : (opts.solutions ?? "end");
 
     // Figures first, so questions can be checked against their ids.
     const figures = new Map<string, Figure>();
@@ -270,7 +276,7 @@ export function parseSheetJson(text: string, opts: ParseOptions = {}): ParseResu
     const used = new Set<string>();
 
     /** Per question: whether it has an answer, and what the grader needs to grade it. */
-    const parsed: { answer: string | null; free: boolean; points: number; rubric?: string; lines: number; explanation?: string }[] = [];
+    const parsed: { answer: string | null; free: boolean; choices?: boolean; points: number; rubric?: string; lines: number; explanation?: string }[] = [];
     if (!("questions" in doc)) add("questions", "Questions", `Missing "questions".`);
     else if (!Array.isArray(doc.questions)) add("questions", "Questions", `Expected an array, got ${typeName(doc.questions)}.`);
     else if (doc.questions.length === 0) add("questions", "Questions", "Must contain at least 1 question.");
@@ -351,6 +357,7 @@ export function parseSheetJson(text: string, opts: ParseOptions = {}): ParseResu
                     add(`${path}.choices`, where, `Expected ${MIN_CHOICES}–${MAX_CHOICES} choices, got ${q.choices.length}.`);
                 } else {
                     choiceCount = q.choices.length;
+                    entry.choices = true;
                     q.choices.forEach((c, j) =>
                         checkText(c, `${path}.choices[${j}]`, `${where}, choice ${CHOICE_LETTERS[j]}`, MAX_TEXT),
                     );
@@ -385,6 +392,15 @@ export function parseSheetJson(text: string, opts: ParseOptions = {}): ParseResu
             }
         });
 
+        if (teacherCopy) {
+            const missing = parsed.flatMap((a, i) => (a.answer === null ? [i + 1] : []));
+            if (missing.length) {
+                const shown = missing.length > 12 ? `${missing.slice(0, 12).join(", ")}, …` : missing.join(", ");
+                add("questions[].answer", "Teacher's Copy", `A teacher's copy needs an "answer" for every question. Missing: ${shown}.`);
+            }
+            const bare = parsed.flatMap((a, i) => (!a.free && !a.choices ? [i + 1] : []));
+            if (bare.length) add("questions[].choices", "Teacher's Copy", `A multiple-choice question needs "choices" to show its filled rings. Missing: ${bare.slice(0, 12).join(", ")}.`);
+        }
         // Apart from a study guide, a test with any answer needs every answer.
         const given = parsed.filter((a) => a.answer !== null).length;
         if (!isStudyGuide && given > 0 && given < parsed.length) {
@@ -403,7 +419,7 @@ export function parseSheetJson(text: string, opts: ParseOptions = {}): ParseResu
 
     const raw = doc as { test: string; questions: { prompt: string; choices?: string[]; figures?: string[] }[] };
     const test: TestDef = {
-        title: raw.test.trim(),
+        title: teacherCopy ? `${raw.test.trim()} - Teacher's Copy` : raw.test.trim(),
         questions: raw.questions.map((q, i) => {
             const entry = parsed[i]!;
             return {
@@ -420,6 +436,7 @@ export function parseSheetJson(text: string, opts: ParseOptions = {}): ParseResu
         }),
         sheetType: studyType,
         ...(isStudyGuide ? { studyGuide: true, solutions } : {}),
+        ...(teacherCopy ? { teacherCopy: true, explanations: opts.explanations !== false } : {}),
         ...(singleColumn ? { singleColumn: true } : {}),
         ...(instructions ? { instructions } : {}),
     };

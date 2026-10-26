@@ -137,13 +137,19 @@
                                                 (writing lines, 1–20, default 3).
                                             </li>
                                             <li>
-                                                <code>explanation</code> (optional): shown with the answer in a study guide's solutions. It prints
-                                                in the sheet's font.
+                                                <code>explanation</code> (optional): why the answer is correct, shown with it in a study guide's
+                                                solutions and in a Teacher's Copy. It prints in the sheet's font.
                                             </li>
                                             <li><code>points</code> (optional): what the question is worth, a whole number from 1 to 100 (default 1).</li>
                                             <li>
                                                 <code>figures</code> (optional, in a question): ids of figures to print between the prompt and the
                                                 choices, side by side while they fit.
+                                            </li>
+                                            <li>
+                                                <strong>Teacher's Copy</strong> (a Sheet layout option): prints the sheet as an ungraded study guide with
+                                                solutions inline. Each multiple-choice question's correct <code>choices</code> are filled in, and each
+                                                free-response question prints its <code>answer</code>, with its <code>explanation</code> under either
+                                                when <em>Include explanations</em> is on. Every question needs an <code>answer</code>.
                                             </li>
                                             <li>No other keys are allowed. A sheet can be at most 16 pages.</li>
                                         </ul>
@@ -261,6 +267,17 @@
                                                 </select>
                                                 <small class="form-text">Where a Study Guide prints its answers and explanations.</small>
                                             </div>
+                                        </div>
+                                        <div class="col-12 col-sm-6 col-lg-4">
+                                            <div class="form-field mb-1" title="Fills in the correct bubbles and prints model answers. Never graded.">
+                                                <input type="checkbox" class="check" id="teacher-copy" />
+                                                <label for="teacher-copy"><i class="bi bi-person-check me-2"></i>Teacher's Copy</label>
+                                            </div>
+                                            <div class="form-field mb-1 ms-5 d-none" id="teacher-explanations-field">
+                                                <input type="checkbox" class="check" id="teacher-explanations" checked />
+                                                <label for="teacher-explanations">Include explanations</label>
+                                            </div>
+                                            <small class="form-text">Fills in the correct bubbles and prints each free-response answer. Prints as an ungraded Study Guide with solutions inline.</small>
                                         </div>
                                     </div>
                                 </div>

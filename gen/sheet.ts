@@ -62,6 +62,13 @@ export interface TestDef {
     studyGuide?: boolean;
     /** Where the study guide's answers and explanations print (default "end"). */
     solutions?: SolutionPlacement;
+    /**
+     * A teacher's copy (a study guide): every multiple-choice question's correct rings print filled,
+     * and free-response questions print their model answer inline.
+     */
+    teacherCopy?: boolean;
+    /** False leaves explanations off a teacher's copy (default true). */
+    explanations?: boolean;
     /** Print every question full width, never in two columns (the default packs short ones into columns). */
     singleColumn?: boolean;
     /** Page 1's instruction line, in place of the default for the sheet's kind (wrapped to fit). */
@@ -150,6 +157,8 @@ export const INSTRUCTIONS = "Fill in the bubble next to every correct answer. So
 export const FREE_INSTRUCTIONS = "Fill in the bubble next to every correct answer; some questions have more than one. Write other answers in their boxes.";
 /** Page 1's instructions on a study guide, when the JSON gives no "instructions". */
 export const STUDY_INSTRUCTIONS = "Study guide: read each question carefully. Nothing on this page is marked or graded.";
+/** Page 1's instructions on a teacher's copy, when the JSON gives no "instructions". */
+export const TEACHER_INSTRUCTIONS = "Teacher's copy: correct answers are filled in. This copy is not scanned or graded.";
 export const INSTRUCTIONS_ATTRS = `font-size="10" font-style="italic" fill="#333"`;
 /** Font size of page 1's instruction line(s). */
 const INSTRUCTION_SIZE = 10;
@@ -162,6 +171,7 @@ export function instructionsBaseline(L: LayoutSpec = LAYOUT): number {
 /** Page 1's instruction text: the test's own, or the default for its kind of sheet. */
 export function instructionText(test: TestDef): string {
     if (test.instructions) return test.instructions;
+    if (test.teacherCopy) return TEACHER_INSTRUCTIONS;
     if (test.studyGuide) return STUDY_INSTRUCTIONS;
     return test.questions.some(isFree) ? FREE_INSTRUCTIONS : INSTRUCTIONS;
 }
@@ -193,12 +203,16 @@ export function solutionAnswer(q: QuestionDef): string | null {
         .join("; ");
 }
 
-/** The answer and explanation paragraphs a study guide prints for one question. */
-function solutionParagraphs(q: QuestionDef): SolutionLine[] {
-    const answer = solutionAnswer(q);
+/**
+ * The answer and explanation paragraphs a study guide prints for one question. A teacher's copy
+ * shows a multiple-choice answer as filled rings instead, and may leave explanations out.
+ */
+function solutionParagraphs(q: QuestionDef, test?: TestDef): SolutionLine[] {
+    const answer = test?.teacherCopy && !isFree(q) ? null : solutionAnswer(q);
+    const explanation = test?.explanations === false ? undefined : q.explanation;
     return [
         ...(answer ? [{ text: `Answer: ${answer}`, bold: true }] : []),
-        ...(q.explanation ? [{ text: `Explanation: ${q.explanation}`, italic: true }] : []),
+        ...(explanation ? [{ text: `Explanation: ${explanation}`, italic: true }] : []),
     ];
 }
 
@@ -342,7 +356,7 @@ function placeStacked(q: QuestionDef, index: number, column: QuestionColumn, row
         at += lines.length;
     }
     if (test?.studyGuide && test.solutions === "inline") {
-        const paragraphs = solutionParagraphs(q);
+        const paragraphs = solutionParagraphs(q, test);
         if (paragraphs.length) {
             at++; // a blank row between the question and its solution
             const lines: SolutionLine[] = [];
@@ -790,7 +804,7 @@ export function studyGuideSolutionPages(test: TestDef, L: LayoutSpec = LAYOUT): 
     const left = colX(L.promptCol, L);
     const width = textRightEdge(L.bodyLastRow, L) - left;
     const blocks = test.questions.flatMap((q, index) => {
-        const paragraphs = solutionParagraphs(q);
+        const paragraphs = solutionParagraphs(q, test);
         if (!paragraphs.length) return [];
         const lines: SolutionLine[] = wrapWidth(`${index + 1}. ${q.prompt}`, width, TEXT_SIZE, true).map((text) => ({ text, bold: true }));
         for (const paragraph of paragraphs) {
@@ -869,6 +883,7 @@ export function renderStudyGuide(test: TestDef, opts: RenderOptions = {}): Rende
         }
         parts.push(footerSvg(test.title, `Page ${page.pageNumber} of ${totalPages}`, L));
 
+        const rr = ringRadius(L);
         let figureCount = 0;
         for (const q of page.questions) {
             const g = geometry(q.column, L);
@@ -876,9 +891,15 @@ export function renderStudyGuide(test: TestDef, opts: RenderOptions = {}): Rende
             parts.push(numberBadge(q.index, g.promptX, rowY(q.promptRow, L) + L.cellH / 2, q.promptLines[0] ?? ""));
             q.promptLines.forEach((line, i) => text(px, baseline(q.promptRow + i), line, `font-size="${TEXT_SIZE}" font-weight="bold"`));
             for (const pf of q.figures) parts.push(renderFigure(pf.figure, pf.x, pf.y, `p${page.pageNumber}f${++figureCount}-`));
-            // Choices print as text, without the rings a scanned sheet needs.
+            // Choices print as text; only a teacher's copy draws rings (filled when correct), for show.
             const labelX = choiceLabelX(q.column, L);
+            const correct = test.questions[q.index]!.answer ?? "";
             q.choices.forEach((c, i) => {
+                if (test.teacherCopy) {
+                    const b = bubbleCenter(c.row, bubbleColumnOf(q.column), L);
+                    const fill = correct.includes(CHOICE_LETTERS[i]!) ? "#000" : "none";
+                    parts.push(`<circle cx="${f(b.x)}" cy="${f(b.y)}" r="${f(rr)}" fill="${fill}" stroke="#000" stroke-width="${L.ring.strokeWidth}"/>`);
+                }
                 text(labelX, baseline(c.row), `${CHOICE_LETTERS[i]})`, `font-size="${TEXT_SIZE}" font-weight="bold"`);
                 c.lines.forEach((line, k) => text(labelX + CHOICE_LABEL_W, baseline(c.row + k), line, `font-size="${TEXT_SIZE}"`));
             });
