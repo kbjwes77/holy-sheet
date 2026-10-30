@@ -28,6 +28,33 @@ export function gradedRowFields(
     return [r.name, r.score, r.total, r.percent, ...free.flatMap((i) => (by.has(i) ? [by.get(i)!.points, by.get(i)!.text, by.get(i)!.feedback] : ["", "", ""]))];
 }
 
+/** A score as a percent of `total`, formatted like the grader's `percent` column. */
+export const percentText = (score: number, total: number): string => (total ? Math.round((score / total) * 1000) / 10 : 0).toFixed(1);
+
+/**
+ * The grader's CSV with `curves[i]` points added to data row i's score and its percent recomputed.
+ * A curve sets the points given on top of the graded score, so applying one never stacks.
+ */
+export function applyCurves(csv: string, curves: readonly number[]): string {
+    if (!curves.some(Boolean)) return csv;
+    const [header, ...body] = parseCsv(csv);
+    if (!header) return csv;
+    return [
+        header,
+        ...body.map((fields, i) => {
+            const curve = curves[i] ?? 0;
+            if (!curve) return fields;
+            const score = Number(fields[1]) + curve;
+            const out = [...fields];
+            out[1] = String(score);
+            out[3] = percentText(score, Number(fields[2]));
+            return out;
+        }),
+    ]
+        .map(csvRow)
+        .join("");
+}
+
 /** Parses RFC 4180 CSV (CRLF or LF line ends) into rows of fields. A trailing newline adds no row. */
 export function parseCsv(text: string): string[][] {
     const rows: string[][] = [];

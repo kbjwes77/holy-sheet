@@ -6,6 +6,7 @@
 //   /library     My materials and groups           /browse             Published by the community
 //   /generator   Print Sheets
 //   /grader      Grader: a GUI that drives the grading CLI (grade.ts) through web/grader-api.ts
+//   /results     Saved grading runs (server/grade-runs.ts); each reopens in the grader
 // The landing page is public. The other pages are static shells; each checks /api/me and redirects to /login. Everything under
 // /api needs a session, and the grader needs a plan that can grade.
 // It listens on localhost only by default: the grader runs commands and uses the OpenRouter key.
@@ -30,6 +31,7 @@ import howToGrade from "./how-to-grade-handwritten.html";
 import howToQuiz from "./how-to-make-a-quiz-with-ai.html";
 import pricing from "./pricing.html";
 import register from "./register.html";
+import results from "./results.html";
 import slides from "./slides.html";
 import vsGradescope from "./vs-gradescope.html";
 import vsZipgrade from "./vs-zipgrade.html";
@@ -63,7 +65,7 @@ const options = {
     port,
     // Phone photos add up: allow large zips.
     maxRequestBodySize: 1024 * 1024 * 1024,
-    routes: { "/": landing, "/pricing": pricing, "/free-bubble-sheet-generator": freeGenerator, "/how-to/make-a-quiz-with-chatgpt-or-claude": howToQuiz, "/how-to/grade-handwritten-answers-with-ai": howToGrade, "/test-json-format": testJsonFormat, "/zipgrade-alternative": vsZipgrade, "/gradescope-alternative": vsGradescope, "/policy": policy, "/terms": terms, "/billing/success": billingSuccess, "/dashboard": dashboard, "/login": login, "/register": register, "/library": library, "/browse": browse, "/generator": generator, "/grader": grader, "/slides": slides, ...createStatic(join(root, "public"), production), ...app.routes },
+    routes: { "/": landing, "/pricing": pricing, "/free-bubble-sheet-generator": freeGenerator, "/how-to/make-a-quiz-with-chatgpt-or-claude": howToQuiz, "/how-to/grade-handwritten-answers-with-ai": howToGrade, "/test-json-format": testJsonFormat, "/zipgrade-alternative": vsZipgrade, "/gradescope-alternative": vsGradescope, "/policy": policy, "/terms": terms, "/billing/success": billingSuccess, "/dashboard": dashboard, "/login": login, "/register": register, "/library": library, "/browse": browse, "/generator": generator, "/grader": grader, "/results": results, "/slides": slides, ...createStatic(join(root, "public"), production), ...app.routes },
     development: !production,
 };
 const hosts = [...new Set(["127.0.0.1", process.env.HOST?.trim()].filter((h): h is string => !!h))];

@@ -130,6 +130,28 @@ const MIGRATIONS: string[] = [
     CREATE INDEX materials_owner_group ON study_materials(owner_id, group_id);
     CREATE INDEX materials_status_type ON study_materials(status, type);
     `,
+    // Grading runs: one row per job, with the CLI's CSV saved when it exits (server/grade-runs.ts).
+    `
+    CREATE TABLE grade_runs (
+        id INTEGER PRIMARY KEY,
+        owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        material_id INTEGER REFERENCES study_materials(id) ON DELETE SET NULL,
+        name TEXT NOT NULL,
+        upload_name TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'running',
+        exit_code INTEGER,
+        csv TEXT NOT NULL DEFAULT '',
+        curves TEXT,
+        questions TEXT,
+        details TEXT,
+        students INTEGER NOT NULL DEFAULT 0,
+        average REAL,
+        created_at INTEGER NOT NULL,
+        finished_at INTEGER
+    );
+    CREATE INDEX grade_runs_owner ON grade_runs(owner_id, created_at);
+    CREATE INDEX grade_runs_status ON grade_runs(status);
+    `,
 ];
 
 /** Opens (creating if needed) the database at `path`, or in memory for ":memory:", and migrates it. */

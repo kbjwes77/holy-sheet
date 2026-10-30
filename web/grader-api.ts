@@ -11,7 +11,7 @@ import { basename, join, relative, resolve, sep } from "node:path";
 import { zipSync } from "fflate";
 import { sameOrigin } from "../server/http.ts";
 import { DEFAULT_THRESHOLDS } from "../src/pipeline.ts";
-import { StderrParser, summarizeStderr, type StderrEvent } from "../src/report.ts";
+import { StderrParser, summarizeStderr, type Skipped, type StderrEvent } from "../src/report.ts";
 import { REVIEW_FILE, REVIEW_START_RE, type ReviewFile, type ReviewItem, type ReviewThresholds } from "../src/review.ts";
 
 export type JobEvent =
@@ -37,6 +37,18 @@ interface Job {
     review?: { dir: string; images: Set<string> };
     /** The user who started it; only they may see or answer it. */
     ownerId: number;
+    /** The saved run `onJob` created for it, if any. */
+    runId?: number;
+}
+
+/** A finished job's outcome, for `onDone`. */
+export interface JobResult {
+    exitCode: number | null;
+    cancelled: boolean;
+    csv: string;
+    totals?: string;
+    fatal?: string;
+    skipped: Skipped[];
 }
 
 export interface GraderApiOptions {
@@ -52,8 +64,13 @@ export interface GraderApiOptions {
      * asked to start grading, "info" for everything else. Without it, anyone may.
      */
     authorize?: (req: Request, action: "info" | "job") => { userId: number } | Response;
-    /** Called when a job starts, e.g. to record usage. */
-    onJob?: (userId: number, info: { name: string; hasTest: boolean }) => void;
+    /**
+     * Called when a job starts, e.g. to record usage. It may return the id of a run saved for the
+     * job, which is sent to the page and handed back to `onDone`.
+     */
+    onJob?: (userId: number, info: { name: string; hasTest: boolean; testTitle?: string; materialId?: number }) => number | void;
+    /** Called once when a job with a saved run ends, however it ends. */
+    onDone?: (runId: number, result: JobResult) => void;
 }
 
 const OCR_VARS = ["OPENROUTER_API_KEY", "VISION_MODEL", "REASONING_MODEL"] as const;
@@ -125,7 +142,8 @@ export function createGraderApi(o: GraderApiOptions) {
         const csv = await stdout;
 
         // Only serve a debug directory the CLI created inside this job's directory.
-        const dir = summarizeStderr(log).debugDir;
+        const summary = summarizeStderr(log);
+        const dir = summary.debugDir;
         if (dir) {
             const abs = insideJob(job, dir, 1);
             if (abs) {
@@ -137,8 +155,32 @@ export function createGraderApi(o: GraderApiOptions) {
         }
         job.done = true;
         job.awaitingInput = false;
-        emit(job, { type: "done", exitCode: job.cancelled ? null : exitCode, cancelled: job.cancelled, csv, images: job.images });
+        const result: JobResult = { exitCode: job.cancelled ? null : exitCode, cancelled: job.cancelled, csv, totals: summary.totals, fatal: summary.fatal, skipped: summary.skipped };
+        saveRun(job, result);
+        emit(job, { type: "done", exitCode: result.exitCode, cancelled: job.cancelled, csv, images: job.images });
         setTimeout(() => remove(job), keepMs).unref?.();
+    }
+
+    /** Hands the outcome to `onDone`, once per job. */
+    function saveRun(job: Job, result: JobResult): void {
+        if (job.runId === undefined) return;
+        const runId = job.runId;
+        job.runId = undefined;
+        try {
+            o.onDone?.(runId, result);
+        } catch (e) {
+            console.error(`couldn't save grading run ${runId}: ${(e as Error).message}`);
+        }
+    }
+
+    /** The test's title from its JSON, for naming the run; the CLI does the real validation. */
+    function testTitle(bytes: Uint8Array): string | undefined {
+        try {
+            const t = (JSON.parse(new TextDecoder().decode(bytes)) as { test?: unknown }).test;
+            return typeof t === "string" && t.trim() ? t.trim() : undefined;
+        } catch {
+            return undefined;
+        }
     }
 
     /** Sends the review items to the page once the CLI has written them (grade-<time>/review). */
@@ -189,6 +231,8 @@ export function createGraderApi(o: GraderApiOptions) {
         }
         if (url.searchParams.get("debug") === "1") args.push("--debug");
         if (url.searchParams.get("review") === "1") args.push("--review");
+        const material = url.searchParams.get("material");
+        const materialId = material && /^\d+$/.test(material) ? Number(material) : undefined;
 
         const dir = mkdtempSync(join(tmpdir(), "quiznotes-grade-"));
         const zipPath = join(dir, name);
@@ -210,16 +254,19 @@ export function createGraderApi(o: GraderApiOptions) {
         const id = crypto.randomUUID();
         const job: Job = { id, dir, proc, events: [], listeners: new Set(), awaitingInput: false, waitingAt: null, cancelled: false, done: false, images: [], ownerId: who.userId };
         jobs.set(id, job);
-        o.onJob?.(who.userId, { name, hasTest: !!test });
+        const runId = o.onJob?.(who.userId, { name, hasTest: !!test, testTitle: test ? testTitle(test.bytes) : undefined, materialId }) ?? undefined;
+        job.runId = runId;
         // The command as the user would type it: the test by its own name, not its temp path.
         const shown = test ? ["--test", test.name, ...args.slice(2)] : args;
         emit(job, { type: "start", command: ["bun run grade.ts", ...[name, ...shown].map((a) => (/\s/.test(a) ? `"${a}"` : a))].join(" ") });
         void run(job).catch((e) => {
             job.done = true;
-            emit(job, { type: "log", text: `fatal: web grader: ${(e as Error).message}` });
+            const fatal = `web grader: ${(e as Error).message}`;
+            saveRun(job, { exitCode: 1, cancelled: false, csv: "", fatal, skipped: [] });
+            emit(job, { type: "log", text: `fatal: ${fatal}` });
             emit(job, { type: "done", exitCode: 1, cancelled: false, csv: "", images: [] });
         });
-        return json({ id }, 201);
+        return json(runId === undefined ? { id } : { id, runId }, 201);
     }
 
     function events(req: Request, job: Job, server: Bun.Server<unknown>): Response {

@@ -2,10 +2,12 @@
 // (picked images are zipped here, in file-name order) with the test's JSON, the server runs
 // `bun run grade.ts --test` on them (web/grader-api.ts) with --review and streams the CLI's
 // stderr back. This page answers the CLI's review prompts (names, unclear marks and written
-// answers' points) and renders its CSV as a table.
+// answers' points) and renders its CSV as a table. Every run is saved on the server
+// (server/grade-runs.ts); `/grader?run=<id>` reopens a saved one in the Results step, and curves
+// applied to it are saved too.
 import { zipSync } from "fflate";
 import { parseSheetJson } from "../gen/testdef.ts";
-import { CSV_HEADER, FREE_COLUMN_RE, csvRow, parseCsv } from "../src/csv.ts";
+import { CSV_HEADER, FREE_COLUMN_RE, applyCurves, parseCsv, percentText } from "../src/csv.ts";
 import type { GradingKey } from "../src/key.ts";
 import { CHOICE_LETTERS } from "../src/layout.ts";
 import { REQUESTS_RE, debugImageName, summarizeStderr, type Skipped } from "../src/report.ts";
@@ -21,8 +23,9 @@ import {
     type ReviewThresholds,
     type Verdict,
 } from "../src/review.ts";
+import type { QuestionStat } from "../server/grade-runs.ts";
 import type { JobEvent } from "./grader-api.ts";
-import { startPage } from "./common.ts";
+import { api, errorText, startPage } from "./common.ts";
 import { pickMaterial } from "./library-dialogs.ts";
 
 await startPage("grader");
@@ -75,7 +78,7 @@ let input: Input | null = null;
 const IMAGE = /\.(jpe?g|png)$/i;
 const byName = (a: File, b: File) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" });
 /** The chosen test JSON, once it validates with an answer for every question. */
-let test: { file: File; key: GradingKey } | null = null;
+let test: { file: File; key: GradingKey; materialId?: number } | null = null;
 const optMark = $<HTMLInputElement>("opt-mark");
 const optBlank = $<HTMLInputElement>("opt-blank");
 const optDebug = $<HTMLInputElement>("opt-debug");
@@ -103,15 +106,7 @@ function addFiles(list: File[]): void {
         input = { kind: "images", files: [...have, ...added].sort(byName) };
     }
     inputError(ignored ? `Ignored ${plural(ignored, "file")} that ${ignored === 1 ? "isn't" : "aren't"} PNG or JPG.` : null);
-    // Starting a run needs a plan that can grade; say so up front rather than after the upload.
-fetch("/api/me")
-    .then((r) => (r.ok ? (r.json() as Promise<{ user: { canGrade: boolean } }>) : null))
-    .then((me) => {
-        if (me && !me.user.canGrade) show($("plan-warning"));
-    })
-    .catch(() => {});
-
-renderInput();
+    renderInput();
 }
 
 function renderInput(): void {
@@ -141,8 +136,8 @@ function uploadName(): string {
     return input?.kind === "zip" ? input.file.name : "sheets.zip";
 }
 
-/** Reads and checks a test JSON; only one with an answer for every question can grade. */
-async function chooseTest(f: File): Promise<void> {
+/** Reads and checks a test JSON; only one with an answer for every question can grade. `materialId` is its library material, if it came from there. */
+async function chooseTest(f: File, materialId?: number): Promise<void> {
     test = null;
     const errors = $("test-errors");
     const fail = (lines: string[]) => {
@@ -160,7 +155,7 @@ async function chooseTest(f: File): Promise<void> {
         else if (parsed.studyGuide) fail(['This is a study guide; there\'s nothing to grade. Change its top-level "type" to "Quiz" or "Exam" to grade it.']);
         else if (!parsed.grading) fail([`This test has no answers. Give every question an "answer" in Print Sheets, then save its JSON again.`]);
         else {
-            test = { file: f, key: parsed.grading };
+            test = { file: f, key: parsed.grading, materialId };
             const free = parsed.grading.filter((k) => k.type === "free").length;
             const points = parsed.grading.reduce((n, k) => n + k.points, 0);
             $("test-summary").textContent = [
@@ -211,6 +206,8 @@ async function zipBytes(): Promise<Uint8Array> {
 
 let running = false;
 let jobId: string | null = null;
+/** The saved run being shown: the one this page started, or one opened with ?run=. */
+let runId: number | null = null;
 let source: EventSource | null = null;
 let log: string[] = [];
 
@@ -274,13 +271,15 @@ function resetResults(): void {
     $("review-header-summary").textContent = "";
     $("results-header-summary").textContent = "";
     review = null;
+    runId = null;
+    show($("results-saved"), false);
     cliLog.textContent = "";
     $("run-command").textContent = "";
     log = [];
 }
 
 /** Uploads the zip and the test JSON as one form. */
-function upload(bytes: Uint8Array, testFile: File, params: URLSearchParams): Promise<string> {
+function upload(bytes: Uint8Array, testFile: File, params: URLSearchParams): Promise<{ id: string; runId?: number }> {
     return new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.open("POST", `/api/grader/jobs?${params}`);
@@ -293,11 +292,11 @@ function upload(bytes: Uint8Array, testFile: File, params: URLSearchParams): Pro
             progress(e.loaded / e.total, false);
         };
         xhr.onload = () => {
-            let body: { id?: string; error?: string } = {};
+            let body: { id?: string; runId?: number; error?: string } = {};
             try {
                 body = JSON.parse(xhr.responseText);
             } catch {}
-            if (xhr.status === 201 && body.id) resolve(body.id);
+            if (xhr.status === 201 && body.id) resolve({ id: body.id, runId: body.runId });
             else reject(new Error(body.error ?? `upload failed (HTTP ${xhr.status})`));
         };
         xhr.onerror = () => reject(new Error("couldn't reach the grader server. Is `bun run web` still running?"));
@@ -307,13 +306,16 @@ function upload(bytes: Uint8Array, testFile: File, params: URLSearchParams): Pro
 
 async function grade(): Promise<void> {
     if (!input || !test || running) return;
-    const testFile = test.file;
+    const { file: testFile, materialId } = test;
     inputError(null);
     const o = cliOptions();
     for (const [flag, v] of [["Mark", o.mark], ["Blank", o.blank]] as const) {
         if (v && !(Number(v) >= 0 && Number(v) <= 1)) return inputError(`${flag} threshold must be a number between 0 and 1.`);
     }
     resetResults();
+    // A saved run opened with ?run= is replaced by this one.
+    if (new URLSearchParams(location.search).has("run")) history.replaceState(null, "", location.pathname);
+    resultsName = uploadName().replace(/\.zip$/i, "");
     requestProgress(null);
     setReviewPlaceholder("Reading the sheets…", "The review opens here once every name and written answer is read.");
     openPanel("panel-review");
@@ -328,7 +330,10 @@ async function grade(): Promise<void> {
         if (o.blank) params.set("blank", o.blank);
         if (o.debug) params.set("debug", "1");
         params.set("review", "1");
-        jobId = await upload(bytes, testFile, params);
+        if (materialId !== undefined) params.set("material", String(materialId));
+        const job = await upload(bytes, testFile, params);
+        jobId = job.id;
+        runId = job.runId ?? null;
     } catch (e) {
         setRunning(false);
         setReviewPlaceholder("Nothing to review yet", "Add the scanned sheets and the test, then choose Grade.");
@@ -898,6 +903,8 @@ function unlockReview(): void {
 // ---- Results ---------------------------------------------------------------
 
 let csvText = "";
+/** The downloaded CSV's name, before "-grades.csv": the upload's, or a saved run's. */
+let resultsName = "sheets";
 
 function badge(icon: string, text: string): HTMLElement {
     const b = el("span", "badge rounded-pill bg-2 fg-body border");
@@ -912,14 +919,12 @@ function alertBox(kind: string, icon: string, title: string, detail?: string): v
     if (detail) box.append(el("div", "small mt-1", detail));
 }
 
-/**
- * Draws the correct-response share per question from the reviewed sheets (skipped ones left out).
- * The question most students got right is primary, the one fewest got right is warning (both only
- * when the questions differ), and any nobody got right is danger, listed under the chart.
- */
-function renderDifficulty(): void {
+type Tally = { correct: number; answered: number };
+
+/** Correct responses per question on the reviewed sheets, skipped ones left out. */
+function questionTallies(): Map<number, Tally> {
     const subs = (review?.subs ?? []).filter((s) => !s.skip && s.name.stats);
-    const by = new Map<number, { correct: number; answered: number }>();
+    const by = new Map<number, Tally>();
     for (const sub of subs) {
         for (const o of sheetOutcomes(sub)) {
             const t = by.get(o.question) ?? { correct: 0, answered: 0 };
@@ -928,10 +933,19 @@ function renderDifficulty(): void {
             by.set(o.question, t);
         }
     }
+    return by;
+}
+
+/**
+ * Draws the correct-response share per question. The question most students got right is primary,
+ * the one fewest got right is warning (both only when the questions differ), and any nobody got
+ * right is danger, listed under the chart.
+ */
+function renderDifficulty(by: Map<number, Tally>): void {
     const questions = [...by.entries()].sort((a, b) => a[0] - b[0]);
     show($("chart-card"), questions.length > 0);
     if (!questions.length) return;
-    const rate = (t: { correct: number; answered: number }) => (t.answered ? t.correct / t.answered : 0);
+    const rate = (t: Tally) => (t.answered ? t.correct / t.answered : 0);
     const rates = questions.map(([, t]) => rate(t));
     const best = Math.max(...rates);
     const worst = Math.min(...rates);
@@ -939,7 +953,7 @@ function renderDifficulty(): void {
         r === 0 ? "danger" : best > worst && r === best ? "primary" : best > worst && r === worst ? "warning" : "secondary";
 
     const none = questions.filter(([, t]) => t.correct === 0).map(([q]) => q);
-    const label = (q: number, t: { correct: number; answered: number }) => `Question ${q}: ${t.correct} of ${t.answered} correct (${Math.round(rate(t) * 100)}%)`;
+    const label = (q: number, t: Tally) => `Question ${q}: ${t.correct} of ${t.answered} correct (${Math.round(rate(t) * 100)}%)`;
     const dense = questions.length > 30;
     const cols = questions.map(([q, t], i) => {
         const col = el("div", "difficulty-col");
@@ -995,8 +1009,38 @@ function renderDifficulty(): void {
     );
 }
 
+/** What the Results step shows, from a job that just finished or a saved run. */
+interface ResultView {
+    exitCode: number | null;
+    cancelled: boolean;
+    csv: string;
+    totals?: string;
+    fatal?: string;
+    skipped: Skipped[];
+    images: string[];
+    questions: Map<number, Tally>;
+}
+
+/** The results of the job this page just ran, which the server has saved; the per-question tallies are saved with them. */
 function showResults(e: Extract<JobEvent, { type: "done" }>): void {
     const s = summarizeStderr(log);
+    const questions = questionTallies();
+    renderResults({ exitCode: e.exitCode, cancelled: e.cancelled, csv: e.csv, totals: s.totals, fatal: s.fatal, skipped: s.skipped, images: e.images, questions });
+    if (runId === null) return;
+    savedNote("Saved to your results.");
+    if (questions.size) {
+        const stats: QuestionStat[] = [...questions].map(([q, t]) => [q, t.correct, t.answered]);
+        void api(`/api/grade-runs/${runId}`, { method: "PATCH", body: { questions: stats } }).catch(() => {});
+    }
+}
+
+function savedNote(text: string): void {
+    $("results-saved-text").textContent = text;
+    show($("results-saved"));
+}
+
+function renderResults(e: ResultView): void {
+    const s = { totals: e.totals, fatal: e.fatal, skipped: e.skipped };
     csvText = e.csv;
     show($("results-empty"), false);
     if (e.cancelled) {
@@ -1013,7 +1057,7 @@ function showResults(e: Extract<JobEvent, { type: "done" }>): void {
         alertBox("danger", "bi-x-octagon", s.fatal ? `The grader stopped: ${s.fatal}` : `The grader exited with code ${e.exitCode}.`);
     }
 
-    renderDifficulty();
+    renderDifficulty(e.questions);
     renderTable(e.csv);
     $("results-header-summary").textContent = `${plural(rows.length, "student")} graded${s.skipped.length ? `, ${s.skipped.length} skipped` : ""}`;
     renderSkipped(s.skipped, e.images);
@@ -1036,8 +1080,7 @@ interface Row {
     free: { points: string; text: string; feedback: string }[];
 }
 let rows: Row[] = [];
-/** The CLI's CSV as parsed, and as text; a curve rewrites each curved row's score and percent. */
-let csvTable: string[][] = [];
+/** The CLI's CSV; a curve rewrites each curved row's score and percent (see rebuildCsv). */
 let csvOriginal = "";
 /** Rows ticked in the Curve Scores table, by index into `rows`. */
 let curveSelected = new Set<number>();
@@ -1046,6 +1089,9 @@ let freeQuestions: number[] = [];
 let sort: { key: Exclude<keyof Row, "free">; dir: 1 | -1 } = { key: "name", dir: 1 };
 
 function renderTable(csv: string): void {
+    // A CSV that can't be shown leaves no rows behind from an earlier run.
+    rows = [];
+    csvOriginal = "";
     let parsed: string[][];
     try {
         parsed = parseCsv(csv);
@@ -1066,7 +1112,6 @@ function renderTable(csv: string): void {
         alertBox("danger", "bi-x-octagon", `Unexpected CSV header: ${header.join(",")}`);
         return;
     }
-    csvTable = [header, ...body];
     csvOriginal = csv;
     rows = body.map(([name = "", score = "", total = "", percent = "", ...rest]) => ({
         name,
@@ -1110,30 +1155,13 @@ function renderBadges(): void {
 /** Recomputes a row's score and percent from its base and curve, formatted like the grader's CSV. */
 function rescore(r: Row): void {
     r.score = r.base + r.curve;
-    r.percent = r.total ? Math.round((r.score / r.total) * 1000) / 10 : 0;
-    r.percentText = r.percent.toFixed(1);
+    r.percentText = percentText(r.score, r.total);
+    r.percent = Number(r.percentText);
 }
 
 /** The CSV the Copy and download buttons use: the CLI's own until a curve changes a row. */
 function rebuildCsv(): void {
-    if (rows.every((r) => !r.curve)) {
-        csvText = csvOriginal;
-        return;
-    }
-    const [header, ...body] = csvTable;
-    csvText = [
-        header!,
-        ...body.map((fields, i) => {
-            const r = rows[i]!;
-            if (!r.curve) return fields;
-            const out = [...fields];
-            out[1] = String(r.score);
-            out[3] = r.percentText;
-            return out;
-        }),
-    ]
-        .map(csvRow)
-        .join("");
+    csvText = applyCurves(csvOriginal, rows.map((r) => r.curve));
 }
 
 function renderCurve(): void {
@@ -1200,6 +1228,11 @@ function applyCurve(): void {
     renderBadges();
     renderRows();
     renderCurve();
+    if (runId !== null) {
+        api(`/api/grade-runs/${runId}`, { method: "PATCH", body: { curves: rows.map((r) => r.curve) } })
+            .then(() => savedNote("Curve saved to your results."))
+            .catch((err) => (error.textContent = `The curve is applied here but couldn't be saved: ${errorText(err)}`));
+    }
 }
 
 const COLUMNS: { key: Exclude<keyof Row, "free">; label: string; numeric: boolean }[] = [
@@ -1351,20 +1384,12 @@ for (const fi of [zipInput, imagesInput]) {
 $("btn-clear-files").addEventListener("click", () => {
     input = null;
     inputError(null);
-    // Starting a run needs a plan that can grade; say so up front rather than after the upload.
-fetch("/api/me")
-    .then((r) => (r.ok ? (r.json() as Promise<{ user: { canGrade: boolean } }>) : null))
-    .then((me) => {
-        if (me && !me.user.canGrade) show($("plan-warning"));
-    })
-    .catch(() => {});
-
-renderInput();
+    renderInput();
 });
 $("btn-test-file").addEventListener("click", () => testFile.click());
 $("btn-test-library").addEventListener("click", async () => {
     const m = await pickMaterial();
-    if (m) void chooseTest(new File([m.content ?? ""], `${m.name.replace(/[^\w.\- ]+/g, "_").trim() || "test"}.json`, { type: "application/json" }));
+    if (m) void chooseTest(new File([m.content ?? ""], `${m.name.replace(/[^\w.\- ]+/g, "_").trim() || "test"}.json`, { type: "application/json" }), m.id);
 });
 testFile.addEventListener("change", () => {
     const f = testFile.files?.[0];
@@ -1408,8 +1433,7 @@ $("review-card").addEventListener("submit", (e) => {
 });
 $("btn-copy-csv").addEventListener("click", () => void copyCsv());
 $("btn-download-csv").addEventListener("click", () => {
-    const base = uploadName().replace(/\.zip$/i, "");
-    download(`${base}-grades.csv`, new Blob([csvText], { type: "text/csv" }));
+    download(`${resultsName.replace(/[^\w.\- ]+/g, "_").trim() || "grades"}-grades.csv`, new Blob([csvText], { type: "text/csv" }));
 });
 
 const dropZone = $("drop-zone");
@@ -1472,3 +1496,64 @@ fetch("/api/me")
     .catch(() => {});
 
 renderInput();
+
+// ---- A saved run (?run=<id>) -------------------------------------------------
+
+interface SavedRun {
+    id: number;
+    name: string;
+    status: "running" | "graded" | "partial" | "failed" | "cancelled" | "interrupted";
+    exitCode: number | null;
+    createdAt: number;
+    csv: string;
+    curves: number[];
+    questions: QuestionStat[];
+    totals?: string;
+    fatal?: string;
+    skipped: Skipped[];
+}
+
+/** Shows a saved run in the Results step, with its curves; diagnostic images aren't kept, so there are none. */
+async function openSavedRun(id: number): Promise<void> {
+    let run: SavedRun;
+    try {
+        run = (await api<{ run: SavedRun }>(`/api/grade-runs/${id}`)).run;
+    } catch (e) {
+        inputError(`Couldn't open that saved result: ${errorText(e)}`);
+        return;
+    }
+    if (run.status === "running") {
+        inputError("That grading run is still in progress in another tab. Open it again once it has finished.");
+        return;
+    }
+    resetResults();
+    runId = run.id;
+    resultsName = run.name;
+    const fatal = run.status === "interrupted" ? "the server restarted while it was running, so it didn't finish" : run.fatal;
+    renderResults({
+        exitCode: run.status === "interrupted" ? 1 : run.exitCode,
+        cancelled: run.status === "cancelled",
+        csv: run.csv,
+        totals: run.totals,
+        fatal,
+        skipped: run.skipped,
+        images: [],
+        questions: new Map(run.questions.map(([q, correct, answered]) => [q, { correct, answered }])),
+    });
+    if (run.curves.length === rows.length && run.curves.some(Boolean)) {
+        rows.forEach((r, i) => {
+            r.curve = run.curves[i]!;
+            rescore(r);
+        });
+        rebuildCsv();
+        renderBadges();
+        renderRows();
+        renderCurve();
+    }
+    savedNote(`Saved result from ${new Date(run.createdAt * 1000).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}.`);
+    show($("btn-view-results"));
+    openPanel("panel-results");
+}
+
+const savedRun = Number(new URLSearchParams(location.search).get("run"));
+if (Number.isInteger(savedRun) && savedRun > 0) void openSavedRun(savedRun);

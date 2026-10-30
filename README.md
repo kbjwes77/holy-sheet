@@ -64,7 +64,7 @@ created on first run).
 - **Pages:** `/policy` and `/terms` (static privacy policy and terms of service, public), `/` the public landing page (signed-in visitors see it too, with a button to `/dashboard`), `/dashboard` (message of the
   day and links), `/login`, `/register`, `/library` (your
   materials and nested groups), `/browse` (materials other users published), `/slides` (a read-only
-  slide-deck viewer), `/generator`, `/grader`.
+  slide-deck viewer), `/generator`, `/grader`, `/results` (saved grading runs; each reopens in the grader).
   Everything except the landing, sign-in and register pages needs an account. `robots.txt`, `sitemap.xml`,
   `llms.txt` and `site.webmanifest` are served from `public/`.
 - **Sessions:** an HttpOnly cookie, 30 days from last use; only a hash of its token is stored.

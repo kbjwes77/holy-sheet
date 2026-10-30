@@ -165,6 +165,7 @@ export async function startPage(active: string): Promise<{ me: Me; motd: string 
         ["browse", "/browse", "bi-globe2", "Browse"],
         ["generator", "/generator", "bi-ui-radios-grid", "Print Sheets"],
         ["grader", "/grader", "bi-clipboard-check", "Grade Sheets"],
+        ["results", "/results", "bi-journal-check", "Results"],
         ["pricing", "/pricing", "bi-credit-card", user.plan === "pro" ? "Billing" : "Upgrade"],
     ];
     const nav = el("nav", "sidebar-nav");

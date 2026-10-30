@@ -13,6 +13,7 @@ Disallow: /library
 Disallow: /browse
 Disallow: /generator
 Disallow: /grader
+Disallow: /results
 Disallow: /api/
 
 Sitemap: https://gradelake.com/sitemap.xml

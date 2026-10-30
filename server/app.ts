@@ -1,9 +1,10 @@
-// Assembles the API: accounts, the material library and the (plan-gated) grader bridge.
+// Assembles the API: accounts, the material library, the (plan-gated) grader bridge and saved grading runs.
 import type { Database } from "bun:sqlite";
 import { createGraderApi, type GraderApiOptions } from "../web/grader-api.ts";
 import { createAuth, type AuthOptions } from "./auth.ts";
 import { createBilling, type BillingOptions } from "./billing.ts";
 import { recordUsage } from "./db.ts";
+import { createGradeRuns } from "./grade-runs.ts";
 import { createMaterialsApi } from "./materials.ts";
 
 export interface AppOptions extends AuthOptions {
@@ -17,6 +18,7 @@ export function createApp(o: AppOptions) {
     const auth = createAuth(o.db, o);
     const materials = createMaterialsApi(o.db, auth);
     const billing = createBilling(o.db, auth, o.billing);
+    const gradeRuns = createGradeRuns(o.db, auth);
     const graderApi = createGraderApi({
         root: o.root,
         ...o.grader,
@@ -25,13 +27,18 @@ export function createApp(o: AppOptions) {
             const user = action === "job" ? auth.requireGrader(req) : auth.requireUser(req);
             return user instanceof Response ? user : { userId: user.id };
         },
-        onJob: (userId, info) => recordUsage(o.db, userId, "grade_run", 1, info),
+        onJob: (userId, info) => {
+            recordUsage(o.db, userId, "grade_run", 1, { name: info.name, hasTest: info.hasTest });
+            return gradeRuns.start(userId, { uploadName: info.name, testTitle: info.testTitle, materialId: info.materialId });
+        },
+        onDone: (runId, result) => gradeRuns.finish(runId, result),
     });
     return {
         db: o.db,
         auth,
         graderApi,
-        routes: { ...auth.routes, ...materials.routes, ...billing.routes, ...graderApi.routes },
+        gradeRuns,
+        routes: { ...auth.routes, ...materials.routes, ...billing.routes, ...graderApi.routes, ...gradeRuns.routes },
         shutdown(): void {
             graderApi.shutdown();
             auth.stop();
