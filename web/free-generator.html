@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="darkreader-lock" />
+        <title>Free Bubble Sheet Generator for Teachers | Grade Lake</title>
+        <meta name="description" content="Make a printable multiple-choice answer sheet in minutes. Type your questions or paste JSON, preview the sheet, and download a PDF. Free, no sign-up." />
+        <link rel="canonical" href="https://gradelake.com/free-bubble-sheet-generator" />
+        <meta name="robots" content="index, follow, max-image-preview:large" />
+        <meta name="theme-color" content="#1a3fd1" />
+        <meta property="og:type" content="website" />
+        <meta property="og:site_name" content="Grade Lake" />
+        <meta property="og:url" content="https://gradelake.com/free-bubble-sheet-generator" />
+        <meta property="og:title" content="Free Bubble Sheet Generator" />
+        <meta property="og:description" content="Type your questions, preview the answer sheet, and download a PDF. Free, with no sign-up." />
+        <meta property="og:image" content="https://gradelake.com/images/og-image.jpg" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="Free Bubble Sheet Generator" />
+        <meta name="twitter:description" content="Type your questions, preview the answer sheet, and download a PDF. Free, with no sign-up." />
+        <meta name="twitter:image" content="https://gradelake.com/images/og-image.jpg" />
+
+        <script>
+            let theme = null;
+            try {
+                theme = localStorage.getItem("theme");
+            } catch {}
+            document.documentElement.dataset.bsTheme = theme === "light" || theme === "dark" ? theme : matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        </script>
+        <link rel="stylesheet" href="./landing.css" />
+        <link rel="stylesheet" href="./pricing.css" />
+        <link rel="stylesheet" href="./free-generator.css" />
+        <link rel="icon" href="../public/images/favicon.ico" sizes="48x48" />
+        <link rel="icon" type="image/svg+xml" href="../public/images/logo-square.svg" />
+        <link rel="icon" type="image/png" sizes="32x32" href="../public/images/favicon-32x32.png" />
+        <link rel="icon" type="image/png" sizes="16x16" href="../public/images/favicon-16x16.png" />
+        <link rel="apple-touch-icon" href="../public/images/apple-touch-icon.png" />
+        <link rel="manifest" href="../public/site.webmanifest" />
+        <script type="application/ld+json">
+            {
+                "@context": "https://schema.org",
+                "@graph": [
+                    {
+                        "@type": "WebApplication",
+                        "@id": "https://gradelake.com/free-bubble-sheet-generator#app",
+                        "name": "Grade Lake Free Bubble Sheet Generator",
+                        "url": "https://gradelake.com/free-bubble-sheet-generator",
+                        "applicationCategory": "EducationalApplication",
+                        "operatingSystem": "Any",
+                        "isAccessibleForFree": true,
+                        "description": "A free web tool that turns multiple-choice and free-response questions into printable US Letter answer sheets, with a live preview and PDF download.",
+                        "offers": {
+                            "@type": "Offer",
+                            "price": "0",
+                            "priceCurrency": "USD"
+                        },
+                        "publisher": {
+                            "@id": "https://gradelake.com/#org"
+                        }
+                    },
+                    {
+                        "@type": "FAQPage",
+                        "mainEntity": [
+                            {
+                                "@type": "Question",
+                                "name": "Is the bubble sheet generator really free?",
+                                "acceptedAnswer": {
+                                    "@type": "Answer",
+                                    "text": "Yes. Writing a test, previewing the sheets, printing them and downloading a PDF are free, with no account and no watermark. Grading scanned sheets is the only paid part: it is included in Grade Lake Pro, which costs $5 a month or $40 a year and starts with a 7-day free trial."
+                                }
+                            },
+                            {
+                                "@type": "Question",
+                                "name": "Do I need an account, and is my test uploaded anywhere?",
+                                "acceptedAnswer": {
+                                    "@type": "Answer",
+                                    "text": "No account is needed. The sheets are built in your browser, so your questions are not sent to Grade Lake while you work. The page keeps a draft in your browser's local storage so you can come back to it; clearing your browser data removes it."
+                                }
+                            },
+                            {
+                                "@type": "Question",
+                                "name": "Can I grade these sheets with ZipGrade or another scanner app?",
+                                "acceptedAnswer": {
+                                    "@type": "Answer",
+                                    "text": "No. Each sheet carries a QR code and corner marks designed for Grade Lake's grader, so other bubble-sheet apps will not read it. You can still print the sheets as a normal test and mark them by hand using the answer key shown beside the preview, or grade them in Grade Lake."
+                                }
+                            },
+                            {
+                                "@type": "Question",
+                                "name": "How many questions and answer choices can a sheet have?",
+                                "acceptedAnswer": {
+                                    "@type": "Answer",
+                                    "text": "A test can have up to 256 questions and a sheet can run to 16 pages. Multiple-choice questions take 2 to 8 choices, lettered A to H, and can have more than one correct answer. Simple mode holds up to 60 questions; use Advanced mode for more."
+                                }
+                            },
+                            {
+                                "@type": "Question",
+                                "name": "What paper do I print on?",
+                                "acceptedAnswer": {
+                                    "@type": "Answer",
+                                    "text": "Ordinary US Letter paper at 100% scale (Actual size). If your print dialog offers Fit to page or Shrink to fit, turn it off so the sheet prints at its real size. Other paper sizes are not supported yet."
+                                }
+                            },
+                            {
+                                "@type": "Question",
+                                "name": "Can students write free-response answers?",
+                                "acceptedAnswer": {
+                                    "@type": "Answer",
+                                    "text": "Yes. A written-answer question prints a full-width writing box with the number of lines you choose, from 1 to 20. Grade Lake Pro can read the handwriting with an AI model and grade it against your model answer and rubric; on the free generator you can print the box and mark it yourself."
+                                }
+                            },
+                            {
+                                "@type": "Question",
+                                "name": "What is Test JSON, and can ChatGPT or Claude write my test for me?",
+                                "acceptedAnswer": {
+                                    "@type": "Answer",
+                                    "text": "Test JSON is the plain-text format Advanced mode reads: a test name and a list of questions with their choices and answers. Advanced mode includes a prompt builder that teaches an AI chatbot such as ChatGPT, Claude or Gemini the format, so you can ask it for a whole quiz, paste the reply in, and print it. Read the questions before you print, because chatbots sometimes get an answer wrong."
+                                }
+                            },
+                            {
+                                "@type": "Question",
+                                "name": "Can I add graphs, diagrams or tables to questions?",
+                                "acceptedAnswer": {
+                                    "@type": "Answer",
+                                    "text": "Yes, in Advanced mode. Define each figure once as an SVG drawing or an HTML table and attach it to any question. Figures print the same in the preview and in the PDF. Simple mode keeps figures you add in Advanced but cannot edit them."
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        "@type": "BreadcrumbList",
+                        "itemListElement": [
+                            {
+                                "@type": "ListItem",
+                                "position": 1,
+                                "name": "Grade Lake",
+                                "item": "https://gradelake.com/"
+                            },
+                            {
+                                "@type": "ListItem",
+                                "position": 2,
+                                "name": "Free Bubble Sheet Generator",
+                                "item": "https://gradelake.com/free-bubble-sheet-generator"
+                            }
+                        ]
+                    }
+                ]
+            }
+        </script>
+    </head>
+    <body>
+        <div class="wrap">
+            <header class="nav price-nav">
+                <a href="/" class="brand"><img src="../public/images/logo-square.svg" alt="" width="36" height="35" />Grade Lake</a>
+                <a href="/pricing" class="nav-link">Pricing</a>
+                <a href="/login" class="nav-link">Sign in</a>
+                <a href="/register" class="btn btn-solid">Create account</a>
+            </header>
+        </div>
+
+        <main>
+            <section class="price-head free-head">
+                <div class="wrap">
+                    <p class="kicker">Free tool for teachers and tutors</p>
+                    <h1>Free Bubble Sheet Generator</h1>
+                    <p>Type your questions, watch the answer sheet appear, then print it or save a PDF. It runs in your browser, so there is nothing to sign up for.</p>
+                </div>
+            </section>
+
+            <section class="free-tool-section" id="tool" aria-label="Bubble sheet generator">
+                <div class="wrap">
+                    <div class="tool-bar">
+                        <div class="seg" role="group" aria-label="Editing mode">
+                            <button type="button" id="mode-simple" aria-pressed="true">Simple</button>
+                            <button type="button" id="mode-advanced" aria-pressed="false">Advanced</button>
+                        </div>
+                        <p class="tool-hint" id="mode-hint">Fill in the boxes. We write the Test JSON for you.</p>
+                    </div>
+
+                    <div class="demo free-tool">
+                        <div class="demo-controls">
+                            <!-- Simple mode: boxes, sliders and buttons -->
+                            <div id="panel-simple">
+                                <div class="free-row">
+                                    <div class="demo-field free-grow">
+                                        <label class="demo-label" for="s-name">Test name</label>
+                                        <input class="form-control" id="s-name" type="text" maxlength="200" autocomplete="off" />
+                                    </div>
+                                    <div class="demo-field">
+                                        <label class="demo-label" for="s-type">Sheet type</label>
+                                        <select class="form-select" id="s-type">
+                                            <option value="Quiz">Quiz</option>
+                                            <option value="Exam">Exam</option>
+                                            <option value="Study Guide">Study guide (no bubbles)</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="form-switch free-key" id="s-key-field">
+                                    <input class="form-check-input" type="checkbox" role="switch" id="s-key" checked />
+                                    <label class="form-check-label" for="s-key">Include an answer key</label>
+                                </div>
+                                <div class="demo-list" id="q-list"></div>
+                                <div class="demo-add">
+                                    <button type="button" class="btn-demo" id="add-mc">+ Multiple choice</button>
+                                    <button type="button" class="btn-demo" id="add-free">+ Written answer</button>
+                                </div>
+                                <div class="free-slider free-newq">
+                                    <label for="s-newchoices">New questions start with <output id="s-newchoices-out">4</output> choices</label>
+                                    <input type="range" id="s-newchoices" min="2" max="8" step="1" value="4" />
+                                </div>
+                                <p class="demo-limit" id="s-limit" hidden>Simple mode holds up to 60 questions. Use Advanced mode for more.</p>
+                                <p class="free-note" id="s-extras" hidden>This test has figures or settings Simple mode keeps but can't edit. Switch to Advanced to change them.</p>
+                            </div>
+
+                            <!-- Advanced mode: the JSON itself -->
+                            <div id="panel-advanced" hidden>
+                                <div class="free-adv-actions">
+                                    <button type="button" class="btn-demo-sm" id="a-example">Example</button>
+                                    <button type="button" class="btn-demo-sm" id="a-example-fig">Example with graph</button>
+                                    <button type="button" class="btn-demo-sm" id="a-load">Load .json file</button>
+                                    <button type="button" class="btn-demo-sm" id="a-clear">Clear</button>
+                                    <input type="file" id="a-file" accept=".json,application/json" hidden />
+                                </div>
+                                <label class="demo-label" for="a-json">Test JSON</label>
+                                <textarea class="form-control free-json" id="a-json" rows="18" spellcheck="false" autocomplete="off" placeholder='Paste Test JSON here, or reply from an AI chatbot, or drop a .json file.
+
+{
+  "test": "Test Name",
+  "questions": [
+    {
+      "prompt": "On what continent is France located?",
+      "choices": ["Asia", "Europe", "North America", "Antarctica"],
+      "answer": "B"
+    }
+  ]
+}'></textarea>
+                                <p class="free-status" id="a-status" role="status" aria-live="polite"></p>
+
+                                <details class="free-details">
+                                    <summary>Have an AI chatbot write the questions</summary>
+                                    <div class="free-ai">
+                                        <p>Describe your test, copy the prompt, paste it into ChatGPT, Claude or Gemini, then paste the reply into the box above. Read the questions before you print.</p>
+                                        <div class="free-row">
+                                            <div class="demo-field free-grow"><label class="demo-label" for="ai-topic">Topic</label><input class="form-control" id="ai-topic" type="text" maxlength="300" placeholder="e.g. photosynthesis" /></div>
+                                            <div class="demo-field free-grow"><label class="demo-label" for="ai-audience">Who is it for?</label><input class="form-control" id="ai-audience" type="text" maxlength="200" placeholder="e.g. 9th grade biology" /></div>
+                                        </div>
+                                        <div class="free-row">
+                                            <div class="demo-field"><label class="demo-label" for="ai-kind">Kind</label><select class="form-select" id="ai-kind"><option>Quiz</option><option>Exam</option><option value="Study Guide">Study guide</option></select></div>
+                                            <div class="demo-field"><label class="demo-label" for="ai-style">Question style</label><select class="form-select" id="ai-style"><option value="mc">Multiple choice</option><option value="multi">Some with several right answers</option><option value="free">Written answers</option><option value="mix">A mix</option></select></div>
+                                            <div class="demo-field"><label class="demo-label" for="ai-count">How many</label><input class="form-control" id="ai-count" type="number" min="1" max="100" value="10" /></div>
+                                        </div>
+                                        <label class="demo-label" for="ai-prompt">Your prompt</label>
+                                        <textarea class="form-control free-json" id="ai-prompt" rows="6" readonly spellcheck="false"></textarea>
+                                        <div class="free-adv-actions">
+                                            <button type="button" class="btn-demo" id="ai-copy">Copy prompt</button>
+                                            <a class="btn-demo-sm" href="https://claude.ai/new" target="_blank" rel="noopener noreferrer" data-ai-open>Copy and open Claude</a>
+                                            <a class="btn-demo-sm" href="https://chatgpt.com/" target="_blank" rel="noopener noreferrer" data-ai-open>Copy and open ChatGPT</a>
+                                            <a class="btn-demo-sm" href="https://gemini.google.com/app" target="_blank" rel="noopener noreferrer" data-ai-open>Copy and open Gemini</a>
+                                        </div>
+                                    </div>
+                                </details>
+
+                                <details class="free-details">
+                                    <summary>Test JSON format, in brief</summary>
+                                    <div class="free-ai">
+                                        <pre><code>{
+  "test": "Unit 4 Quiz",
+  "type": "Quiz",
+  "questions": [
+    {
+      "prompt": "Which of these is a prime number?",
+      "choices": ["9", "15", "17", "21"],
+      "answer": "C"
+    },
+    {
+      "type": "Free Response",
+      "prompt": "Explain why the sky is blue.",
+      "answer": "Air scatters short (blue) wavelengths the most.",
+      "lines": 4,
+      "points": 2
+    }
+  ]
+}</code></pre>
+                                        <ul>
+                                            <li><code>test</code> and <code>questions</code> are required. <code>type</code> is <code>"Quiz"</code>, <code>"Exam"</code> or <code>"Study Guide"</code>.</li>
+                                            <li>A multiple-choice question has 2 to 8 <code>choices</code>. Give <code>answer</code> as letters, like <code>"B"</code> or <code>"AC"</code>, on every question or on none.</li>
+                                            <li>A <code>"Free Response"</code> question has no choices; <code>answer</code> is the model answer. Optional: <code>rubric</code>, <code>lines</code> (1 to 20), <code>points</code> (1 to 100), <code>explanation</code>.</li>
+                                            <li>Graphs and tables go in a top-level <code>figures</code> object and are attached to a question with <code>"figures": ["id"]</code>.</li>
+                                            <li>Don't type "A)" or question numbers into the text; the sheet adds them. Greek letters, arrows and math symbols can't be printed: spell them out.</li>
+                                        </ul>
+                                    </div>
+                                </details>
+                            </div>
+
+                            <div class="demo-options">
+                                <div class="form-switch">
+                                    <input class="form-check-input" type="checkbox" role="switch" id="o-two-col" checked />
+                                    <label class="form-check-label" for="o-two-col">Two-column layout</label>
+                                </div>
+                                <div class="demo-field">
+                                    <label class="demo-label" for="o-sheet">Answer sheet</label>
+                                    <select class="form-select" id="o-sheet">
+                                        <option value="inline" selected>Inline, next to each question</option>
+                                        <option value="separate">Separate page at the end</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="demo-preview">
+                            <p class="demo-status" id="status" role="status" aria-live="polite">Loading the sheet builder…</p>
+                            <div class="free-actions">
+                                <button type="button" class="btn-demo" id="btn-print" disabled>Print</button>
+                                <button type="button" class="btn-demo free-btn-alt" id="btn-pdf" disabled>Download PDF</button>
+                                <button type="button" class="btn-demo free-btn-alt" id="btn-json" disabled>test.json</button>
+                            </div>
+                            <p class="free-note" id="key-line" hidden></p>
+                            <p class="free-note" id="note" hidden></p>
+                            <div class="demo-pages" id="pages"></div>
+                        </div>
+                    </div>
+
+                    <aside class="free-cta" id="cta">
+                        <div>
+                            <h2>Want it graded for you?</h2>
+                            <p>Keep this test in a free Grade Lake account, then scan or photograph the finished sheets and get every score as a CSV. Grading is part of Pro, with a 7-day free trial.</p>
+                        </div>
+                        <div class="free-cta-buttons">
+                            <button type="button" class="btn btn-solid" id="btn-continue">Continue in Grade Lake</button>
+                            <a href="/pricing" class="btn btn-outline">See pricing</a>
+                        </div>
+                    </aside>
+                </div>
+            </section>
+
+            <section class="section" id="how">
+                <div class="wrap">
+                    <h2><span class="brush">How to make a bubble sheet</span></h2>
+                    <ol class="free-steps">
+                        <li><h3>Write your questions</h3><p>In Simple mode, type each question and its choices and tick the correct answers. Prefer to paste? Advanced mode takes Test JSON, including a reply from an AI chatbot.</p></li>
+                        <li><h3>Check the preview</h3><p>The sheet updates as you type. Every question prints with lettered bubbles next to it, a name box, and a QR code that identifies the test.</p></li>
+                        <li><h3>Print or save a PDF</h3><p>Print on US Letter at 100% scale, one copy per student. Download the PDF to share, or the test.json file to keep the test.</p></li>
+                        <li><h3>Grade it your way</h3><p>Mark by hand with the answer key beside the preview, or upload scans to Grade Lake to get every score automatically.</p></li>
+                    </ol>
+                </div>
+            </section>
+
+            <section class="section" style="padding-top: 0" id="modes">
+                <div class="wrap">
+                    <h2><span class="brush">Simple or Advanced</span></h2>
+                    <div class="free-cols">
+                        <div>
+                            <h3>Simple mode</h3>
+                            <p>Boxes, sliders and buttons. Add multiple-choice or written-answer questions, tick the correct answers, set points and writing lines, and reorder or duplicate questions. It builds the Test JSON behind the scenes.</p>
+                        </div>
+                        <div>
+                            <h3>Advanced mode</h3>
+                            <p>Write or paste Test JSON directly, with live checking that explains any mistake in plain words. Add graphs and tables, custom instructions, and up to 256 questions. Anything you build in one mode carries over to the other.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="section" id="faq" style="padding-top: 0">
+                <div class="wrap faq-wrap">
+                    <h2 style="margin-bottom: 2rem"><span class="brush">Questions, answered</span></h2>
+                    <details class="faq"><summary>Is the bubble sheet generator really free?</summary><p>Yes. Writing a test, previewing the sheets, printing them and downloading a PDF are free, with no account and no watermark. Grading scanned sheets is the only paid part: it is included in Grade Lake Pro, which costs $5 a month or $40 a year and starts with a 7-day free trial.</p></details>
+                    <details class="faq"><summary>Do I need an account, and is my test uploaded anywhere?</summary><p>No account is needed. The sheets are built in your browser, so your questions are not sent to Grade Lake while you work. The page keeps a draft in your browser&#x27;s local storage so you can come back to it; clearing your browser data removes it.</p></details>
+                    <details class="faq"><summary>Can I grade these sheets with ZipGrade or another scanner app?</summary><p>No. Each sheet carries a QR code and corner marks designed for Grade Lake&#x27;s grader, so other bubble-sheet apps will not read it. You can still print the sheets as a normal test and mark them by hand using the answer key shown beside the preview, or grade them in Grade Lake.</p></details>
+                    <details class="faq"><summary>How many questions and answer choices can a sheet have?</summary><p>A test can have up to 256 questions and a sheet can run to 16 pages. Multiple-choice questions take 2 to 8 choices, lettered A to H, and can have more than one correct answer. Simple mode holds up to 60 questions; use Advanced mode for more.</p></details>
+                    <details class="faq"><summary>What paper do I print on?</summary><p>Ordinary US Letter paper at 100% scale (Actual size). If your print dialog offers Fit to page or Shrink to fit, turn it off so the sheet prints at its real size. Other paper sizes are not supported yet.</p></details>
+                    <details class="faq"><summary>Can students write free-response answers?</summary><p>Yes. A written-answer question prints a full-width writing box with the number of lines you choose, from 1 to 20. Grade Lake Pro can read the handwriting with an AI model and grade it against your model answer and rubric; on the free generator you can print the box and mark it yourself.</p></details>
+                    <details class="faq"><summary>What is Test JSON, and can ChatGPT or Claude write my test for me?</summary><p>Test JSON is the plain-text format Advanced mode reads: a test name and a list of questions with their choices and answers. Advanced mode includes a prompt builder that teaches an AI chatbot such as ChatGPT, Claude or Gemini the format, so you can ask it for a whole quiz, paste the reply in, and print it. Read the questions before you print, because chatbots sometimes get an answer wrong.</p></details>
+                    <details class="faq"><summary>Can I add graphs, diagrams or tables to questions?</summary><p>Yes, in Advanced mode. Define each figure once as an SVG drawing or an HTML table and attach it to any question. Figures print the same in the preview and in the PDF. Simple mode keeps figures you add in Advanced but cannot edit them.</p></details>
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <div class="wrap">
+                <a href="/" class="brand"><img src="../public/images/logo-square.svg" alt="" width="24" height="23" />Grade Lake</a>
+                <a href="/pricing">Pricing</a>
+                <a href="/policy">Privacy</a>
+                <a href="/terms">Terms</a>
+                <a href="/login">Sign in</a>
+                <a href="/register">Create account</a>
+            </div>
+        </footer>
+
+        <!-- Only this is shown when printing: one US Letter page per sheet page. -->
+        <div id="print-root" aria-hidden="true"></div>
+        <script type="module" src="./free-generator.ts"></script>
+    </body>
+</html>

@@ -1030,3 +1030,129 @@
 .material-details[open] .material-details-caret {
     transform: rotate(90deg);
 }
+
+/* ---- Onboarding: the how-it-works strip, the empty-editor starter and the format guide ---- */
+.how-summary {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    padding: 0.75rem 1.25rem;
+    cursor: pointer;
+    list-style: none;
+}
+.how-summary::-webkit-details-marker {
+    display: none;
+}
+.how-it-works[open] .status-chevron {
+    transform: rotate(-180deg);
+}
+.how-steps {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1.25rem;
+    margin: 0;
+    padding: 0.25rem 1.25rem 1rem;
+    list-style: none;
+}
+@media (max-width: 767.98px) {
+    .how-steps {
+        grid-template-columns: 1fr;
+    }
+}
+.how-step {
+    display: flex;
+    gap: 0.75rem;
+    align-items: flex-start;
+}
+.how-num {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 50%;
+    background: color-mix(in oklch, var(--bs-primary-base) 16%, transparent);
+    color: var(--bs-primary-fg);
+    font-weight: 700;
+    font-size: 0.875rem;
+}
+.how-footer {
+    padding: 0.625rem 1.25rem;
+    border-top: 1px solid var(--bs-border-color);
+}
+
+/* Over the empty editor; it steps aside as soon as the box is focused or has text, so pasting works as before. */
+.editor-starter {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    border-radius: var(--bs-radius-5);
+    background: var(--bs-bg-body);
+    border: 1px solid var(--bs-border-color);
+    pointer-events: none;
+}
+.editor-starter-card {
+    width: min(100%, 22rem);
+    text-align: center;
+    pointer-events: auto;
+}
+.editor-starter-icon {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: var(--bs-primary-fg);
+    font-size: 2rem;
+}
+.editor-starter[hidden] {
+    display: none;
+}
+.empty-sample {
+    max-width: 15rem;
+    margin: 0 auto 1.5rem;
+    border: 1px solid var(--bs-border-color);
+    border-radius: 0.25rem;
+    background: #fff;
+    box-shadow: var(--bs-box-shadow);
+    overflow: hidden;
+    -webkit-mask-image: linear-gradient(#000 55%, transparent);
+    mask-image: linear-gradient(#000 55%, transparent);
+    max-height: 13.5rem;
+}
+.empty-sample img {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+
+.help-section {
+    border-top: 1px solid var(--bs-border-color);
+}
+.help-section > summary {
+    padding: 0.5rem 0;
+    cursor: pointer;
+    font-weight: 600;
+}
+.help-section-body {
+    padding: 0.25rem 0 0.75rem;
+}
+
+/* Numbered step badge in the grader's accordion headers. */
+.step-no {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    margin-right: 0.625rem;
+    border-radius: 50%;
+    background: color-mix(in oklch, var(--bs-primary-base) 16%, transparent);
+    color: var(--bs-primary-fg);
+    font-size: 0.8125rem;
+    font-weight: 700;
+}
+#before-you-start[open] .status-chevron {
+    transform: rotate(-180deg);
+}

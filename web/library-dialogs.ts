@@ -1,5 +1,7 @@
 // Dialogs for the material library, shared by the library page, Print Sheets and the grader:
 // pick a saved material, and create or edit one.
+import { openAiPrompt } from "./ai-dialog.ts";
+import { extractJson, MINI_EXAMPLE } from "./ai-prompt.ts";
 import { api, apiMultipart, el, errorText, JSON_MATERIAL_TYPES, MATERIAL_TYPE_THEMES, STATUSES, type Group, type Material } from "./common.ts";
 import { openDialog } from "./dialog.ts";
 
@@ -179,8 +181,31 @@ export async function editMaterial(o: EditOptions): Promise<Material | null> {
             content.rows = 10;
             content.spellcheck = false;
             content.value = full?.content ?? o.content ?? "";
-            content.placeholder = "Test JSON (see Print Sheets for the format)";
-            form.append(field("Test JSON", content));
+            content.placeholder = 'Paste Test JSON here, for example:\n\n{\n  "test": "Unit 4 Quiz",\n  "questions": [\n    {\n      "prompt": "Question text",\n      "choices": ["First", "Second"],\n      "answer": "B"\n    }\n  ]\n}';
+            // A chatbot's whole reply pasted in: keep just the JSON.
+            content.addEventListener("paste", () =>
+                setTimeout(() => {
+                    const { text, cleaned } = extractJson(content!.value);
+                    if (cleaned) content!.value = text;
+                }, 0),
+            );
+            const jsonField = field("Test JSON", content);
+            // Most teachers have no JSON yet: point them at the AI route, or a tiny example to edit.
+            const help = el("div", "form-text d-flex flex-wrap align-items-center gap-3");
+            help.append("The test's questions in a simple text format. Don't have any yet?");
+            const ai = el("button", "btn-link btn-sm p-0");
+            ai.type = "button";
+            ai.innerHTML = '<i class="bi bi-stars me-1"></i>Write them with an AI chatbot';
+            ai.addEventListener("click", () => void openAiPrompt());
+            const sample = el("button", "btn-link btn-sm p-0", "Insert an example");
+            sample.type = "button";
+            sample.addEventListener("click", () => {
+                content!.value = MINI_EXAMPLE;
+                content!.focus();
+            });
+            help.append(ai, sample);
+            jsonField.append(help);
+            form.append(jsonField);
         }
         const error = el("div", "alert theme-danger d-none");
         const cancel = el("button", "btn-outline theme-secondary", "Cancel");
@@ -239,7 +264,7 @@ export async function editMaterial(o: EditOptions): Promise<Material | null> {
                 status: status.value,
                 tags: tagList,
                 groupId,
-                ...(content ? { content: content.value } : m ? {} : { content: o.content ?? "" }),
+                ...(content ? { content: extractJson(content.value).text } : m ? {} : { content: o.content ?? "" }),
             };
             try {
                 close(await api<Material>(m ? `/api/materials/${m.id}` : "/api/materials", { method: m ? "PATCH" : "POST", body: payload }));

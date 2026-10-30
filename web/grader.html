@@ -5,7 +5,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="darkreader-lock" />
         <meta name="robots" content="noindex" />
-        <title>Grader</title>
+        <title>Grade Sheets</title>
         <script>
             // Apply the saved theme (else the OS preference) before first paint.
             let theme = null;
@@ -30,8 +30,8 @@
             <div class="page-header">
                 <div class="page-header-icon"><i class="bi bi-clipboard-check"></i></div>
                 <div class="page-header-text">
-                    <h1 class="page-header-title">Grader</h1>
-                    <p class="page-header-subtitle">Grade scanned answer sheets.</p>
+                    <h1 class="page-header-title">Grade Sheets</h1>
+                    <p class="page-header-subtitle">Upload scans of your students' answer sheets and get every score in a table. Work through the four steps below, top to bottom.</p>
                 </div>
             </div>
             <div class="alert theme-warning mb-5 d-none" id="plan-warning" role="alert">
@@ -43,6 +43,32 @@
                 Name reading isn't set up: <span id="config-missing"></span> must be set in <code>.env</code>. Restart
                 <code>bun run web</code> after adding them.
             </div>
+
+            <details class="how-it-works card shadow-sm mb-5" id="before-you-start" open>
+                <summary class="how-summary">
+                    <i class="bi bi-list-check fg-primary"></i>
+                    <span class="fw-semibold">Before you start</span>
+                    <span class="small fg-secondary d-none d-sm-inline">What you need to bring</span>
+                    <i class="bi bi-chevron-down status-chevron ms-auto" aria-hidden="true"></i>
+                </summary>
+                <ol class="small mb-0 px-5 pb-4 ps-7">
+                    <li class="mb-2">
+                        <strong>Printed sheets that students have filled in.</strong> Make them in <a href="/generator">Print Sheets</a>: quizzes and exams print
+                        with bubbles and a Name box that the grader reads.
+                    </li>
+                    <li class="mb-2">
+                        <strong>A scan or photo of every page.</strong> A copier scan or a phone photo both work. Show the whole page with the four black corner
+                        squares. Use JPG or PNG images (PDFs aren't accepted), or put them in one .zip file.
+                    </li>
+                    <li class="mb-2">
+                        <strong>Each student's pages together, page 1 first.</strong> The grader starts a new student at every page 1.
+                    </li>
+                    <li>
+                        <strong>The test file.</strong> The <code>test.json</code> you downloaded from Print Sheets, or the same test in your library. It needs an
+                        <code>answer</code> for every question.
+                    </li>
+                </ol>
+            </details>
 
             <!-- Pinned status: a progress bar and status line, expandable to the CLI output -->
             <details class="status-card card shadow-sm mb-5 d-none" id="run">
@@ -72,7 +98,7 @@
                 <!-- 1. Scanned sheets -->
                 <details class="accordion-item" name="grader-step" id="panel-sheets" open>
                     <summary class="accordion-header">
-                        <span class="fw-semibold"><i class="bi bi-images me-2"></i>Scanned Sheets</span>
+                        <span class="fw-semibold"><span class="step-no">1</span>Scanned Sheets</span>
                         <span class="small fg-secondary ms-3 text-truncate" id="sheets-summary"></span>
                         <svg class="accordion-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="m2 5 6 6 6-6" /></svg>
                     </summary>
@@ -109,43 +135,49 @@
                 <!-- 2. Test -->
                 <details class="accordion-item" name="grader-step" id="panel-test">
                     <summary class="accordion-header">
-                        <span class="fw-semibold"><i class="bi bi-key me-2"></i>Test</span>
+                        <span class="fw-semibold"><span class="step-no">2</span>Test</span>
                         <span class="small fg-secondary ms-3 text-truncate" id="test-header-summary"></span>
                         <svg class="accordion-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="m2 5 6 6 6-6" /></svg>
                     </summary>
                     <div class="accordion-body">
+                        <p class="small mb-3">
+                            Choose the test these sheets were printed from: the <code>test.json</code> you downloaded from
+                            <a href="/generator">Print Sheets</a>, or a test from your library. It must have an <code>answer</code> for every question, because
+                            Grade Sheets takes the answer key, each question's points and the model answers for written questions from it.
+                        </p>
                         <div class="input-group">
                             <span class="form-control text-truncate fg-secondary" id="test-name">No test chosen</span>
                             <input type="file" id="test-file" accept=".json,application/json" hidden />
-                            <button type="button" class="btn-outline theme-secondary" id="btn-test-file"><i class="bi bi-folder2-open"></i> test.json</button>
+                            <button type="button" class="btn-outline theme-secondary" id="btn-test-file"><i class="bi bi-folder2-open"></i> Upload test.json</button>
                             <button type="button" class="btn-outline theme-secondary" id="btn-test-library"><i class="bi bi-collection"></i> From library</button>
                         </div>
-                        <div class="form-text" id="test-summary">
-                            The test's JSON from Print Sheets, with an <code>answer</code> for every question. The grader takes the answer key,
-                            each question's points and the free-response model answers from it.
-                        </div>
+                        <div class="form-text" id="test-summary"></div>
                         <ul class="small fg-danger mb-0 mt-1 ps-5 d-none" id="test-errors"></ul>
 
                         <details class="grader-options mt-5">
-                            <summary class="small fg-secondary"><i class="bi bi-sliders me-1"></i>Options</summary>
+                            <summary class="small fg-secondary"><i class="bi bi-sliders me-1"></i>Advanced options <span class="fg-secondary">(most people can skip these)</span></summary>
                             <div class="row g-3 mt-1">
                                 <div class="col-6">
-                                    <label class="form-label small mb-1" for="opt-mark">Mark threshold</label>
+                                    <label class="form-label small mb-1" for="opt-mark">Filled-in threshold</label>
                                     <input type="number" class="form-control form-control-sm" id="opt-mark" min="0" max="1" step="0.01" />
                                 </div>
                                 <div class="col-6">
-                                    <label class="form-label small mb-1" for="opt-blank">Blank threshold</label>
+                                    <label class="form-label small mb-1" for="opt-blank">Empty threshold</label>
                                     <input type="number" class="form-control form-control-sm" id="opt-blank" min="0" max="1" step="0.01" />
                                 </div>
                             </div>
-                            <div class="form-text">Fill ratios: at or above the mark threshold reads as filled, at or below the blank one as empty; anything between is unclear and you'll be asked about it.</div>
+                            <div class="form-text">
+                                How dark a bubble must be, from 0 to 1. At or above the filled-in threshold counts as marked; at or below the empty threshold counts as blank.
+                                Anything in between is unclear and you'll be asked about it. Leave these blank to use the defaults.
+                            </div>
                             <div class="form-field mt-3">
                                 <input type="checkbox" class="check" id="opt-debug" />
                                 <label class="small" for="opt-debug">Diagnostic images for every page (problem pages always get one)</label>
                             </div>
+                            <div class="small fg-secondary mt-3 mb-1">The command this runs:</div>
+                            <code class="d-block small fg-secondary text-break" id="command-preview"></code>
                         </details>
 
-                        <code class="d-block small fg-secondary text-break mt-5" id="command-preview" title="The command this runs"></code>
                         <div class="d-flex justify-content-end gap-3 mt-5">
                             <button type="button" class="btn-outline theme-secondary" id="btn-back"><i class="bi bi-arrow-left me-1"></i>Back</button>
                             <button type="button" class="btn-solid theme-primary" id="btn-grade" disabled><i class="bi bi-play-fill me-1"></i>Grade</button>
@@ -156,7 +188,7 @@
                 <!-- 3. Review -->
                 <details class="accordion-item" name="grader-step" id="panel-review">
                     <summary class="accordion-header">
-                        <span class="fw-semibold"><i class="bi bi-person-check me-2"></i>Review</span>
+                        <span class="fw-semibold"><span class="step-no">3</span>Review</span>
                         <span class="small fg-secondary ms-3 text-truncate" id="review-header-summary"></span>
                         <svg class="accordion-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="m2 5 6 6 6-6" /></svg>
                     </summary>
@@ -211,7 +243,7 @@
                 <!-- 4. Results -->
                 <details class="accordion-item" name="grader-step" id="panel-results">
                     <summary class="accordion-header">
-                        <span class="fw-semibold"><i class="bi bi-table me-2"></i>Results</span>
+                        <span class="fw-semibold"><span class="step-no">4</span>Results</span>
                         <span class="small fg-secondary ms-3 text-truncate" id="results-header-summary"></span>
                         <svg class="accordion-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="m2 5 6 6 6-6" /></svg>
                     </summary>

@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="darkreader-lock" />
+        <title>How to Grade Handwritten Answers with AI | Grade Lake</title>
+        <meta name="description" content="Print written-answer questions, scan the finished sheets, and let an AI model read the handwriting and grade it against your model answer and rubric. You review before anything is exported." />
+        <link rel="canonical" href="https://gradelake.com/how-to/grade-handwritten-answers-with-ai" />
+        <meta name="robots" content="index, follow, max-image-preview:large" />
+        <meta name="theme-color" content="#1a3fd1" />
+        <meta property="og:type" content="article" />
+        <meta property="og:site_name" content="Grade Lake" />
+        <meta property="og:url" content="https://gradelake.com/how-to/grade-handwritten-answers-with-ai" />
+        <meta property="og:title" content="How to grade handwritten answers with AI" />
+        <meta property="og:description" content="Print written-answer questions, scan the finished sheets, and let an AI model read the handwriting and grade it against your model answer and rubric. You review before anything is exported." />
+        <meta property="og:image" content="https://gradelake.com/images/og-image.jpg" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="How to grade handwritten answers with AI" />
+        <meta name="twitter:description" content="Print written-answer questions, scan the finished sheets, and let an AI model read the handwriting and grade it against your model answer and rubric. You review before anything is exported." />
+        <meta name="twitter:image" content="https://gradelake.com/images/og-image.jpg" />
+
+        <script>
+            let theme = null;
+            try {
+                theme = localStorage.getItem("theme");
+            } catch {}
+            document.documentElement.dataset.bsTheme = theme === "light" || theme === "dark" ? theme : matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        </script>
+        <link rel="stylesheet" href="./landing.css" />
+        <link rel="stylesheet" href="./pricing.css" />
+        <link rel="stylesheet" href="./guide.css" />
+        <link rel="icon" href="../public/images/favicon.ico" sizes="48x48" />
+        <link rel="icon" type="image/svg+xml" href="../public/images/logo-square.svg" />
+        <link rel="icon" type="image/png" sizes="32x32" href="../public/images/favicon-32x32.png" />
+        <link rel="icon" type="image/png" sizes="16x16" href="../public/images/favicon-16x16.png" />
+        <link rel="apple-touch-icon" href="../public/images/apple-touch-icon.png" />
+        <link rel="manifest" href="../public/site.webmanifest" />
+        <script type="application/ld+json">
+            {
+                "@context": "https://schema.org",
+                "@graph": [
+                    {
+                        "@type": "Article",
+                        "@id": "https://gradelake.com/how-to/grade-handwritten-answers-with-ai#article",
+                        "headline": "How to grade handwritten answers with AI",
+                        "description": "Print written-answer questions, scan the finished sheets, and let an AI model read the handwriting and grade it against your model answer and rubric. You review before anything is exported.",
+                        "url": "https://gradelake.com/how-to/grade-handwritten-answers-with-ai",
+                        "datePublished": "2026-10-27",
+                        "dateModified": "2026-10-27",
+                        "inLanguage": "en",
+                        "author": {
+                            "@id": "https://gradelake.com/#org"
+                        },
+                        "publisher": {
+                            "@id": "https://gradelake.com/#org"
+                        },
+                        "mainEntityOfPage": "https://gradelake.com/how-to/grade-handwritten-answers-with-ai",
+                        "image": "https://gradelake.com/images/og-image.jpg"
+                    },
+                    {
+                        "@type": "FAQPage",
+                        "mainEntity": [
+                            {
+                                "@type": "Question",
+                                "name": "Can AI really read student handwriting?",
+                                "acceptedAnswer": {
+                                    "@type": "Answer",
+                                    "text": "Modern AI models read neat and moderately messy handwriting well, but not perfectly. Grade Lake shows each transcription beside the model answer so you can correct misreadings, and nothing is exported until you have reviewed it."
+                                }
+                            },
+                            {
+                                "@type": "Question",
+                                "name": "Does the AI decide the grade?",
+                                "acceptedAnswer": {
+                                    "@type": "Answer",
+                                    "text": "No. It proposes a score against your model answer and rubric. You review and change any score before exporting."
+                                }
+                            },
+                            {
+                                "@type": "Question",
+                                "name": "Do I need a rubric?",
+                                "acceptedAnswer": {
+                                    "@type": "Answer",
+                                    "text": "No. A model answer is required for a written-answer question on a quiz or exam, but a rubric is optional. A rubric that says what earns each point makes partial credit more consistent."
+                                }
+                            },
+                            {
+                                "@type": "Question",
+                                "name": "Is grading free?",
+                                "acceptedAnswer": {
+                                    "@type": "Answer",
+                                    "text": "Writing and printing tests is free. Grading scanned sheets, including handwriting, is part of Grade Lake Pro, which costs $5 a month or $40 a year and starts with a 7-day free trial."
+                                }
+                            },
+                            {
+                                "@type": "Question",
+                                "name": "Can I use this for essays?",
+                                "acceptedAnswer": {
+                                    "@type": "Answer",
+                                    "text": "It is built for short written answers. Long essays are better graded by hand or with a dedicated writing tool."
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        "@type": "BreadcrumbList",
+                        "itemListElement": [
+                            {
+                                "@type": "ListItem",
+                                "position": 1,
+                                "name": "Grade Lake",
+                                "item": "https://gradelake.com/"
+                            },
+                            {
+                                "@type": "ListItem",
+                                "position": 2,
+                                "name": "Grade handwritten answers",
+                                "item": "https://gradelake.com/how-to/grade-handwritten-answers-with-ai"
+                            }
+                        ]
+                    },
+                    {
+                        "@type": "HowTo",
+                        "name": "How to grade handwritten answers with AI",
+                        "description": "Print written-answer questions, scan the finished sheets, and let an AI model read the handwriting and grade it against your model answer and rubric. You review before anything is exported.",
+                        "step": [
+                            {
+                                "@type": "HowToStep",
+                                "position": 1,
+                                "name": "Write the questions with a model answer",
+                                "text": "Add written-answer questions with a model answer, lines and points."
+                            },
+                            {
+                                "@type": "HowToStep",
+                                "position": 2,
+                                "name": "Be specific in the rubric",
+                                "text": "State what earns each point."
+                            },
+                            {
+                                "@type": "HowToStep",
+                                "position": 3,
+                                "name": "Print one sheet per student",
+                                "text": "Print on US Letter at 100% scale."
+                            },
+                            {
+                                "@type": "HowToStep",
+                                "position": 4,
+                                "name": "Collect and scan",
+                                "text": "Scan or photograph each sheet flat in good light."
+                            },
+                            {
+                                "@type": "HowToStep",
+                                "position": 5,
+                                "name": "Grade in Grade Lake",
+                                "text": "Upload scans on a Pro plan; AI reads the handwriting and proposes scores."
+                            },
+                            {
+                                "@type": "HowToStep",
+                                "position": 6,
+                                "name": "Review and export",
+                                "text": "Check transcriptions and scores, then export a CSV."
+                            }
+                        ]
+                    }
+                ]
+            }
+        </script>
+    </head>
+    <body>
+        <div class="wrap">
+            <header class="nav price-nav">
+                <a href="/" class="brand"><img src="../public/images/logo-square.svg" alt="" width="36" height="35" />Grade Lake</a>
+                <a href="/free-bubble-sheet-generator" class="nav-link">Free tool</a>
+                <a href="/pricing" class="nav-link">Pricing</a>
+                <a href="/login" class="nav-link">Sign in</a>
+                <a href="/register" class="btn btn-solid">Create account</a>
+            </header>
+        </div>
+
+        <main>
+            <article class="wrap doc">
+                <nav class="crumbs" aria-label="Breadcrumb"><a href="/">Grade Lake</a> <span aria-hidden="true">/</span> <span>Grade handwritten answers</span></nav>
+                <p class="kicker">Guide</p>
+                <h1>How to grade handwritten answers with AI</h1>
+                <p class="doc-lead">Multiple choice is easy to scan. Written answers are where grading eats your evenings. This guide shows how to set up written-answer questions so an AI model can read students&#x27; handwriting and propose a score against your own rubric, with you making the final call.</p>
+                <p class="doc-meta">Updated <time datetime="2026-10-27">October 27, 2026</time></p>
+
+<h2>How it works</h2>
+<p>You write each written-answer question with a model answer and, optionally, a rubric. Grade Lake prints a sheet with a box of ruled lines for each question. Students write by hand. You scan or photograph the sheets, and Grade Lake reads the handwriting with an AI model, compares it with your model answer and rubric, and proposes points. You review the transcriptions and scores before exporting a CSV.</p>
+
+<h2>Step by step</h2>
+<ol class="doc-steps">
+<li><h3>Write the questions with a model answer</h3><p>In the <a href="/free-bubble-sheet-generator">free generator</a>, add a <strong>Written answer</strong> question in Simple mode. Type the prompt and the model answer, set the number of writing lines and the points with the sliders, and add a rubric if you want partial credit to follow it.</p></li>
+<li><h3>Be specific in the rubric</h3><p>"1 point: names scattering. 1 point: says blue light scatters most." grades more consistently than "good explanation". Say what earns each point.</p></li>
+<li><h3>Print one sheet per student</h3><p>Print on US Letter at 100% scale. Each sheet has a name box, a QR code that identifies the test, and corner marks used to straighten scans.</p></li>
+<li><h3>Collect and scan</h3><p>Students write in pen or dark pencil inside the boxes. Scan the stack or photograph each sheet flat in good light.</p></li>
+<li><h3>Grade in Grade Lake</h3><p>With a <a href="/pricing">Pro plan</a> (7-day free trial), upload the scans. Grade Lake reads names, filled bubbles and handwriting and proposes a score for each written answer.</p></li>
+<li><h3>Review and export</h3><p>Check names, unclear marks and each transcription next to the model answer, change any score you disagree with, curve questions if needed, then export the scores as a CSV.</p></li>
+</ol>
+
+<h2>What a written-answer question looks like</h2>
+<pre><code>{
+  &quot;type&quot;: &quot;Free Response&quot;,
+  &quot;prompt&quot;: &quot;Explain why the sky is blue.&quot;,
+  &quot;answer&quot;: &quot;Air molecules scatter short (blue) wavelengths of sunlight more than long ones.&quot;,
+  &quot;rubric&quot;: &quot;1 point: names scattering. 1 point: says blue light scatters most.&quot;,
+  &quot;points&quot;: 2,
+  &quot;lines&quot;: 4
+}</code></pre>
+<p>This is the Test JSON behind a written-answer question. In Simple mode you only fill in boxes; the JSON is written for you. The <a href="/test-json-format">format reference</a> explains every field.</p>
+
+<h2>Getting good results</h2>
+<ul>
+<li><strong>Give enough lines.</strong> Long answers that run outside the box cannot be read. Allow a few lines more than a model answer needs.</li>
+<li><strong>Ask students to write clearly and inside the box.</strong> Print legibility is the biggest factor in how well handwriting can be read.</li>
+<li><strong>Keep scans flat and well lit.</strong> Avoid shadows and cropped corners.</li>
+<li><strong>Treat the AI score as a suggestion.</strong> AI models can misread messy handwriting or give credit a teacher would not. That is why the review step comes before export.</li>
+<li><strong>Keep questions short-answer.</strong> One to three sentences grades more reliably than an essay.</li>
+</ul>
+
+<h2>Things to know about privacy</h2>
+<p>Filled bubbles are read by Grade Lake itself. To read handwriting, images of the name box and of the written answers are sent to AI models. Consider your school's student-data rules before grading, and see the <a href="/policy">privacy policy</a>.</p>
+
+                <aside class="doc-cta">
+                    <div>
+                        <h2>Make a printable sheet, free</h2>
+                        <p>Type your questions or paste Test JSON, preview the sheet, and download a PDF. No sign-up.</p>
+                    </div>
+                    <a href="/free-bubble-sheet-generator" class="btn btn-solid">Open the free generator</a>
+                </aside>
+
+                <section class="doc-faq" id="faq">
+                    <h2>Questions, answered</h2>
+                    <details class="faq"><summary>Can AI really read student handwriting?</summary><p>Modern AI models read neat and moderately messy handwriting well, but not perfectly. Grade Lake shows each transcription beside the model answer so you can correct misreadings, and nothing is exported until you have reviewed it.</p></details>
+                    <details class="faq"><summary>Does the AI decide the grade?</summary><p>No. It proposes a score against your model answer and rubric. You review and change any score before exporting.</p></details>
+                    <details class="faq"><summary>Do I need a rubric?</summary><p>No. A model answer is required for a written-answer question on a quiz or exam, but a rubric is optional. A rubric that says what earns each point makes partial credit more consistent.</p></details>
+                    <details class="faq"><summary>Is grading free?</summary><p>Writing and printing tests is free. Grading scanned sheets, including handwriting, is part of Grade Lake Pro, which costs $5 a month or $40 a year and starts with a 7-day free trial.</p></details>
+                    <details class="faq"><summary>Can I use this for essays?</summary><p>It is built for short written answers. Long essays are better graded by hand or with a dedicated writing tool.</p></details>
+                </section>
+
+                <section class="doc-related">
+                    <h2>Keep reading</h2>
+                    <ul>
+                        <li><a href="/how-to/make-a-quiz-with-chatgpt-or-claude">Make a quiz with ChatGPT or Claude</a></li>
+                        <li><a href="/test-json-format">Test JSON format reference</a></li>
+                        <li><a href="/pricing">Pricing</a></li>
+                    </ul>
+                </section>
+            </article>
+        </main>
+
+        <footer>
+            <div class="wrap">
+                <a href="/" class="brand"><img src="../public/images/logo-square.svg" alt="" width="24" height="23" />Grade Lake</a>
+                <a href="/free-bubble-sheet-generator">Free bubble sheet generator</a>
+                <a href="/pricing">Pricing</a>
+                <a href="/policy">Privacy</a>
+                <a href="/terms">Terms</a>
+                <a href="/login">Sign in</a>
+                <a href="/register">Create account</a>
+            </div>
+        </footer>
+    </body>
+</html>

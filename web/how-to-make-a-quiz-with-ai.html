@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="darkreader-lock" />
+        <title>How to Make a Printable Quiz with ChatGPT or Claude | Grade Lake</title>
+        <meta name="description" content="Have an AI chatbot write your quiz, then turn it into a printable bubble answer sheet in minutes. Step-by-step guide with a free tool and a ready-made prompt." />
+        <link rel="canonical" href="https://gradelake.com/how-to/make-a-quiz-with-chatgpt-or-claude" />
+        <meta name="robots" content="index, follow, max-image-preview:large" />
+        <meta name="theme-color" content="#1a3fd1" />
+        <meta property="og:type" content="article" />
+        <meta property="og:site_name" content="Grade Lake" />
+        <meta property="og:url" content="https://gradelake.com/how-to/make-a-quiz-with-chatgpt-or-claude" />
+        <meta property="og:title" content="How to make a printable quiz with ChatGPT or Claude" />
+        <meta property="og:description" content="Have an AI chatbot write your quiz, then turn it into a printable bubble answer sheet in minutes. Step-by-step guide with a free tool and a ready-made prompt." />
+        <meta property="og:image" content="https://gradelake.com/images/og-image.jpg" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="How to make a printable quiz with ChatGPT or Claude" />
+        <meta name="twitter:description" content="Have an AI chatbot write your quiz, then turn it into a printable bubble answer sheet in minutes. Step-by-step guide with a free tool and a ready-made prompt." />
+        <meta name="twitter:image" content="https://gradelake.com/images/og-image.jpg" />
+
+        <script>
+            let theme = null;
+            try {
+                theme = localStorage.getItem("theme");
+            } catch {}
+            document.documentElement.dataset.bsTheme = theme === "light" || theme === "dark" ? theme : matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        </script>
+        <link rel="stylesheet" href="./landing.css" />
+        <link rel="stylesheet" href="./pricing.css" />
+        <link rel="stylesheet" href="./guide.css" />
+        <link rel="icon" href="../public/images/favicon.ico" sizes="48x48" />
+        <link rel="icon" type="image/svg+xml" href="../public/images/logo-square.svg" />
+        <link rel="icon" type="image/png" sizes="32x32" href="../public/images/favicon-32x32.png" />
+        <link rel="icon" type="image/png" sizes="16x16" href="../public/images/favicon-16x16.png" />
+        <link rel="apple-touch-icon" href="../public/images/apple-touch-icon.png" />
+        <link rel="manifest" href="../public/site.webmanifest" />
+        <script type="application/ld+json">
+            {
+                "@context": "https://schema.org",
+                "@graph": [
+                    {
+                        "@type": "Article",
+                        "@id": "https://gradelake.com/how-to/make-a-quiz-with-chatgpt-or-claude#article",
+                        "headline": "How to make a printable quiz with ChatGPT or Claude",
+                        "description": "Have an AI chatbot write your quiz, then turn it into a printable bubble answer sheet in minutes. Step-by-step guide with a free tool and a ready-made prompt.",
+                        "url": "https://gradelake.com/how-to/make-a-quiz-with-chatgpt-or-claude",
+                        "datePublished": "2026-10-27",
+                        "dateModified": "2026-10-27",
+                        "inLanguage": "en",
+                        "author": {
+                            "@id": "https://gradelake.com/#org"
+                        },
+                        "publisher": {
+                            "@id": "https://gradelake.com/#org"
+                        },
+                        "mainEntityOfPage": "https://gradelake.com/how-to/make-a-quiz-with-chatgpt-or-claude",
+                        "image": "https://gradelake.com/images/og-image.jpg"
+                    },
+                    {
+                        "@type": "FAQPage",
+                        "mainEntity": [
+                            {
+                                "@type": "Question",
+                                "name": "Which AI chatbots work with this?",
+                                "acceptedAnswer": {
+                                    "@type": "Answer",
+                                    "text": "Any chatbot that can follow written instructions and reply with text, including ChatGPT, Claude and Gemini. The prompt from the generator contains the complete format rules, so you do not need to be signed in to a particular service or install anything."
+                                }
+                            },
+                            {
+                                "@type": "Question",
+                                "name": "What if the chatbot's reply will not load?",
+                                "acceptedAnswer": {
+                                    "@type": "Answer",
+                                    "text": "Paste it anyway. The generator strips code fences and chatter and checks the JSON as you type. If something is wrong it names the question and the problem, for example a missing answer or a choice with too many characters. You can fix it in Advanced mode, or paste the message back into the chatbot and ask it to correct its output."
+                                }
+                            },
+                            {
+                                "@type": "Question",
+                                "name": "Can the chatbot write written-answer questions too?",
+                                "acceptedAnswer": {
+                                    "@type": "Answer",
+                                    "text": "Yes. Choose written answers or a mix in the prompt builder. Each written-answer question comes with a model answer and an optional rubric, and prints as a writing box with the number of lines you choose."
+                                }
+                            },
+                            {
+                                "@type": "Question",
+                                "name": "Are the AI's answers reliable?",
+                                "acceptedAnswer": {
+                                    "@type": "Answer",
+                                    "text": "Not always. Treat the chatbot as a fast first draft. Read every question and check the answer key before printing, because a wrong key will mark correct student answers wrong."
+                                }
+                            },
+                            {
+                                "@type": "Question",
+                                "name": "Is the quiz sent to Grade Lake?",
+                                "acceptedAnswer": {
+                                    "@type": "Answer",
+                                    "text": "Not by the free generator. The sheet is built in your browser, and the prompt you copy goes only to the chatbot you choose to paste it into."
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        "@type": "BreadcrumbList",
+                        "itemListElement": [
+                            {
+                                "@type": "ListItem",
+                                "position": 1,
+                                "name": "Grade Lake",
+                                "item": "https://gradelake.com/"
+                            },
+                            {
+                                "@type": "ListItem",
+                                "position": 2,
+                                "name": "Make a quiz with AI",
+                                "item": "https://gradelake.com/how-to/make-a-quiz-with-chatgpt-or-claude"
+                            }
+                        ]
+                    },
+                    {
+                        "@type": "HowTo",
+                        "name": "How to make a printable quiz with ChatGPT or Claude",
+                        "description": "Have an AI chatbot write your quiz, then turn it into a printable bubble answer sheet in minutes. Step-by-step guide with a free tool and a ready-made prompt.",
+                        "step": [
+                            {
+                                "@type": "HowToStep",
+                                "position": 1,
+                                "name": "Open the prompt builder",
+                                "text": "In the free generator, choose Advanced and open the AI helper."
+                            },
+                            {
+                                "@type": "HowToStep",
+                                "position": 2,
+                                "name": "Describe your quiz",
+                                "text": "Enter the topic, audience, question style and count."
+                            },
+                            {
+                                "@type": "HowToStep",
+                                "position": 3,
+                                "name": "Copy the prompt into a chatbot",
+                                "text": "Paste it into ChatGPT, Claude or Gemini."
+                            },
+                            {
+                                "@type": "HowToStep",
+                                "position": 4,
+                                "name": "Paste the reply back",
+                                "text": "Paste the whole reply into the Test JSON box; extra text is removed."
+                            },
+                            {
+                                "@type": "HowToStep",
+                                "position": 5,
+                                "name": "Read every question",
+                                "text": "Verify the facts and the answer key."
+                            },
+                            {
+                                "@type": "HowToStep",
+                                "position": 6,
+                                "name": "Print or save a PDF",
+                                "text": "Print at 100% scale on US Letter or download the PDF."
+                            }
+                        ]
+                    }
+                ]
+            }
+        </script>
+    </head>
+    <body>
+        <div class="wrap">
+            <header class="nav price-nav">
+                <a href="/" class="brand"><img src="../public/images/logo-square.svg" alt="" width="36" height="35" />Grade Lake</a>
+                <a href="/free-bubble-sheet-generator" class="nav-link">Free tool</a>
+                <a href="/pricing" class="nav-link">Pricing</a>
+                <a href="/login" class="nav-link">Sign in</a>
+                <a href="/register" class="btn btn-solid">Create account</a>
+            </header>
+        </div>
+
+        <main>
+            <article class="wrap doc">
+                <nav class="crumbs" aria-label="Breadcrumb"><a href="/">Grade Lake</a> <span aria-hidden="true">/</span> <span>Make a quiz with AI</span></nav>
+                <p class="kicker">Guide</p>
+                <h1>How to make a printable quiz with ChatGPT or Claude</h1>
+                <p class="doc-lead">A chatbot can draft a whole quiz in seconds, but its reply is just text. Here is how to get a reply you can paste straight into a free tool and print as an answer sheet, and what to check before you hand it to students.</p>
+                <p class="doc-meta">Updated <time datetime="2026-10-27">October 27, 2026</time></p>
+
+<h2>What you need</h2>
+<p>A free account with any AI chatbot (ChatGPT, Claude, Gemini or similar), and the <a href="/free-bubble-sheet-generator">Grade Lake free bubble sheet generator</a>. The generator needs no sign-up. The only trick is asking the chatbot for its answer in a format the generator understands, called Test JSON.</p>
+
+<h2>Step by step</h2>
+<ol class="doc-steps">
+<li><h3>Open the prompt builder</h3><p>Go to the <a href="/free-bubble-sheet-generator">free generator</a>, choose <strong>Advanced</strong>, and open <strong>Have an AI chatbot write the questions</strong>.</p></li>
+<li><h3>Describe your quiz</h3><p>Type the topic and who it is for (for example, "photosynthesis" and "9th grade biology"), then choose quiz or exam, the question style and how many questions. The prompt below the form updates as you type.</p></li>
+<li><h3>Copy the prompt into a chatbot</h3><p>Press <strong>Copy prompt</strong> and paste it into ChatGPT, Claude or Gemini. The prompt includes the format rules, so the chatbot knows to answer with a single block of Test JSON and nothing else.</p></li>
+<li><h3>Paste the reply back</h3><p>Copy the chatbot's whole reply and paste it into the Test JSON box. If the reply includes code fences or a friendly "Here is your quiz!", the generator removes them for you. A green message confirms the test is valid; if not, it explains the problem in plain words.</p></li>
+<li><h3>Read every question</h3><p>Check the facts, the wording and, above all, the answer key. See the checklist below.</p></li>
+<li><h3>Print or save a PDF</h3><p>Choose <strong>Print</strong> (US Letter, 100% scale) or <strong>Download PDF</strong>. Switch to <strong>Simple</strong> mode any time to fix a question with ordinary text boxes instead of editing JSON.</p></li>
+</ol>
+
+<h2>What the chatbot returns</h2>
+<p>Test JSON is plain text: a title, a type, and a list of questions with their choices and the correct letters. A one-question quiz looks like this.</p>
+<pre><code>{
+  &quot;test&quot;: &quot;Photosynthesis Quiz&quot;,
+  &quot;type&quot;: &quot;Quiz&quot;,
+  &quot;questions&quot;: [
+    {
+      &quot;prompt&quot;: &quot;Which gas do plants take in during photosynthesis?&quot;,
+      &quot;choices&quot;: [&quot;Oxygen&quot;, &quot;Carbon dioxide&quot;, &quot;Nitrogen&quot;, &quot;Hydrogen&quot;],
+      &quot;answer&quot;: &quot;B&quot;,
+      &quot;explanation&quot;: &quot;Plants use carbon dioxide and water to make glucose.&quot;
+    }
+  ]
+}</code></pre>
+<p>You never have to write this by hand. If you want to know every field, the <a href="/test-json-format">Test JSON format reference</a> lists them all.</p>
+
+<h2>A checklist before you print</h2>
+<ul>
+<li><strong>Verify the answer key.</strong> Chatbots sometimes mark the wrong letter. Skim each question and confirm the highlighted answer is correct, especially in math and science.</li>
+<li><strong>Look at the spread of answers.</strong> If nearly every answer is B or C, ask the chatbot to vary which letter is correct. The prompt already requests this, but it is worth a glance.</li>
+<li><strong>Check for ambiguity.</strong> Two choices that are both defensible make a bad question. Edit them in Simple mode.</li>
+<li><strong>Watch special characters.</strong> The sheets print in a standard PDF font, so Greek letters, arrows and math symbols cannot be printed. The prompt tells the chatbot to spell them out ("delta x", "x^2", "pi").</li>
+<li><strong>Match the level.</strong> If the questions are too easy or hard, reply in the same chat ("make these harder, and use the same JSON format") and paste the new reply.</li>
+</ul>
+
+<h2>Handy follow-up requests</h2>
+<ul>
+<li>"Replace questions 3 and 7 with new ones on the same topic. Reply with the full JSON again."</li>
+<li>"Add three written-answer questions at the end, each with a model answer and a rubric."</li>
+<li>"Rewrite this for 6th graders, keeping the same JSON structure."</li>
+</ul>
+
+<h2>Grading the sheets</h2>
+<p>Printing is free. You can mark the sheets by hand against the answer key. If you would rather scan or photograph the finished sheets and get every score as a spreadsheet, <a href="/pricing">Grade Lake Pro</a> reads the bubbles for you. A free account keeps your tests in a library so you can print them again.</p>
+
+                <aside class="doc-cta">
+                    <div>
+                        <h2>Make a printable sheet, free</h2>
+                        <p>Type your questions or paste Test JSON, preview the sheet, and download a PDF. No sign-up.</p>
+                    </div>
+                    <a href="/free-bubble-sheet-generator" class="btn btn-solid">Open the free generator</a>
+                </aside>
+
+                <section class="doc-faq" id="faq">
+                    <h2>Questions, answered</h2>
+                    <details class="faq"><summary>Which AI chatbots work with this?</summary><p>Any chatbot that can follow written instructions and reply with text, including ChatGPT, Claude and Gemini. The prompt from the generator contains the complete format rules, so you do not need to be signed in to a particular service or install anything.</p></details>
+                    <details class="faq"><summary>What if the chatbot&#x27;s reply will not load?</summary><p>Paste it anyway. The generator strips code fences and chatter and checks the JSON as you type. If something is wrong it names the question and the problem, for example a missing answer or a choice with too many characters. You can fix it in Advanced mode, or paste the message back into the chatbot and ask it to correct its output.</p></details>
+                    <details class="faq"><summary>Can the chatbot write written-answer questions too?</summary><p>Yes. Choose written answers or a mix in the prompt builder. Each written-answer question comes with a model answer and an optional rubric, and prints as a writing box with the number of lines you choose.</p></details>
+                    <details class="faq"><summary>Are the AI&#x27;s answers reliable?</summary><p>Not always. Treat the chatbot as a fast first draft. Read every question and check the answer key before printing, because a wrong key will mark correct student answers wrong.</p></details>
+                    <details class="faq"><summary>Is the quiz sent to Grade Lake?</summary><p>Not by the free generator. The sheet is built in your browser, and the prompt you copy goes only to the chatbot you choose to paste it into.</p></details>
+                </section>
+
+                <section class="doc-related">
+                    <h2>Keep reading</h2>
+                    <ul>
+                        <li><a href="/test-json-format">Test JSON format reference</a></li>
+                        <li><a href="/how-to/grade-handwritten-answers-with-ai">Grade handwritten answers with AI</a></li>
+                        <li><a href="/free-bubble-sheet-generator">Free bubble sheet generator</a></li>
+                    </ul>
+                </section>
+            </article>
+        </main>
+
+        <footer>
+            <div class="wrap">
+                <a href="/" class="brand"><img src="../public/images/logo-square.svg" alt="" width="24" height="23" />Grade Lake</a>
+                <a href="/free-bubble-sheet-generator">Free bubble sheet generator</a>
+                <a href="/pricing">Pricing</a>
+                <a href="/policy">Privacy</a>
+                <a href="/terms">Terms</a>
+                <a href="/login">Sign in</a>
+                <a href="/register">Create account</a>
+            </div>
+        </footer>
+    </body>
+</html>

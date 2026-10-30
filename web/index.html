@@ -33,31 +33,82 @@
                     <div class="page-header-icon"><i class="bi bi-ui-radios-grid"></i></div>
                     <div class="page-header-text">
                         <h1 class="page-header-title">Print Sheets</h1>
-                        <p class="page-header-subtitle">Make printable study guides, quizzes, and exams. Use the Grade tool to score printed answer sheets</p>
+                        <p class="page-header-subtitle">Turn your questions into printable study guides, quizzes, and exams with bubble answer sheets that Grade Sheets can score</p>
                     </div>
                 </div>
+
+                <!-- Orientation for new users; collapses to one line once dismissed (remembered in this browser). -->
+                <details class="how-it-works card shadow-sm mb-6" id="how-it-works" open>
+                    <summary class="how-summary">
+                        <i class="bi bi-signpost-split fg-primary"></i>
+                        <span class="fw-semibold">New here? How it works</span>
+                        <span class="small fg-secondary d-none d-sm-inline">Questions in, printed sheets out, scores back in seconds</span>
+                        <i class="bi bi-chevron-down status-chevron ms-auto" aria-hidden="true"></i>
+                    </summary>
+                    <ol class="how-steps">
+                        <li class="how-step">
+                            <span class="how-num">1</span>
+                            <div>
+                                <div class="fw-semibold">Get your questions</div>
+                                <p class="small fg-secondary mb-2">
+                                    Grade Lake reads questions written in a simple text format called <strong>Test JSON</strong>. The easy way to get some:
+                                    ask an AI chatbot like Claude or ChatGPT. We write the prompt for you.
+                                </p>
+                                <button type="button" class="btn-link btn-sm p-0" data-ai-prompt><i class="bi bi-stars me-1"></i>Write questions with AI</button>
+                            </div>
+                        </li>
+                        <li class="how-step">
+                            <span class="how-num">2</span>
+                            <div>
+                                <div class="fw-semibold">Preview and print</div>
+                                <p class="small fg-secondary mb-0">
+                                    Paste the chatbot's reply into the <strong>Test JSON</strong> box and choose <strong>Print sheets</strong>.
+                                    Check the preview, then print or save a PDF. Quizzes and exams get bubble answer sheets.
+                                </p>
+                            </div>
+                        </li>
+                        <li class="how-step">
+                            <span class="how-num">3</span>
+                            <div>
+                                <div class="fw-semibold">Scan and grade</div>
+                                <p class="small fg-secondary mb-2">After students finish, scan their sheets and upload them to get every score, with answers read straight off the bubbles.</p>
+                                <a class="btn-link btn-sm p-0" href="/grader">Open Grade Sheets <i class="bi bi-arrow-right ms-1"></i></a>
+                            </div>
+                        </li>
+                    </ol>
+                    <div class="how-footer small fg-secondary">
+                        Just want to look around? Choose <strong>Example</strong> below to load a finished test. <button type="button" class="btn-link btn-sm p-0" id="btn-hide-how">Hide this</button>
+                    </div>
+                </details>
                 <div class="row g-7">
                     <!-- Input -->
                     <div class="lg:col-5">
                         <div class="card shadow-sm">
-                            <div class="card-header d-flex align-items-center gap-3 flex-wrap">
-                                <span class="fw-semibold me-auto"><i class="bi bi-braces me-1"></i>Sheet JSON</span>
-                                <input type="file" id="file-input" accept=".json,application/json" hidden />
-                                <div class="btn-group btn-group-sm">
-                                    <button type="button" class="btn-outline theme-secondary" id="btn-load" title="Load a .json file">
-                                        <i class="bi bi-folder2-open"></i> Load file
+                            <div class="card-header">
+                                <div class="d-flex align-items-center gap-3 flex-wrap">
+                                    <span class="fw-semibold me-auto" title="Test JSON is the text format Grade Lake reads your questions in">
+                                        <i class="bi bi-braces me-1"></i>Test JSON <span class="fw-normal fg-secondary small ms-1 d-none d-xl-inline">your questions</span>
+                                    </span>
+                                    <button type="button" class="btn-sm btn-solid theme-primary" data-ai-prompt title="Build a prompt that gets an AI chatbot to write your test">
+                                        <i class="bi bi-stars me-1"></i>Write with AI
                                     </button>
-                                    <button type="button" class="btn-outline theme-secondary" id="btn-example" title="Fill in an example test">
+                                </div>
+                                <input type="file" id="file-input" accept=".json,application/json" hidden />
+                                <div class="d-flex flex-wrap gap-2 mt-3">
+                                    <button type="button" class="btn-sm btn-outline theme-secondary" id="btn-load" title="Load a .json file from your computer">
+                                        <i class="bi bi-folder2-open"></i> Load
+                                    </button>
+                                    <button type="button" class="btn-sm btn-outline theme-secondary" id="btn-example" title="Fill in a finished example test">
                                         <i class="bi bi-file-earmark-code"></i> Example
                                     </button>
-                                    <button type="button" class="btn-outline theme-secondary" id="btn-open-library" title="Open a saved material">
+                                    <button type="button" class="btn-sm btn-outline theme-secondary" id="btn-open-library" title="Open a test saved in your library or shared by the community">
                                         <i class="bi bi-collection"></i> Library
                                     </button>
-                                    <button type="button" class="btn-outline theme-secondary" id="btn-save-library" title="Save this test to your library">
+                                    <button type="button" class="btn-sm btn-outline theme-secondary" id="btn-save-library" title="Save this test to your library to reuse later">
                                         <i class="bi bi-journal-plus"></i> Save
                                     </button>
-                                    <button type="button" class="btn-outline theme-secondary" id="btn-clear" title="Clear the editor">
-                                        <i class="bi bi-x-lg"></i> Clear
+                                    <button type="button" class="btn-sm btn-outline theme-secondary" id="btn-clear" title="Clear the editor" aria-label="Clear the editor">
+                                        <i class="bi bi-x-lg"></i><span class="visually-hidden">Clear</span>
                                     </button>
                                 </div>
                             </div>
@@ -69,54 +120,83 @@
                                         rows="22"
                                         spellcheck="false"
                                         autocomplete="off"
-                                        aria-label="Sheet JSON"
-                                        placeholder='Paste sheet JSON here, or drop a .json file.
+                                        aria-label="Test JSON"
+                                        placeholder='Paste Test JSON here, or drop a .json file.
 
 {
   "test": "Test Name",
   "questions": [
     {
       "prompt": "On what continent is France located?",
-      "choices": ["Asia", "Europe", "North America", "Antarctica"]
+      "choices": ["Asia", "Europe", "North America", "Antarctica"],
+      "answer": "B"
     }
   ]
 }'
                                     ></textarea>
+                                    <!-- Shown over the empty editor: the three ways to get questions in. -->
+                                    <div class="editor-starter" id="editor-starter">
+                                        <div class="editor-starter-card">
+                                            <i class="bi bi-file-earmark-plus editor-starter-icon" aria-hidden="true"></i>
+                                            <div class="fw-semibold mb-1">Start with your questions</div>
+                                            <p class="small fg-secondary mb-4">Paste them here, or pick a way to get them:</p>
+                                            <div class="d-grid gap-2">
+                                                <button type="button" class="btn-solid theme-primary" data-ai-prompt><i class="bi bi-stars me-1"></i>Write them with an AI chatbot</button>
+                                                <button type="button" class="btn-outline theme-secondary" data-action="example"><i class="bi bi-file-earmark-code me-1"></i>Try an example test</button>
+                                                <button type="button" class="btn-outline theme-secondary" data-action="load"><i class="bi bi-folder2-open me-1"></i>Load a .json file</button>
+                                                <button type="button" class="btn-outline theme-secondary" data-action="library"><i class="bi bi-collection me-1"></i>Open from my library</button>
+                                            </div>
+                                            <p class="small fg-secondary mt-4 mb-0">Click anywhere else in the box to type or paste.</p>
+                                        </div>
+                                    </div>
                                     <div class="drop-hint"><i class="bi bi-file-earmark-arrow-down"></i> Drop .json file to load</div>
                                 </div>
-                                <div class="form-text d-flex justify-content-between mt-3">
-                                    <span id="input-status">&nbsp;</span>
-                                    <button type="button" class="btn-link btn-sm fg-secondary p-0" id="btn-format-help" aria-expanded="false" aria-controls="format-help">
-                                        <i class="bi bi-question-circle"></i> Format
+                                <div class="form-text d-flex justify-content-between align-items-start gap-3 mt-3">
+                                    <span id="input-status" role="status" aria-live="polite">&nbsp;</span>
+                                    <button type="button" class="btn-link btn-sm fg-secondary p-0 text-nowrap" id="btn-format-help" aria-expanded="false" aria-controls="format-help">
+                                        <i class="bi bi-book"></i> Format guide
                                     </button>
                                 </div>
                                 <div class="d-none" id="format-help">
                                     <div class="format-help small border rounded p-5 mt-3 bg-2">
-                                        <button type="button" class="btn-sm btn-outline theme-secondary bg-body format-copy" id="btn-copy-format" title="Copy format help">
-                                            <i class="bi bi-clipboard" id="copy-format-icon"></i> Copy
-                                        </button>
+                                        <div class="fw-semibold mb-1">The Test JSON format</div>
+                                        <p class="mb-3">
+                                            A test is a short text file with a name and a list of questions. You rarely need to write one by hand: an AI chatbot can,
+                                            and the editor's checker tells you in plain words if anything is off.
+                                        </p>
+                                        <div class="d-flex flex-wrap gap-2 mb-4">
+                                            <button type="button" class="btn-sm btn-solid theme-primary" data-ai-prompt><i class="bi bi-stars me-1"></i>Write questions with AI</button>
+                                            <button type="button" class="btn-sm btn-outline theme-secondary bg-body" id="btn-copy-format" title="Copy these rules as a message to paste into an AI chatbot before you describe your test">
+                                                <i class="bi bi-clipboard" id="copy-format-icon"></i> Copy format for an AI
+                                            </button>
+                                        </div>
                                         <pre class="mb-3"><code>{
   "test": "Unit 4 Quiz",
   "type": "Quiz",
   "questions": [
     {
-      "prompt": "Question text",
-      "figures": ["graph"],
-      "choices": ["First", "Second", "Third"],
-      "answer": "B",
-      "explanation": "Why B is correct. Spell out symbols: 'delta x', not Δx."
+      "prompt": "Which of these is a prime number?",
+      "choices": ["9", "15", "17", "21"],
+      "answer": "C",
+      "explanation": "17 has no divisors other than 1 and itself."
+    },
+    {
+      "type": "Free Response",
+      "prompt": "Explain why the sky is blue.",
+      "answer": "Air scatters short (blue) wavelengths of sunlight the most."
     }
-  ],
-  "figures": {
-    "graph": {
-      "type": "svg",
-      "content": "&lt;svg viewBox=\"0 0 200 150\"&gt;…&lt;/svg&gt;",
-      "width": 2.5,
-      "caption": "Figure 1"
-    }
-  }
+  ]
 }</code></pre>
-                                        <ul class="mb-0 ps-5">
+                                        <ul class="mb-4 ps-5">
+                                            <li><strong>Required:</strong> <code>test</code> (the name) and <code>questions</code>. Each question needs a <code>prompt</code> and its <code>choices</code> (2 to 8).</li>
+                                            <li><strong>Optional but useful:</strong> <code>answer</code> on every question, which gives you the answer key and lets Grade Sheets score the test.</li>
+                                            <li>Don't type letters or numbers into <code>choices</code> or <code>prompt</code>: the sheet adds "A)", "B)" and the question number itself.</li>
+                                            <li>Use straight quotes (<code>"</code>), no trailing commas, and keep every <code>{</code> and <code>[</code> closed.</li>
+                                        </ul>
+                                        <details class="help-section">
+                                            <summary><i class="bi bi-list-check me-2"></i>Every option</summary>
+                                            <div class="help-section-body">
+<ul class="mb-0 ps-5">
                                             <li><code>test</code>: the test name (required).</li>
                                             <li>
                                                 <code>type</code> (optional): <code>"Study Guide"</code>, <code>"Quiz"</code> or <code>"Exam"</code>.
@@ -154,7 +234,13 @@
                                             </li>
                                             <li>No other keys are allowed. A sheet can be at most 16 pages.</li>
                                         </ul>
-                                        <div class="fw-semibold mt-5 mb-1">Symbols</div>
+                                        
+                                            </div>
+                                        </details>
+                                        <details class="help-section">
+                                            <summary><i class="bi bi-exclamation-triangle me-2"></i>Symbols that can't be printed (Greek letters, arrows, math)</summary>
+                                            <div class="help-section-body">
+
                                         <p class="mb-1">
                                             The sheet prints in a standard PDF font, so text can only use letters and symbols that font has.
                                             Anything else is reported as an error naming the character and the question, e.g.
@@ -178,7 +264,13 @@
                                                 can show any shape you can draw (but its text must still use Arial, Times or Courier).
                                             </li>
                                         </ul>
-                                        <div class="fw-semibold mt-5 mb-1">Layout</div>
+                                        
+                                            </div>
+                                        </details>
+                                        <details class="help-section">
+                                            <summary><i class="bi bi-layout-text-window me-2"></i>How questions are laid out on the page</summary>
+                                            <div class="help-section-body">
+
                                         <p class="mb-0">
                                             Questions print in two 3.3 in columns, down the left and then the right. A question prints full width
                                             when one of its choices would wrap in a column or a figure is wider than one. A grey line across
@@ -187,7 +279,13 @@
                                             full-width question's figures are each 3.3 in or narrower, they print to the right of its text when
                                             that's shorter and no choice wraps. Keep choices short to fit more on a page.
                                         </p>
-                                        <div class="fw-semibold mt-5 mb-1">Figures</div>
+                                        
+                                            </div>
+                                        </details>
+                                        <details class="help-section">
+                                            <summary><i class="bi bi-bar-chart-line me-2"></i>Figures: graphs, diagrams and tables</summary>
+                                            <div class="help-section-body">
+
                                         <p class="mb-1">
                                             Define each figure once in a top-level <code>figures</code> object, usually at the end of the file, keyed
                                             by an id (letters, digits, <code>-</code> and <code>_</code>). Several questions can show the same figure.
@@ -225,9 +323,12 @@
                                             </li>
                                             <li>
                                                 Anything that wouldn't print exactly as previewed is reported as an error. A figure no question uses
-                                                is only noted. See <code>examples/figures-demo.json</code>.
+                                                is only noted.
                                             </li>
                                         </ul>
+
+                                            </div>
+                                        </details>
                                     </div>
                                 </div>
                             </div>
@@ -246,7 +347,7 @@
                                         type="button"
                                         class="btn-solid theme-primary"
                                         id="btn-generate"
-                                        title="Print sheets (Ctrl + Enter)"
+                                        title="Prepare your sheets and show a preview, ready to print or save as PDF (Ctrl + Enter)"
                                         aria-keyshortcuts="Control+Enter"
                                     >
                                         <i class="bi bi-gear-wide-connected me-1"></i>Print sheets
@@ -279,7 +380,7 @@
                                                     <input type="radio" class="radio" id="answer-sheet" name="answer-sheet" />
                                                     <label for="answer-sheet">Separated (On a Different Page)</label>
                                                 </div>
-                                                <small class="form-text">A separate answer sheet prints at the end and is the only page scanned.</small>
+                                                <small class="form-text">Separated: the questions print on plain pages and every answer goes on an answer sheet at the end. Only that sheet is scanned.</small>
                                             </div>
                                         </div>
                                         <div class="col-12 col-sm-6 col-lg-4">
@@ -322,10 +423,15 @@
                     <!-- Output -->
                     <div class="lg:col-7">
                         <div class="card shadow-sm empty-state" id="empty-state">
-                            <div class="card-body text-center fg-secondary py-12">
-                                <i class="bi bi-file-earmark-text fs-xl d-block mb-5"></i>
-                                <p class="mb-1 fw-semibold">No sheet yet</p>
-                                <p class="mb-0 small">Paste or load your test JSON, then choose <strong>Print sheets</strong>.</p>
+                            <div class="card-body text-center py-8">
+                                <div class="empty-sample" aria-hidden="true">
+                                    <img src="../public/images/sheet-page-1.png" alt="" width="1200" height="1553" loading="lazy" />
+                                </div>
+                                <p class="mb-1 fw-semibold">Your sheets will appear here</p>
+                                <p class="mb-0 small fg-secondary">
+                                    Add your questions on the left, then choose <strong>Print sheets</strong> to preview them.<br />
+                                    This is what a printed quiz looks like: question text, bubbles to fill in, and a code Grade Sheets reads.
+                                </p>
                             </div>
                         </div>
 
@@ -351,8 +457,9 @@
                                         </div>
                                     </div>
                                     <p class="small fg-secondary mb-0 mt-5" id="print-help">
-                                        <i class="bi bi-info-circle me-1"></i>Print on US Letter at 100% scale (Actual size). Print one copy per
-                                        student and keep each student's pages together.
+                                        <i class="bi bi-info-circle me-1"></i>Print on US Letter at 100% scale (Actual size), one copy per
+                                        student, and keep each student's pages together. If the print dialog offers "Fit to page" or "Shrink to fit",
+                                        turn it off so the sheet prints at its real size.
                                     </p>
                                     <p class="small fg-secondary mb-0 mt-5 d-none" id="print-help-separate">
                                         <i class="bi bi-info-circle me-1"></i>Print on US Letter at 100% scale (Actual size), one copy per student.
@@ -365,26 +472,38 @@
 
                             <div class="card shadow-sm mb-5" id="key-card">
                                 <div class="card-body">
-                                    <label class="form-label fw-semibold" for="key-line"><i class="bi bi-key me-1"></i>Answer key for the grader</label>
-                                    <div class="input-group" id="key-group">
-                                        <input type="text" class="form-control font-monospace" id="key-line" readonly />
-                                        <button type="button" class="btn-outline theme-secondary" id="btn-copy-key" title="Copy key">
-                                            <i class="bi bi-clipboard" id="copy-icon"></i> Copy
+                                    <div class="fw-semibold mb-1"><i class="bi bi-clipboard-check me-1"></i>Save the test for grading</div>
+                                    <p class="small fg-secondary mb-3" id="test-help">Grade Sheets reads the right answers from this file when you grade the scans.</p>
+                                    <div class="d-flex align-items-center gap-3 flex-wrap">
+                                        <button type="button" class="btn-sm btn-outline theme-secondary" id="btn-download-test" title="Download this test's JSON">
+                                            <i class="bi bi-filetype-json"></i> Download test.json
                                         </button>
-                                        <button type="button" class="btn-outline theme-secondary" id="btn-download-key" title="Download key.txt">
-                                            <i class="bi bi-download"></i> key.txt
-                                        </button>
+                                        <span class="small fg-secondary">or use <strong>Save</strong> to keep it in your library.</span>
                                     </div>
-                                    <div class="form-text" id="key-help"></div>
-                                    <div class="small fg-secondary d-none" id="key-none">
+                                    <div class="small fg-secondary mt-3 d-none" id="key-none">
                                         No answer key: add an <code>"answer"</code> to every question to get one here.
                                     </div>
-                                    <div class="d-flex align-items-center gap-3 flex-wrap mt-3">
-                                        <button type="button" class="btn-sm btn-outline theme-secondary" id="btn-download-test" title="Download this test's JSON">
-                                            <i class="bi bi-filetype-json"></i> test.json
-                                        </button>
-                                        <span class="small fg-secondary" id="test-help">The web grader grades from this file.</span>
-                                    </div>
+                                    <details class="mt-3" id="key-details">
+                                        <summary class="small fg-secondary">Answer key line, for the command-line grader</summary>
+                                        <label class="form-label fw-semibold mt-3" for="key-line"><i class="bi bi-key me-1"></i>Answer key</label>
+                                        <div class="input-group" id="key-group">
+                                            <input type="text" class="form-control font-monospace" id="key-line" readonly />
+                                            <button type="button" class="btn-outline theme-secondary" id="btn-copy-key" title="Copy key">
+                                                <i class="bi bi-clipboard" id="copy-icon"></i> Copy
+                                            </button>
+                                            <button type="button" class="btn-outline theme-secondary" id="btn-download-key" title="Download key.txt">
+                                                <i class="bi bi-download"></i> key.txt
+                                            </button>
+                                        </div>
+                                        <div class="form-text" id="key-help"></div>
+                                    </details>
+                                </div>
+                            </div>
+
+                            <div class="card shadow-sm mb-5" id="next-steps">
+                                <div class="card-body">
+                                    <div class="fw-semibold mb-2"><i class="bi bi-signpost-split me-1"></i>What happens next</div>
+                                    <ol class="small mb-0 ps-5" id="next-steps-list"></ol>
                                 </div>
                             </div>
 

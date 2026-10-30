@@ -36,6 +36,22 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, className = "", text 
     return e;
 }
 
+// The "Before you start" checklist is open for a first visit and stays folded once it has been closed.
+const BEFORE_KEY = "grader.before-you-start";
+const before = $<HTMLDetailsElement>("before-you-start");
+try {
+    if (localStorage.getItem(BEFORE_KEY) === "closed") before.open = false;
+} catch {
+    // Storage unavailable: stay open.
+}
+before.addEventListener("toggle", () => {
+    try {
+        localStorage.setItem(BEFORE_KEY, before.open ? "open" : "closed");
+    } catch {
+        // Not remembered.
+    }
+});
+
 const show = (e: HTMLElement, on = true) => e.classList.toggle("d-none", !on);
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 const kb = (bytes: number) => (bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`);

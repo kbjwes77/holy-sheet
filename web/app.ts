@@ -6,10 +6,12 @@ import example from "../examples/ap-macro-unit-4.json";
 import { renderSeparate } from "../gen/booklet.ts";
 import { isFree, renderTest, type SheetType, type SolutionPlacement, type TestDef } from "../gen/sheet.ts";
 import { parseSheetJson, type ValidationIssue } from "../gen/testdef.ts";
+import { copyText, openAiPrompt } from "./ai-dialog.ts";
+import { extractJson, formatGuideForAi } from "./ai-prompt.ts";
 import { startPage, type Material } from "./common.ts";
 import { editMaterial, pickMaterial } from "./library-dialogs.ts";
 
-await startPage("generator");
+const { me } = await startPage("generator");
 
 const MAX_FILE_BYTES = 2 * 1024 * 1024;
 const LETTER_PT = { w: 612, h: 792 };
@@ -76,8 +78,66 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, className = "", text 
     return e;
 }
 
+/** The status line under the editor: a short note about what just happened, then whether the JSON checks out. */
+const statusNote = el("span");
+const statusValidity = el("span", "d-block");
+inputStatus.replaceChildren(statusNote, statusValidity);
+
 function setStatus(text: string): void {
-    inputStatus.textContent = text || " ";
+    statusNote.textContent = text ? `${text} ` : "";
+    if (!text) statusValidity.replaceChildren();
+}
+
+/** Puts text in the editor (a loaded file, an example, a library material) and checks it. */
+function setInput(text: string): void {
+    input.value = text;
+    syncStarter();
+    validateNow();
+}
+
+/** The checklist of options over an empty editor: shown only while the box is empty and not being typed in. */
+const starter = $("editor-starter");
+function syncStarter(): void {
+    starter.hidden = input.value.trim() !== "" || document.activeElement === input;
+}
+
+/** If the box holds a chatbot's whole reply (code fences, "Here's your quiz!"), keeps just the JSON. Returns whether it changed. */
+function tidyPaste(): boolean {
+    const { text, cleaned } = extractJson(input.value);
+    if (!cleaned) return false;
+    input.value = text;
+    setStatus("Removed the extra text around the JSON.");
+    return true;
+}
+
+const plural = (k: number, word: string) => `${k} ${word}${k === 1 ? "" : "s"}`;
+
+function validity(ok: boolean, text: string, detail = ""): void {
+    const icon = el("i", `bi ${ok ? "bi-check-circle-fill" : "bi-exclamation-circle-fill"} me-1`);
+    const span = el("span", ok ? "fg-success" : "fg-danger");
+    span.append(icon, text);
+    statusValidity.replaceChildren(span, ...(detail ? [document.createTextNode(` ${detail}`)] : []));
+}
+
+/** Checks the JSON as the teacher types, so a mistake shows up before they press Print sheets. */
+let validateTimer: ReturnType<typeof setTimeout> | undefined;
+function validateSoon(): void {
+    clearTimeout(validateTimer);
+    validateTimer = setTimeout(validateNow, 500);
+}
+function validateNow(): void {
+    clearTimeout(validateTimer);
+    if (!input.value.trim()) return statusValidity.replaceChildren();
+    const { text } = extractJson(input.value);
+    const result = parseSheetJson(text, { layout: false, solutions: solutions.value as SolutionPlacement, teacherCopy: teacherCopy.checked });
+    if (!result.ok) {
+        const first = result.errors[0]!;
+        const more = result.errors.length > 1 ? ` (and ${plural(result.errors.length - 1, "more problem")})` : "";
+        return validity(false, first.where === "JSON syntax" ? "Not valid JSON yet:" : `${first.where}:`, `${first.message}${more}`);
+    }
+    const n = result.test.questions.length;
+    const answers = result.studyGuide ? "" : result.grading ? ", answer key included" : ", no answers yet";
+    validity(true, "Looks good:", `${result.sheetType}, ${plural(n, "question")}${answers}. Choose Print sheets.`);
 }
 
 function slug(s: string): string {
@@ -133,6 +193,8 @@ function showNotes(notes: ValidationIssue[]): void {
 // ---- Print -----------------------------------------------------------------
 
 function generate(): void {
+    tidyPaste();
+    syncStarter();
     const source = input.value;
     const result = parseSheetJson(source, {
         answerSheet: answerSheet.checked,
@@ -147,6 +209,7 @@ function generate(): void {
     }
     hideErrors();
     showNotes(result.notes);
+    collapseHowItWorks();
     // A study guide has nothing to grade, so neither answer-sheet choice applies.
     for (const radio of answerSheetRadios) radio.disabled = result.studyGuide;
     answerSheetGroup.title = result.studyGuide
@@ -186,6 +249,38 @@ function badge(icon: string, text: string): HTMLElement {
     return b;
 }
 
+/** A short "what happens next" for someone printing their first test: print, hand out, scan, grade. */
+function renderNextSteps(g: Generated): void {
+    const li = (...parts: (string | Node)[]) => {
+        const item = el("li");
+        item.append(...parts);
+        return item;
+    };
+    const gradeLink = () => {
+        const a = el("a", "", "Grade Sheets");
+        a.href = "/grader";
+        return a;
+    };
+    const steps: HTMLLIElement[] = [];
+    if (g.studyGuide) {
+        steps.push(li("Print it, or download the PDF to share. A study guide has no bubbles, so there is nothing to scan or grade."));
+    } else if (!g.gradable) {
+        steps.push(
+            li("Print and hand out the sheets as they are, or first add an ", el("code", "", '"answer"'), " to every question so they can be scored automatically."),
+            li("Tip: paste your test back into an AI chatbot and ask it to add the answers, then check them."),
+        );
+    } else {
+        steps.push(
+            li("Print one copy per student, or download the PDF."),
+            li("Students fill in the bubbles for their answers, and write their name in the Name box."),
+            li("Scan the finished sheets (a phone photo is fine), keeping each student's pages together with page 1 first."),
+            li("Open ", gradeLink(), " and add the scans and the ", el("strong", "", "test.json"), " saved below. You get every score in a table."),
+        );
+        if (!me.canGrade) steps.push(li("Grading is part of the Pro plan", me.billing.trialAvailable ? " (7-day free trial)." : "."));
+    }
+    $("next-steps-list").replaceChildren(...steps);
+}
+
 function showOutput(g: Generated): void {
     emptyState.classList.add("d-none");
     output.classList.remove("d-none");
@@ -211,11 +306,13 @@ function showOutput(g: Generated): void {
         ...(g.free ? [badge("bi-pencil", `${g.free} free response`)] : []),
         ...(g.studyGuide ? [] : [badge(g.gradable ? "bi-key" : "bi-key-fill", g.gradable ? "Answer key included" : "No answer key")]),
     );
+    renderNextSteps(g);
     $("print-help").classList.toggle("d-none", answers !== null);
     $("print-help-separate").classList.toggle("d-none", answers === null);
 
     // A letter key only for all multiple-choice tests; free-response ones grade from the JSON.
-    $("key-group").classList.toggle("d-none", !g.key);
+    $("key-details").classList.toggle("d-none", !g.key);
+    $("btn-download-test").classList.toggle("d-none", g.studyGuide);
     $("key-none").classList.toggle("d-none", g.gradable);
     keyNone.innerHTML = g.studyGuide
         ? "This is a study guide: nothing is marked or graded, so there's no answer key. Its answers and explanations print as solutions."
@@ -229,10 +326,10 @@ function showOutput(g: Generated): void {
     $("key-help").textContent = help;
     $("key-help").classList.toggle("d-none", !help);
     $("test-help").textContent = g.studyGuide
-        ? "A study guide can't be graded."
+        ? "A study guide isn't graded, so there is nothing to save for grading."
         : g.gradable
-          ? "The web grader grades from this file."
-          : "The web grader needs this file with an answer for every question.";
+          ? "Grade Sheets reads the right answers from this file when you grade the scans. Keep it with the printed sheets."
+          : "Grade Sheets needs this file with an answer for every question before it can score the scans.";
 
     const firstAnswer = answers === null ? Infinity : g.pages.length - answers;
     previews.replaceChildren(
@@ -293,24 +390,9 @@ async function copyKey(): Promise<void> {
     setTimeout(() => (icon.className = "bi bi-clipboard"), 1500);
 }
 
-/** Copies the Format help as rich text (HTML) with a plain-text fallback, without the button. */
+/** Copies the format rules as a message to paste into an AI chatbot (plain text, so it pastes cleanly into any chat box). */
 async function copyFormatHelp(): Promise<void> {
-    const help = document.querySelector<HTMLElement>(".format-help");
-    if (!help) return;
-    const clone = help.cloneNode(true) as HTMLElement;
-    clone.querySelector(".format-copy")?.remove();
-    const html = clone.innerHTML.trim();
-    const text = help.innerText.replace(/^\s*Copy\s*/, "").trim();
-    try {
-        await navigator.clipboard.write([
-            new ClipboardItem({
-                "text/html": new Blob([html], { type: "text/html" }),
-                "text/plain": new Blob([text], { type: "text/plain" }),
-            }),
-        ]);
-    } catch {
-        await navigator.clipboard.writeText(text).catch(() => {});
-    }
+    if (!(await copyText(formatGuideForAi()))) return;
     const icon = $("copy-format-icon");
     icon.className = "bi bi-clipboard-check";
     setTimeout(() => (icon.className = "bi bi-clipboard"), 1500);
@@ -323,10 +405,11 @@ async function loadFile(file: File): Promise<void> {
         showErrors([{ path: "", where: file.name, message: `File is too large (${Math.round(file.size / 1024)} KB, max 2 MB).` }]);
         return;
     }
-    input.value = await file.text();
+    setInput(await file.text());
     hideErrors();
     markStale();
-    setStatus(`Loaded ${file.name} (${(file.size / 1024).toFixed(1)} KB)`);
+    setStatus(`Loaded ${file.name} (${(file.size / 1024).toFixed(1)} KB).`);
+    if (tidyPaste()) validateNow();
 }
 
 function markStale(): void {
@@ -428,6 +511,32 @@ layoutButton.addEventListener("click", () => {
 });
 
 $("btn-generate").addEventListener("click", generate);
+for (const b of document.querySelectorAll<HTMLElement>("[data-ai-prompt]")) b.addEventListener("click", () => void openAiPrompt());
+// The starter's buttons do what the matching toolbar buttons do.
+for (const b of document.querySelectorAll<HTMLElement>("[data-action]")) {
+    const target = { example: "btn-example", load: "btn-load", library: "btn-open-library" }[b.dataset.action ?? ""];
+    if (target) b.addEventListener("click", () => $(target).click());
+}
+
+// The how-it-works strip is open for a new visitor; once dismissed (or a first sheet is printed) it stays folded in this browser.
+const HOW_KEY = "sheet-generator.how-it-works";
+const how = $<HTMLDetailsElement>("how-it-works");
+try {
+    if (localStorage.getItem(HOW_KEY) === "closed") how.open = false;
+} catch {
+    // Storage unavailable: stay open.
+}
+function collapseHowItWorks(): void {
+    how.open = false;
+}
+how.addEventListener("toggle", () => {
+    try {
+        localStorage.setItem(HOW_KEY, how.open ? "open" : "closed");
+    } catch {
+        // Not remembered.
+    }
+});
+$("btn-hide-how").addEventListener("click", collapseHowItWorks);
 $("btn-print").addEventListener("click", () => window.print());
 $("btn-pdf").addEventListener("click", () => void downloadPdf());
 $("btn-copy-key").addEventListener("click", () => void copyKey());
@@ -451,10 +560,10 @@ const loadMaterial = (m: Material) => {
         showErrors([{ path: "", where: m.name, message: "This is a slide deck, not test JSON. Open it from My Library instead." }]);
         return;
     }
-    input.value = m.content ?? "";
+    setInput(m.content ?? "");
     hideErrors();
     markStale();
-    setStatus(`Loaded "${m.name}" from the library`);
+    setStatus(`Loaded "${m.name}" from the library.`);
     savedAs = m.mine ? m : null;
 };
 /** The library material the editor was loaded from (when it's the user's own), so Save updates it. */
@@ -478,7 +587,7 @@ $("btn-save-library").addEventListener("click", async () => {
         );
         if (saved) {
             savedAs = saved;
-            setStatus(`Saved "${saved.name}" to your library`);
+            setStatus(`Saved "${saved.name}" to your library.`);
         }
     } catch (e) {
         showErrors([{ path: "", where: "Library", message: e instanceof Error ? e.message : String(e) }]);
@@ -502,13 +611,13 @@ fileInput.addEventListener("change", () => {
     fileInput.value = "";
 });
 $("btn-example").addEventListener("click", () => {
-    input.value = JSON.stringify(example, null, 2) + "\n";
+    setInput(JSON.stringify(example, null, 2) + "\n");
     hideErrors();
     markStale();
-    setStatus("Loaded example: ap-macro-unit-4.json");
+    setStatus("Loaded an example test. Choose Print sheets to see how it looks, or edit it to make your own.");
 });
 $("btn-clear").addEventListener("click", () => {
-    input.value = "";
+    setInput("");
     hideErrors();
     markStale();
     setStatus("");
@@ -518,6 +627,23 @@ $("btn-clear").addEventListener("click", () => {
 input.addEventListener("input", () => {
     markStale();
     setStatus("");
+    syncStarter();
+    validateSoon();
+});
+starter.addEventListener("click", (e) => {
+    if (!(e.target as HTMLElement).closest("button")) input.focus();
+});
+input.addEventListener("focus", syncStarter);
+input.addEventListener("blur", syncStarter);
+// A chatbot's reply pasted whole: keep just the JSON, then say what happened.
+input.addEventListener("paste", () => {
+    setTimeout(() => {
+        const cleaned = tidyPaste();
+        syncStarter();
+        markStale();
+        validateNow();
+        if (cleaned) input.scrollTop = 0;
+    }, 0);
 });
 input.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
@@ -546,3 +672,15 @@ dropZone.addEventListener("drop", (e) => {
     const file = e.dataTransfer?.files[0];
     if (file) void loadFile(file);
 });
+
+// A test started in the public free generator (/free-bubble-sheet-generator) arrives here once the teacher has an account.
+try {
+    const handoff = localStorage.getItem("gradelake.handoff");
+    if (handoff) {
+        localStorage.removeItem("gradelake.handoff");
+        if (!input.value.trim()) {
+            setInput(handoff);
+            setStatus("Loaded the test you made in the free generator.");
+        }
+    }
+} catch {}

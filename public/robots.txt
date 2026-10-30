@@ -1,5 +1,10 @@
 User-agent: *
 Allow: /$
+Allow: /free-bubble-sheet-generator
+Allow: /how-to/
+Allow: /test-json-format
+Allow: /zipgrade-alternative
+Allow: /gradescope-alternative
 Allow: /login
 Allow: /register
 Allow: /llms.txt

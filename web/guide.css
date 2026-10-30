@@ -1,0 +1,31 @@
+/* Guide and reference pages (how-to, Test JSON format): a readable single column on the landing tokens. */
+.doc { max-width: 50rem; padding-block: clamp(1.5rem, 4vw, 3rem) clamp(3rem, 6vw, 5rem); }
+.doc h1 { font-size: clamp(2.3rem, 6vw, 3.8rem); margin: 0 0 1rem; text-wrap: balance; }
+.doc h2 { font-size: clamp(1.6rem, 3.5vw, 2.1rem); margin: 2.5rem 0 0.75rem; }
+.doc h3 { font-size: 1.15rem; margin: 0 0 0.25rem; }
+.doc p, .doc li { font-size: 1.08rem; line-height: 1.65; }
+.doc a { color: var(--cobalt); text-decoration: underline; text-underline-offset: 2px; }
+:root[data-bs-theme="dark"] .doc a { color: var(--sky); }
+.doc-lead { font-size: 1.3rem !important; font-weight: 600; color: var(--muted); text-wrap: pretty; }
+.doc-meta { font-size: 0.9rem !important; color: var(--muted); margin: 0 0 1.5rem; }
+.crumbs { font-size: 0.9rem; color: var(--muted); margin-bottom: 1rem; }
+.crumbs a { color: var(--muted); }
+.doc pre { overflow: auto; padding: 1rem; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); font-size: 0.85rem; line-height: 1.5; }
+.doc code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.9em; }
+.doc :not(pre) > code { background: var(--panel); border-radius: 6px; padding: 0.1em 0.35em; }
+.doc-steps { list-style: none; counter-reset: step; padding: 0; display: grid; gap: 1rem; margin: 1rem 0; }
+.doc-steps li { counter-increment: step; position: relative; padding: 1rem 1rem 1rem 4rem; border: 2px solid var(--line); border-radius: 16px; background: var(--card); }
+.doc-steps li::before { content: counter(step); position: absolute; left: 1rem; top: 1rem; display: grid; place-items: center; width: 2.2rem; height: 2.2rem; border-radius: 50%; background: var(--sun); color: #0b1747; font-weight: 800; }
+.doc-steps p { margin: 0; color: var(--muted); }
+.doc-table-wrap { overflow-x: auto; margin: 1rem 0; }
+.doc-table { width: 100%; border-collapse: collapse; font-size: 0.98rem; }
+.doc-table th, .doc-table td { text-align: left; vertical-align: top; padding: 0.55rem 0.7rem; border-bottom: 1px solid var(--line); }
+.doc-table th { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+.doc-cta { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; margin: 3rem 0 1rem; padding: 1.5rem; border-radius: 20px; background: var(--panel); border: 2px solid var(--line); }
+.doc-cta h2 { margin: 0 0 0.3rem; font-size: 1.6rem; }
+.doc-cta p { margin: 0; color: var(--muted); }
+.doc-faq .faq { margin-bottom: 0.6rem; }
+.doc-related ul { padding-left: 1.2rem; }
+.doc-note { font-size: 0.92rem !important; color: var(--muted); }
+.price-nav .nav-link { white-space: nowrap; }
+@media (max-width: 520px) { .price-nav .nav-link:not(:first-of-type) { display: none; } .price-nav .btn { white-space: nowrap; } }

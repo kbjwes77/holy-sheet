@@ -20,6 +20,12 @@
 ## Pages
 
 - [Home](https://gradelake.com/): overview, how it works, features and FAQ
+- [Free Bubble Sheet Generator](https://gradelake.com/free-bubble-sheet-generator): free, no-account tool to write a multiple-choice or written-answer test with boxes and sliders (Simple mode) or Test JSON (Advanced mode), preview the answer sheet, and print it or download a PDF
+- [How to make a printable quiz with ChatGPT or Claude](https://gradelake.com/how-to/make-a-quiz-with-chatgpt-or-claude): step-by-step guide to having an AI chatbot write a quiz in Test JSON and printing it as an answer sheet
+- [How to grade handwritten answers with AI](https://gradelake.com/how-to/grade-handwritten-answers-with-ai): writing free-response questions with a model answer and rubric, scanning, and reviewing AI-proposed scores
+- [Test JSON format reference](https://gradelake.com/test-json-format): every field, limit and rule of the Test JSON test format
+- [ZipGrade alternative](https://gradelake.com/zipgrade-alternative): comparison of Grade Lake and ZipGrade on price, bubble scanning, handwritten answers and test creation
+- [Gradescope alternative](https://gradelake.com/gradescope-alternative): comparison of Grade Lake and Gradescope for individual teachers versus institutions
 - [Pricing](https://gradelake.com/pricing): Free and Pro plans
 - [Privacy Policy](https://gradelake.com/policy)
 - [Terms of Service](https://gradelake.com/terms)

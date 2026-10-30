@@ -33,6 +33,40 @@
                 </div>
             </div>
             <div class="alert theme-success mb-5 d-none" id="subscribed" role="status"><i class="bi bi-check-circle me-1"></i>Thanks for subscribing. The grader is unlocked; it can take a few seconds for your plan to update.</div>
+            <!-- First-run guide: the whole workflow in three steps. Dismissed once and remembered in this browser. -->
+            <section class="card shadow-sm mb-6" id="get-started" aria-labelledby="get-started-title">
+                <div class="d-flex align-items-center gap-3 px-5 pt-4">
+                    <i class="bi bi-signpost-split fg-primary"></i>
+                    <h2 class="h6 fw-semibold mb-0 me-auto" id="get-started-title">Get started: from questions to scores in three steps</h2>
+                    <button type="button" class="btn-sm btn-outline theme-secondary" id="btn-hide-start" title="Hide this guide"><i class="bi bi-x-lg"></i><span class="visually-hidden">Hide this guide</span></button>
+                </div>
+                <ol class="how-steps pt-4">
+                    <li class="how-step">
+                        <span class="how-num">1</span>
+                        <div>
+                            <div class="fw-semibold">Write your questions</div>
+                            <p class="small fg-secondary mb-2">Ask an AI chatbot like Claude or ChatGPT to write a quiz, exam or study guide. We build the prompt for you.</p>
+                            <button type="button" class="btn-sm btn-solid theme-primary" id="btn-ai-prompt"><i class="bi bi-stars me-1"></i>Write questions with AI</button>
+                        </div>
+                    </li>
+                    <li class="how-step">
+                        <span class="how-num">2</span>
+                        <div>
+                            <div class="fw-semibold">Print sheets</div>
+                            <p class="small fg-secondary mb-2">Paste the chatbot's reply into Print Sheets, check the preview, then print or save a PDF with bubble answer sheets.</p>
+                            <a class="btn-sm btn-outline theme-secondary" href="/generator">Open Print Sheets <i class="bi bi-arrow-right ms-1"></i></a>
+                        </div>
+                    </li>
+                    <li class="how-step">
+                        <span class="how-num">3</span>
+                        <div>
+                            <div class="fw-semibold">Scan and grade</div>
+                            <p class="small fg-secondary mb-2">Scan the finished sheets and upload them to Grade Sheets to get every student's score.</p>
+                            <a class="btn-sm btn-outline theme-secondary" href="/grader">Open Grade Sheets <i class="bi bi-arrow-right ms-1"></i></a>
+                        </div>
+                    </li>
+                </ol>
+            </section>
             <div class="alert theme-info mb-5" id="motd-box" role="note">
                 <div class="d-flex align-items-start gap-3">
                     <i class="bi bi-megaphone"></i>

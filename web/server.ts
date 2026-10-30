@@ -25,9 +25,15 @@ import grader from "./grader.html";
 import library from "./library.html";
 import login from "./login.html";
 import policy from "./policy.html";
+import freeGenerator from "./free-generator.html";
+import howToGrade from "./how-to-grade-handwritten.html";
+import howToQuiz from "./how-to-make-a-quiz-with-ai.html";
 import pricing from "./pricing.html";
 import register from "./register.html";
 import slides from "./slides.html";
+import vsGradescope from "./vs-gradescope.html";
+import vsZipgrade from "./vs-zipgrade.html";
+import testJsonFormat from "./test-json-format.html";
 import terms from "./terms.html";
 
 const root = join(import.meta.dir, "..");
@@ -57,7 +63,7 @@ const options = {
     port,
     // Phone photos add up: allow large zips.
     maxRequestBodySize: 1024 * 1024 * 1024,
-    routes: { "/": landing, "/pricing": pricing, "/policy": policy, "/terms": terms, "/billing/success": billingSuccess, "/dashboard": dashboard, "/login": login, "/register": register, "/library": library, "/browse": browse, "/generator": generator, "/grader": grader, "/slides": slides, ...createStatic(join(root, "public"), production), ...app.routes },
+    routes: { "/": landing, "/pricing": pricing, "/free-bubble-sheet-generator": freeGenerator, "/how-to/make-a-quiz-with-chatgpt-or-claude": howToQuiz, "/how-to/grade-handwritten-answers-with-ai": howToGrade, "/test-json-format": testJsonFormat, "/zipgrade-alternative": vsZipgrade, "/gradescope-alternative": vsGradescope, "/policy": policy, "/terms": terms, "/billing/success": billingSuccess, "/dashboard": dashboard, "/login": login, "/register": register, "/library": library, "/browse": browse, "/generator": generator, "/grader": grader, "/slides": slides, ...createStatic(join(root, "public"), production), ...app.routes },
     development: !production,
 };
 const hosts = [...new Set(["127.0.0.1", process.env.HOST?.trim()].filter((h): h is string => !!h))];

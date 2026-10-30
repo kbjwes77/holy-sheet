@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="darkreader-lock" />
+        <title>Test JSON Format: Fields, Limits and Examples | Grade Lake</title>
+        <meta name="description" content="The complete reference for Grade Lake&#x27;s Test JSON format: every field for tests and questions, the limits, figures, characters that can be printed, and common errors." />
+        <link rel="canonical" href="https://gradelake.com/test-json-format" />
+        <meta name="robots" content="index, follow, max-image-preview:large" />
+        <meta name="theme-color" content="#1a3fd1" />
+        <meta property="og:type" content="article" />
+        <meta property="og:site_name" content="Grade Lake" />
+        <meta property="og:url" content="https://gradelake.com/test-json-format" />
+        <meta property="og:title" content="Test JSON format reference" />
+        <meta property="og:description" content="The complete reference for Grade Lake&#x27;s Test JSON format: every field for tests and questions, the limits, figures, characters that can be printed, and common errors." />
+        <meta property="og:image" content="https://gradelake.com/images/og-image.jpg" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="Test JSON format reference" />
+        <meta name="twitter:description" content="The complete reference for Grade Lake&#x27;s Test JSON format: every field for tests and questions, the limits, figures, characters that can be printed, and common errors." />
+        <meta name="twitter:image" content="https://gradelake.com/images/og-image.jpg" />
+
+        <script>
+            let theme = null;
+            try {
+                theme = localStorage.getItem("theme");
+            } catch {}
+            document.documentElement.dataset.bsTheme = theme === "light" || theme === "dark" ? theme : matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        </script>
+        <link rel="stylesheet" href="./landing.css" />
+        <link rel="stylesheet" href="./pricing.css" />
+        <link rel="stylesheet" href="./guide.css" />
+        <link rel="icon" href="../public/images/favicon.ico" sizes="48x48" />
+        <link rel="icon" type="image/svg+xml" href="../public/images/logo-square.svg" />
+        <link rel="icon" type="image/png" sizes="32x32" href="../public/images/favicon-32x32.png" />
+        <link rel="icon" type="image/png" sizes="16x16" href="../public/images/favicon-16x16.png" />
+        <link rel="apple-touch-icon" href="../public/images/apple-touch-icon.png" />
+        <link rel="manifest" href="../public/site.webmanifest" />
+        <script type="application/ld+json">
+            {
+                "@context": "https://schema.org",
+                "@graph": [
+                    {
+                        "@type": "Article",
+                        "@id": "https://gradelake.com/test-json-format#article",
+                        "headline": "Test JSON format reference",
+                        "description": "The complete reference for Grade Lake's Test JSON format: every field for tests and questions, the limits, figures, characters that can be printed, and common errors.",
+                        "url": "https://gradelake.com/test-json-format",
+                        "datePublished": "2026-10-27",
+                        "dateModified": "2026-10-27",
+                        "inLanguage": "en",
+                        "author": {
+                            "@id": "https://gradelake.com/#org"
+                        },
+                        "publisher": {
+                            "@id": "https://gradelake.com/#org"
+                        },
+                        "mainEntityOfPage": "https://gradelake.com/test-json-format",
+                        "image": "https://gradelake.com/images/og-image.jpg"
+                    },
+                    {
+                        "@type": "FAQPage",
+                        "mainEntity": [
+                            {
+                                "@type": "Question",
+                                "name": "What is Test JSON?",
+                                "acceptedAnswer": {
+                                    "@type": "Answer",
+                                    "text": "Test JSON is the plain-text format Grade Lake reads to describe a test: a title, an optional type, and a list of questions with choices and answers. It is standard JSON, so any text editor or AI chatbot can write it."
+                                }
+                            },
+                            {
+                                "@type": "Question",
+                                "name": "Do I have to write Test JSON myself?",
+                                "acceptedAnswer": {
+                                    "@type": "Answer",
+                                    "text": "No. The free generator's Simple mode builds it from text boxes, sliders and buttons, and its AI helper creates a prompt that makes a chatbot write it for you."
+                                }
+                            },
+                            {
+                                "@type": "Question",
+                                "name": "How many questions can a test have?",
+                                "acceptedAnswer": {
+                                    "@type": "Answer",
+                                    "text": "Up to 256 questions, as long as the printed test fits within 16 pages. Multiple-choice questions can have 2 to 8 choices."
+                                }
+                            },
+                            {
+                                "@type": "Question",
+                                "name": "Can a question have more than one correct answer?",
+                                "acceptedAnswer": {
+                                    "@type": "Answer",
+                                    "text": "Yes. List every correct letter in the answer, for example \"AC\", and tell students to select all that apply."
+                                }
+                            },
+                            {
+                                "@type": "Question",
+                                "name": "Why can't I use Greek letters or arrows?",
+                                "acceptedAnswer": {
+                                    "@type": "Answer",
+                                    "text": "Sheets print in a standard PDF font that does not include them. Spell them out, for example \"delta x\" or \"x^2\", or draw them in an SVG figure."
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        "@type": "BreadcrumbList",
+                        "itemListElement": [
+                            {
+                                "@type": "ListItem",
+                                "position": 1,
+                                "name": "Grade Lake",
+                                "item": "https://gradelake.com/"
+                            },
+                            {
+                                "@type": "ListItem",
+                                "position": 2,
+                                "name": "Test JSON format",
+                                "item": "https://gradelake.com/test-json-format"
+                            }
+                        ]
+                    }
+                ]
+            }
+        </script>
+    </head>
+    <body>
+        <div class="wrap">
+            <header class="nav price-nav">
+                <a href="/" class="brand"><img src="../public/images/logo-square.svg" alt="" width="36" height="35" />Grade Lake</a>
+                <a href="/free-bubble-sheet-generator" class="nav-link">Free tool</a>
+                <a href="/pricing" class="nav-link">Pricing</a>
+                <a href="/login" class="nav-link">Sign in</a>
+                <a href="/register" class="btn btn-solid">Create account</a>
+            </header>
+        </div>
+
+        <main>
+            <article class="wrap doc">
+                <nav class="crumbs" aria-label="Breadcrumb"><a href="/">Grade Lake</a> <span aria-hidden="true">/</span> <span>Test JSON format</span></nav>
+                <p class="kicker">Reference</p>
+                <h1>Test JSON format reference</h1>
+                <p class="doc-lead">Test JSON is the plain-text format Grade Lake uses to describe a test: a title, a list of questions, their choices and the correct answers. You can write it by hand, have an AI chatbot write it, or let the free generator build it from boxes and sliders.</p>
+                <p class="doc-meta">Updated <time datetime="2026-10-27">October 27, 2026</time></p>
+
+<h2>A complete example</h2>
+<p>This test has one multiple-choice question and one written-answer question that uses a table.</p>
+<pre><code>{
+  &quot;test&quot;: &quot;Unit 4 Quiz&quot;,
+  &quot;type&quot;: &quot;Quiz&quot;,
+  &quot;instructions&quot;: &quot;Answer every question. Show your work on the back.&quot;,
+  &quot;columns&quot;: 2,
+  &quot;figures&quot;: {
+    &quot;prices&quot;: {
+      &quot;type&quot;: &quot;table&quot;,
+      &quot;content&quot;: &quot;&lt;table&gt;&lt;tr&gt;&lt;th&gt;Price&lt;/th&gt;&lt;th&gt;Quantity&lt;/th&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;$2&lt;/td&gt;&lt;td&gt;100&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&quot;,
+      &quot;caption&quot;: &quot;Figure 1&quot;
+    }
+  },
+  &quot;questions&quot;: [
+    {
+      &quot;prompt&quot;: &quot;Which of these is a prime number?&quot;,
+      &quot;choices&quot;: [&quot;9&quot;, &quot;15&quot;, &quot;17&quot;, &quot;21&quot;],
+      &quot;answer&quot;: &quot;C&quot;,
+      &quot;points&quot;: 1,
+      &quot;explanation&quot;: &quot;17 has no divisors other than 1 and itself.&quot;
+    },
+    {
+      &quot;type&quot;: &quot;Free Response&quot;,
+      &quot;prompt&quot;: &quot;Using the table, what is the quantity at a price of $2?&quot;,
+      &quot;figures&quot;: [&quot;prices&quot;],
+      &quot;answer&quot;: &quot;100&quot;,
+      &quot;rubric&quot;: &quot;1 point: reads 100 from the table.&quot;,
+      &quot;points&quot;: 2,
+      &quot;lines&quot;: 2
+    }
+  ]
+}</code></pre>
+
+<h2>Test fields</h2>
+<div class="doc-table-wrap"><table class="doc-table"><thead><tr><th>Field</th><th>Type</th><th>Required</th><th>What it does</th></tr></thead><tbody><tr><td><code>test</code></td><td>text</td><td>Yes</td><td>The title printed on the sheet (up to 200 characters).</td></tr><tr><td><code>type</code></td><td>text</td><td>No</td><td>&quot;Quiz&quot;, &quot;Exam&quot; or &quot;Study Guide&quot;. A study guide has no bubbles and is not graded.</td></tr><tr><td><code>questions</code></td><td>list</td><td>Yes</td><td>The questions, in order. Up to 256 per test; a test can print at most 16 pages.</td></tr><tr><td><code>figures</code></td><td>object</td><td>No</td><td>Graphs (SVG) and tables (HTML) defined once and referenced by id from questions.</td></tr><tr><td><code>instructions</code></td><td>text</td><td>No</td><td>A line of instructions printed on the sheet.</td></tr><tr><td><code>columns</code></td><td>number</td><td>No</td><td>1 for single-column layout; the default is two columns.</td></tr></tbody></table></div>
+
+<h2>Question fields</h2>
+<div class="doc-table-wrap"><table class="doc-table"><thead><tr><th>Field</th><th>Type</th><th>Required</th><th>What it does</th></tr></thead><tbody><tr><td><code>prompt</code></td><td>text</td><td>Yes</td><td>The question text. Do not type question numbers; the sheet numbers them.</td></tr><tr><td><code>choices</code></td><td>list</td><td>Multiple choice</td><td>2 to 8 plain-text choices. Letters A to H are added when printed, so do not start choices with &quot;A)&quot; or &quot;1.&quot;.</td></tr><tr><td><code>answer</code></td><td>text</td><td>All or none</td><td>Multiple choice: the correct letters, such as &quot;C&quot; or &quot;AC&quot; when two are correct. Written answer: the model answer.</td></tr><tr><td><code>type</code></td><td>text</td><td>Written answer</td><td>&quot;Free Response&quot; makes a written-answer question, which has no choices.</td></tr><tr><td><code>points</code></td><td>whole number</td><td>No</td><td>1 to 100; the default is 1.</td></tr><tr><td><code>rubric</code></td><td>text</td><td>No</td><td>Written answers: what earns each point.</td></tr><tr><td><code>lines</code></td><td>whole number</td><td>No</td><td>Written answers: writing lines in the answer box, 1 to 20; the default is 3.</td></tr><tr><td><code>explanation</code></td><td>text</td><td>No</td><td>Why the answer is correct. Printed as a solution on study guides and teacher copies.</td></tr><tr><td><code>figures</code></td><td>list of ids</td><td>No</td><td>The ids of figures this question uses.</td></tr></tbody></table></div>
+
+<h2>Rules that matter</h2>
+<ul>
+<li><strong>Answers are all or none.</strong> Either every question has an <code>answer</code> or none does. A test with answers can be graded; a test without prints as a plain worksheet.</li>
+<li><strong>Written answers need a model answer</strong> unless the test is a Study Guide.</li>
+<li><strong>Choices are plain text.</strong> No letters or numbers at the start, no question numbers in prompts.</li>
+<li><strong>Limits.</strong> 2 to 8 choices per question, up to 256 questions, up to 2,000 characters in any text field, and at most 16 printed pages.</li>
+<li><strong>Quotes and commas.</strong> Use straight quotes, escape quotes inside text as <code>\"</code>, and no trailing commas or comments.</li>
+</ul>
+
+<h2>Figures: graphs and tables</h2>
+<p>Define each figure once in the top-level <code>figures</code> object and list its id in the question's <code>figures</code> array. A figure has a <code>type</code> of <code>"svg"</code> or <code>"table"</code>, the <code>content</code> as one JSON string, and an optional <code>width</code> in inches and <code>caption</code>. SVGs must be self-contained: one <code>&lt;svg&gt;</code> with a <code>viewBox</code>, attributes for styling, standard fonts (Arial, Times or Courier), and no scripts, images, links or filters. Tables may use <code>table</code>, <code>caption</code>, <code>thead</code>, <code>tbody</code>, <code>tr</code>, <code>th</code> and <code>td</code>.</p>
+
+<h2>Characters that cannot be printed</h2>
+<p>Sheets print in a standard PDF font. Letters, digits, keyboard punctuation, accented Latin letters and a few symbols (° ± × ÷ ² ³ ¼ ½ ¾ µ ¢ £ € § ¶ © ® ™ « » ¿ • – — … and curly quotes) are fine. Greek letters, arrows, math symbols such as ≤ ≥ ≠ √ ∞, other superscripts and subscripts, and emoji are not. Spell them out: "delta x", "pi", "&lt;=", "x^4", "H2O", "sqrt(x)".</p>
+
+<h2>Common errors</h2>
+<ul>
+<li><strong>"JSON syntax: Unexpected end"</strong>: the text was cut off. Copy the whole reply, including the final closing brace.</li>
+<li><strong>A question is missing its answer</strong>: add an answer to every question or remove them all.</li>
+<li><strong>Too many choices</strong>: a question can have at most 8.</li>
+<li><strong>A character that cannot be printed</strong>: replace symbols with words, as above.</li>
+</ul>
+
+<h2>Try it</h2>
+<p>Paste a test into <strong>Advanced</strong> mode of the <a href="/free-bubble-sheet-generator">free bubble sheet generator</a> to see it validated and previewed instantly, or open <strong>Simple</strong> mode to build one without touching JSON.</p>
+
+                <aside class="doc-cta">
+                    <div>
+                        <h2>Make a printable sheet, free</h2>
+                        <p>Type your questions or paste Test JSON, preview the sheet, and download a PDF. No sign-up.</p>
+                    </div>
+                    <a href="/free-bubble-sheet-generator" class="btn btn-solid">Open the free generator</a>
+                </aside>
+
+                <section class="doc-faq" id="faq">
+                    <h2>Questions, answered</h2>
+                    <details class="faq"><summary>What is Test JSON?</summary><p>Test JSON is the plain-text format Grade Lake reads to describe a test: a title, an optional type, and a list of questions with choices and answers. It is standard JSON, so any text editor or AI chatbot can write it.</p></details>
+                    <details class="faq"><summary>Do I have to write Test JSON myself?</summary><p>No. The free generator&#x27;s Simple mode builds it from text boxes, sliders and buttons, and its AI helper creates a prompt that makes a chatbot write it for you.</p></details>
+                    <details class="faq"><summary>How many questions can a test have?</summary><p>Up to 256 questions, as long as the printed test fits within 16 pages. Multiple-choice questions can have 2 to 8 choices.</p></details>
+                    <details class="faq"><summary>Can a question have more than one correct answer?</summary><p>Yes. List every correct letter in the answer, for example &quot;AC&quot;, and tell students to select all that apply.</p></details>
+                    <details class="faq"><summary>Why can&#x27;t I use Greek letters or arrows?</summary><p>Sheets print in a standard PDF font that does not include them. Spell them out, for example &quot;delta x&quot; or &quot;x^2&quot;, or draw them in an SVG figure.</p></details>
+                </section>
+
+                <section class="doc-related">
+                    <h2>Keep reading</h2>
+                    <ul>
+                        <li><a href="/how-to/make-a-quiz-with-chatgpt-or-claude">Make a quiz with ChatGPT or Claude</a></li>
+                        <li><a href="/how-to/grade-handwritten-answers-with-ai">Grade handwritten answers with AI</a></li>
+                        <li><a href="/free-bubble-sheet-generator">Free bubble sheet generator</a></li>
+                    </ul>
+                </section>
+            </article>
+        </main>
+
+        <footer>
+            <div class="wrap">
+                <a href="/" class="brand"><img src="../public/images/logo-square.svg" alt="" width="24" height="23" />Grade Lake</a>
+                <a href="/free-bubble-sheet-generator">Free bubble sheet generator</a>
+                <a href="/pricing">Pricing</a>
+                <a href="/policy">Privacy</a>
+                <a href="/terms">Terms</a>
+                <a href="/login">Sign in</a>
+                <a href="/register">Create account</a>
+            </div>
+        </footer>
+    </body>
+</html>
