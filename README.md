@@ -68,6 +68,11 @@ created on first run).
   Everything except the landing, sign-in and register pages needs an account. `robots.txt`, `sitemap.xml`,
   `llms.txt` and `site.webmanifest` are served from `public/`.
 - **Sessions:** an HttpOnly cookie, 30 days from last use; only a hash of its token is stored.
+- **Email** (`server/email.ts`): a welcome email on sign-up, and password reset: `/forgot-password` emails a single-use
+  link to `/reset-password#token=…` (valid for one hour, newest link only, at most 3 per account per hour). Setting the
+  new password signs out every other session. Sent through Resend's HTTPS API (DigitalOcean blocks outbound SMTP) when
+  `RESEND_EMAIL_API_KEY` is set, otherwise printed to the console. In production it also needs `EMAIL_FROM` and
+  `APP_BASE_URL`; verify the sending domain in Resend and add its SPF/DKIM DNS records.
 - **Materials:** a test's JSON with a type (`StudyGuide`, `Worksheet`, `Quiz`, `Exam`) or an
   uploaded `.pptx` with type `Slides`, plus a name, tags, and a status: `draft` and `private` are
   yours alone, `published` is visible to and downloadable by every signed-in user, who can also copy

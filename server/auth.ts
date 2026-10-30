@@ -1,11 +1,14 @@
 // Accounts and sessions. A session is a random token in an HttpOnly cookie; only its SHA-256 is
 // stored. Sessions last 30 days from last use (sliding), and expired rows are purged hourly.
+// Password reset emails a one-hour, single-use link; reset tokens are stored hashed the same way.
 import type { Database } from "bun:sqlite";
+import { createMailer, type Mailer } from "./email.ts";
 import { fail, json, readObject, sameOrigin } from "./http.ts";
 import { getSetting, now, recordUsage, setSetting, usageSince, type Plan } from "./db.ts";
 
 export const COOKIE = "gl_session";
 export const SESSION_TTL = 30 * 24 * 60 * 60;
+export const RESET_TTL = 60 * 60;
 /** A session's expiry is only pushed out when it has been this long since the last push. */
 const TOUCH_AFTER = 60 * 60;
 const MAX_PASSWORD = 200;
@@ -61,17 +64,23 @@ class RateLimit {
     }
 }
 
-export function createAuth(db: Database, opts: AuthOptions = {}) {
+export function createAuth(db: Database, opts: AuthOptions = {}, mailer: Mailer = createMailer()) {
     const admins = new Set((opts.adminEmails ?? []).map((e) => e.trim().toLowerCase()).filter(Boolean));
     const loginLimit = new RateLimit(10, 15 * 60_000);
     const registerLimit = new RateLimit(opts.signUpsPerHour ?? 10, 60 * 60_000);
+    // Reset requests: per address, and per account so one inbox can't be flooded from many addresses.
+    const forgotIpLimit = new RateLimit(10, 60 * 60_000);
+    const forgotEmailLimit = new RateLimit(3, 60 * 60_000);
     // Verified against when the email is unknown, so a miss takes as long as a wrong password.
     const dummyHash = Bun.password.hashSync("not-a-real-password");
 
     const purge = () => {
         db.query("DELETE FROM sessions WHERE expires_at <= ?").run(now());
+        db.query("DELETE FROM password_resets WHERE expires_at <= ?").run(now());
         loginLimit.sweep();
         registerLimit.sweep();
+        forgotIpLimit.sweep();
+        forgotEmailLimit.sweep();
     };
     purge();
     const timer = setInterval(purge, 60 * 60_000);
@@ -99,9 +108,11 @@ export function createAuth(db: Database, opts: AuthOptions = {}) {
         return null;
     }
 
+    const newToken = () => Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("base64url");
+
     /** Starts a session and returns the Set-Cookie header value. */
     function startSession(userId: number): string {
-        const token = Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("base64url");
+        const token = newToken();
         const t = now();
         db.query("INSERT INTO sessions (token_hash, user_id, created_at, last_seen_at, expires_at) VALUES (?, ?, ?, ?, ?)").run(sha256(token), userId, t, t, t + SESSION_TTL);
         return cookieHeader(token, SESSION_TTL);
@@ -195,6 +206,7 @@ export function createAuth(db: Database, opts: AuthOptions = {}) {
             return fail(409, "an account with that email already exists");
         }
         recordUsage(db, id, "register");
+        void mailer.welcome(email, displayName, mailer.baseUrl(req), id);
         return json({ ok: true }, 201, { "set-cookie": startSession(id) });
     }
 
@@ -215,6 +227,55 @@ export function createAuth(db: Database, opts: AuthOptions = {}) {
         loginLimit.clear(key);
         recordUsage(db, row.id, "login");
         return json({ ok: true }, 200, { "set-cookie": startSession(row.id) });
+    }
+
+    /** Emails a reset link if the account exists. The answer is the same either way, so it doesn't reveal who has an account. */
+    async function forgot(req: Request, server: Bun.Server<unknown>): Promise<Response> {
+        if (!sameOrigin(req)) return fail(403, "cross-origin request refused");
+        const body = await readObject(req);
+        if (body instanceof Response) return body;
+        const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+        if (!EMAIL_RE.test(email) || email.length > 254) return fail(400, "enter a valid email address");
+        const ip = clientKey(req, server);
+        if (forgotIpLimit.blocked(ip)) return fail(429, "too many reset requests; try again later");
+        forgotIpLimit.hit(ip);
+        const row = db.query("SELECT id, display_name FROM users WHERE email = ?").get(email) as { id: number; display_name: string } | null;
+        if (row && !forgotEmailLimit.blocked(email)) {
+            forgotEmailLimit.hit(email);
+            const token = newToken();
+            const t = now();
+            // Only the newest link works.
+            db.transaction(() => {
+                db.query("DELETE FROM password_resets WHERE user_id = ?").run(row.id);
+                db.query("INSERT INTO password_resets (token_hash, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)").run(sha256(token), row.id, t, t + RESET_TTL);
+            })();
+            // In the fragment, so the token stays out of server logs and Referer headers. Not awaited, so timing doesn't tell.
+            void mailer.passwordReset(email, row.display_name, `${mailer.baseUrl(req)}/reset-password#token=${token}`);
+        }
+        return json({ ok: true });
+    }
+
+    /** Sets a new password from a reset link, signs out every other session, and signs this browser in. */
+    async function reset(req: Request): Promise<Response> {
+        if (!sameOrigin(req)) return fail(403, "cross-origin request refused");
+        const body = await readObject(req);
+        if (body instanceof Response) return body;
+        const token = typeof body.token === "string" ? body.token : "";
+        const password = typeof body.password === "string" ? body.password : "";
+        if (password.length < MIN_PASSWORD) return fail(400, `the password must be at least ${MIN_PASSWORD} characters`);
+        if (password.length > MAX_PASSWORD) return fail(400, `the password must be at most ${MAX_PASSWORD} characters`);
+        const hash = await Bun.password.hash(password);
+        const userId = db.transaction(() => {
+            const row = db.query("DELETE FROM password_resets WHERE token_hash = ? AND expires_at > ? RETURNING user_id").get(sha256(token), now()) as { user_id: number } | null;
+            if (!row) return null;
+            db.query("UPDATE users SET password_hash = ? WHERE id = ?").run(hash, row.user_id);
+            db.query("DELETE FROM sessions WHERE user_id = ?").run(row.user_id);
+            db.query("DELETE FROM password_resets WHERE user_id = ?").run(row.user_id);
+            return row.user_id;
+        })();
+        if (userId == null) return fail(400, "this reset link is invalid or has expired; request a new one");
+        recordUsage(db, userId, "password_reset");
+        return json({ ok: true }, 200, { "set-cookie": startSession(userId) });
     }
 
     function logout(req: Request): Response {
@@ -246,6 +307,8 @@ export function createAuth(db: Database, opts: AuthOptions = {}) {
         "/api/auth/register": { POST: register },
         "/api/auth/login": { POST: login },
         "/api/auth/logout": { POST: logout },
+        "/api/auth/forgot": { POST: forgot },
+        "/api/auth/reset": { POST: reset },
         "/api/me": { GET: me },
         "/api/motd": { PUT: putMotd },
     };

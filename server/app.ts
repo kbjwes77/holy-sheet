@@ -4,6 +4,7 @@ import { createGraderApi, type GraderApiOptions } from "../web/grader-api.ts";
 import { createAuth, type AuthOptions } from "./auth.ts";
 import { createBilling, type BillingOptions } from "./billing.ts";
 import { recordUsage } from "./db.ts";
+import { createMailer, type EmailOptions } from "./email.ts";
 import { createGradeRuns } from "./grade-runs.ts";
 import { createMaterialsApi } from "./materials.ts";
 
@@ -12,10 +13,12 @@ export interface AppOptions extends AuthOptions {
     root: string;
     grader?: Partial<GraderApiOptions>;
     billing?: BillingOptions;
+    email?: EmailOptions;
 }
 
 export function createApp(o: AppOptions) {
-    const auth = createAuth(o.db, o);
+    const mailer = createMailer(o.email);
+    const auth = createAuth(o.db, o, mailer);
     const materials = createMaterialsApi(o.db, auth);
     const billing = createBilling(o.db, auth, o.billing);
     const gradeRuns = createGradeRuns(o.db, auth);
@@ -36,6 +39,7 @@ export function createApp(o: AppOptions) {
     return {
         db: o.db,
         auth,
+        mailer,
         graderApi,
         gradeRuns,
         routes: { ...auth.routes, ...materials.routes, ...billing.routes, ...graderApi.routes, ...gradeRuns.routes },

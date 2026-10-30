@@ -3,6 +3,7 @@
 //   /pricing     Free vs Pro (public); Pro is a Stripe subscription (server/billing.ts)
 //   /policy, /terms   Privacy policy and terms of service (public, static)
 //   /dashboard   Dashboard (MOTD and links)         /login, /register   Accounts
+//   /forgot-password, /reset-password   Password reset by emailed link (server/email.ts)
 //   /library     My materials and groups           /browse             Published by the community
 //   /generator   Print Sheets
 //   /grader      Grader: a GUI that drives the grading CLI (grade.ts) through web/grader-api.ts
@@ -16,10 +17,12 @@ import { join } from "node:path";
 import { createApp } from "../server/app.ts";
 import { billingOptionsFromEnv } from "../server/billing.ts";
 import { openDb } from "../server/db.ts";
+import { emailOptionsFromEnv } from "../server/email.ts";
 import { createStatic } from "../server/static.ts";
 import billingSuccess from "./billing-success.html";
 import browse from "./browse.html";
 import dashboard from "./dashboard.html";
+import forgotPassword from "./forgot-password.html";
 import landing from "./landing.html";
 import generator from "./index.html";
 import grader from "./grader.html";
@@ -31,6 +34,7 @@ import howToGrade from "./how-to-grade-handwritten.html";
 import howToQuiz from "./how-to-make-a-quiz-with-ai.html";
 import pricing from "./pricing.html";
 import register from "./register.html";
+import resetPassword from "./reset-password.html";
 import results from "./results.html";
 import slides from "./slides.html";
 import vsGradescope from "./vs-gradescope.html";
@@ -58,6 +62,7 @@ const app = (g.app = createApp({
     adminEmails: (process.env.ADMIN_EMAILS ?? "").split(","),
     trustProxy: process.env.TRUST_PROXY === "1",
     billing: billingOptionsFromEnv(process.env),
+    email: emailOptionsFromEnv(process.env),
 }));
 
 const port = Number(process.env.PORT ?? 3000);
@@ -65,7 +70,7 @@ const options = {
     port,
     // Phone photos add up: allow large zips.
     maxRequestBodySize: 1024 * 1024 * 1024,
-    routes: { "/": landing, "/pricing": pricing, "/free-bubble-sheet-generator": freeGenerator, "/how-to/make-a-quiz-with-chatgpt-or-claude": howToQuiz, "/how-to/grade-handwritten-answers-with-ai": howToGrade, "/test-json-format": testJsonFormat, "/zipgrade-alternative": vsZipgrade, "/gradescope-alternative": vsGradescope, "/policy": policy, "/terms": terms, "/billing/success": billingSuccess, "/dashboard": dashboard, "/login": login, "/register": register, "/library": library, "/browse": browse, "/generator": generator, "/grader": grader, "/results": results, "/slides": slides, ...createStatic(join(root, "public"), production), ...app.routes },
+    routes: { "/": landing, "/pricing": pricing, "/free-bubble-sheet-generator": freeGenerator, "/how-to/make-a-quiz-with-chatgpt-or-claude": howToQuiz, "/how-to/grade-handwritten-answers-with-ai": howToGrade, "/test-json-format": testJsonFormat, "/zipgrade-alternative": vsZipgrade, "/gradescope-alternative": vsGradescope, "/policy": policy, "/terms": terms, "/billing/success": billingSuccess, "/dashboard": dashboard, "/login": login, "/register": register, "/forgot-password": forgotPassword, "/reset-password": resetPassword, "/library": library, "/browse": browse, "/generator": generator, "/grader": grader, "/results": results, "/slides": slides, ...createStatic(join(root, "public"), production), ...app.routes },
     development: !production,
 };
 const hosts = [...new Set(["127.0.0.1", process.env.HOST?.trim()].filter((h): h is string => !!h))];

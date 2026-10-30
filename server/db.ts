@@ -152,6 +152,16 @@ const MIGRATIONS: string[] = [
     CREATE INDEX grade_runs_owner ON grade_runs(owner_id, created_at);
     CREATE INDEX grade_runs_status ON grade_runs(status);
     `,
+    // Password-reset links: only the token's SHA-256 is stored, as with sessions (server/auth.ts).
+    `
+    CREATE TABLE password_resets (
+        token_hash TEXT PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        created_at INTEGER NOT NULL,
+        expires_at INTEGER NOT NULL
+    );
+    CREATE INDEX password_resets_user ON password_resets(user_id);
+    `,
 ];
 
 /** Opens (creating if needed) the database at `path`, or in memory for ":memory:", and migrates it. */
