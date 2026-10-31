@@ -1,6 +1,7 @@
-// Assembles the API: accounts, the material library, the (plan-gated) grader bridge and saved grading runs.
+// Assembles the API: accounts and account settings, the material library, the (plan-gated) grader bridge and saved grading runs.
 import type { Database } from "bun:sqlite";
 import { createGraderApi, type GraderApiOptions } from "../web/grader-api.ts";
+import { createAccount } from "./account.ts";
 import { createAuth, type AuthOptions } from "./auth.ts";
 import { createBilling, type BillingOptions } from "./billing.ts";
 import { recordUsage } from "./db.ts";
@@ -47,13 +48,14 @@ export function createApp(o: AppOptions) {
             if (result.modelRequests === 0) auth.refundPages(userId, result.pages, runId);
         },
     });
+    const account = createAccount(o.db, { auth, mailer, deleteCustomer: billing.deleteCustomer, cancelJobs: (userId) => graderApi.cancelUserJobs(userId) });
     return {
         db: o.db,
         auth,
         mailer,
         graderApi,
         gradeRuns,
-        routes: { ...auth.routes, ...materials.routes, ...billing.routes, ...graderApi.routes, ...gradeRuns.routes },
+        routes: { ...auth.routes, ...account.routes, ...materials.routes, ...billing.routes, ...graderApi.routes, ...gradeRuns.routes },
         shutdown(): void {
             graderApi.shutdown();
             auth.stop();

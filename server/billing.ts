@@ -223,10 +223,33 @@ export function createBilling(db: Database, auth: Auth, o: BillingOptions = {}) 
         return json({ received: true });
     }
 
+    /**
+     * For account deletion: deletes the user's Stripe customer, which ends any subscription at once (no refund for
+     * the rest of the period) and removes their details from Stripe; invoices stay in Stripe's records. Returns
+     * null when done or there's nothing to do, else why it couldn't be done (the account must not be deleted then,
+     * or Stripe would keep billing it).
+     */
+    async function deleteCustomer(userId: number): Promise<string | null> {
+        const row = userRow(userId);
+        if (!row?.stripe_customer_id) return null;
+        if (!stripe) {
+            const live = row.subscription_status && PRO_STATUSES.has(row.subscription_status);
+            return live ? "billing isn't set up on this server, so your subscription can't be cancelled" : null;
+        }
+        try {
+            await stripe.customers.del(row.stripe_customer_id);
+            return null;
+        } catch (e) {
+            if ((e as { code?: string }).code === "resource_missing") return null;
+            console.error(`stripe: couldn't delete customer ${row.stripe_customer_id} of user ${userId}: ${(e as Error).message}`);
+            return "your subscription couldn't be cancelled with Stripe; try again in a few minutes";
+        }
+    }
+
     const routes = {
         "/api/billing/checkout": { POST: checkout },
         "/api/billing/portal": { POST: portal },
         "/api/stripe/webhook": { POST: webhook },
     };
-    return { routes, configured };
+    return { routes, configured, deleteCustomer };
 }

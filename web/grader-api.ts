@@ -426,6 +426,14 @@ export function createGraderApi(o: GraderApiOptions) {
 
     return {
         routes,
+        /** Cancels a user's unfinished jobs (their account is being deleted). */
+        cancelUserJobs(userId: number): void {
+            for (const job of jobs.values()) {
+                if (job.ownerId !== userId || job.done) continue;
+                job.cancelled = true;
+                job.proc.kill();
+            }
+        },
         /** Kills running CLIs and deletes every job's files. */
         shutdown(): void {
             for (const job of [...jobs.values()]) remove(job);

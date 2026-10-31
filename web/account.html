@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="darkreader-lock" />
+        <meta name="robots" content="noindex" />
+        <title>Grade Lake - Account</title>
+        <script>
+            let theme = null;
+            try {
+                theme = localStorage.getItem("theme");
+            } catch {}
+            document.documentElement.dataset.bsTheme = theme === "light" || theme === "dark" ? theme : matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        </script>
+        <link rel="stylesheet" href="../public/css/bootstrap.min.css" />
+        <link rel="stylesheet" href="../public/css/bootstrap-icons.min.css" />
+        <link rel="stylesheet" href="./app.css" />
+        <link rel="icon" href="../public/images/favicon.ico" sizes="48x48" />
+        <link rel="icon" type="image/svg+xml" href="../public/images/logo-square.svg" />
+        <link rel="icon" type="image/png" sizes="32x32" href="../public/images/favicon-32x32.png" />
+        <link rel="icon" type="image/png" sizes="16x16" href="../public/images/favicon-16x16.png" />
+        <link rel="apple-touch-icon" href="../public/images/apple-touch-icon.png" />
+    </head>
+    <body hidden>
+        <nav id="nav"></nav>
+        <main class="container py-7" style="max-width: 44rem">
+            <div class="page-header">
+                <div class="page-header-icon"><i class="bi bi-person-gear"></i></div>
+                <div class="page-header-text">
+                    <h1 class="page-header-title">Account</h1>
+                    <p class="page-header-subtitle">Your name, email address and password, and deleting your account. Your plan and billing are on the <a href="/pricing">Billing</a> page.</p>
+                </div>
+            </div>
+
+            <section class="card shadow-sm mb-5" aria-labelledby="profile-title">
+                <div class="card-body">
+                    <h2 class="h6 mb-4" id="profile-title">Display name</h2>
+                    <form id="name-form" class="d-flex gap-3 flex-wrap align-items-start">
+                        <input class="form-control flex-fill w-auto" id="display-name" maxlength="60" autocomplete="name" required aria-label="Display name" />
+                        <button class="btn-solid theme-primary" type="submit">Save</button>
+                    </form>
+                    <div class="form-text">Shown on materials you publish.</div>
+                    <div class="alert mt-4 mb-0 d-none" id="name-status" role="status"></div>
+                </div>
+            </section>
+
+            <section class="card shadow-sm mb-5" aria-labelledby="email-title">
+                <div class="card-body">
+                    <h2 class="h6 mb-2" id="email-title">Email address</h2>
+                    <p class="small fg-secondary mb-4">You sign in with <strong class="fg-body text-break" id="current-email"></strong>.</p>
+                    <div class="alert theme-info mb-4 d-none" id="email-pending" role="status">
+                        <i class="bi bi-envelope-arrow-up"></i>
+                        <div>
+                            We sent a confirmation link to <strong class="text-break" id="pending-email"></strong>. Your address changes once you open it (within an hour).
+                            <button type="button" class="btn-link btn-sm p-0 align-baseline" id="btn-cancel-email">Cancel the change</button>
+                        </div>
+                    </div>
+                    <form id="email-form">
+                        <div class="mb-4">
+                            <label class="form-label" for="new-email">New email address</label>
+                            <input class="form-control" id="new-email" type="email" maxlength="254" autocomplete="email" required />
+                        </div>
+                        <div class="mb-4">
+                            <label class="form-label" for="email-password">Current password</label>
+                            <input class="form-control" id="email-password" type="password" autocomplete="current-password" required />
+                        </div>
+                        <button class="btn-solid theme-primary" type="submit">Send confirmation link</button>
+                    </form>
+                    <div class="alert mt-4 mb-0 d-none" id="email-status" role="status"></div>
+                </div>
+            </section>
+
+            <section class="card shadow-sm mb-5" aria-labelledby="password-title">
+                <div class="card-body">
+                    <h2 class="h6 mb-4" id="password-title">Password</h2>
+                    <form id="password-form">
+                        <div class="mb-4">
+                            <label class="form-label" for="current-password">Current password</label>
+                            <input class="form-control" id="current-password" type="password" autocomplete="current-password" required />
+                        </div>
+                        <div class="mb-4">
+                            <label class="form-label" for="new-password">New password</label>
+                            <input class="form-control" id="new-password" type="password" minlength="8" maxlength="200" autocomplete="new-password" required />
+                            <div class="form-text">At least 8 characters. This signs you out on your other devices.</div>
+                        </div>
+                        <button class="btn-solid theme-primary" type="submit">Change password</button>
+                    </form>
+                    <div class="alert mt-4 mb-0 d-none" id="password-status" role="status"></div>
+                </div>
+            </section>
+
+            <section class="card shadow-sm border-danger" aria-labelledby="delete-title">
+                <div class="card-body">
+                    <h2 class="h6 fg-danger mb-2" id="delete-title">Delete account</h2>
+                    <p class="small mb-2">This permanently deletes your account, your library and groups (including anything you published), and your saved grading results. It can't be undone.</p>
+                    <p class="small mb-4 d-none" id="delete-billing">Your Pro subscription ends immediately. The rest of the current billing period isn't refunded.</p>
+                    <form id="delete-form">
+                        <div class="mb-4">
+                            <label class="form-label" for="delete-password">Current password</label>
+                            <input class="form-control" id="delete-password" type="password" autocomplete="current-password" required />
+                        </div>
+                        <button class="btn-solid theme-danger" type="submit"><i class="bi bi-trash me-1"></i>Delete my account</button>
+                    </form>
+                    <div class="alert mt-4 mb-0 d-none" id="delete-status" role="alert"></div>
+                </div>
+            </section>
+        </main>
+        <script type="module" src="./account.ts"></script>
+    </body>
+</html>

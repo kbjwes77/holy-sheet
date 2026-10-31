@@ -8,6 +8,7 @@
 //   /generator   Print Sheets
 //   /grader      Grader: a GUI that drives the grading CLI (grade.ts) through web/grader-api.ts
 //   /results     Saved grading runs (server/grade-runs.ts); each reopens in the grader
+//   /account     Account settings (server/account.ts)   /confirm-email   Confirms a change of email address
 // The landing page is public. The other pages are static shells; each checks /api/me and redirects to /login. Everything under
 // /api needs a session, and the grader needs a plan that can grade.
 // It listens on localhost only by default: the grader runs commands and uses the OpenRouter key.
@@ -19,8 +20,10 @@ import { billingOptionsFromEnv } from "../server/billing.ts";
 import { openDb } from "../server/db.ts";
 import { emailOptionsFromEnv } from "../server/email.ts";
 import { createStatic } from "../server/static.ts";
+import account from "./account.html";
 import billingSuccess from "./billing-success.html";
 import browse from "./browse.html";
+import confirmEmail from "./confirm-email.html";
 import dashboard from "./dashboard.html";
 import forgotPassword from "./forgot-password.html";
 import landing from "./landing.html";
@@ -70,7 +73,7 @@ const options = {
     port,
     // Phone photos add up: allow large zips.
     maxRequestBodySize: 1024 * 1024 * 1024,
-    routes: { "/": landing, "/pricing": pricing, "/free-bubble-sheet-generator": freeGenerator, "/how-to/make-a-quiz-with-chatgpt-or-claude": howToQuiz, "/how-to/grade-handwritten-answers-with-ai": howToGrade, "/test-json-format": testJsonFormat, "/zipgrade-alternative": vsZipgrade, "/gradescope-alternative": vsGradescope, "/policy": policy, "/terms": terms, "/billing/success": billingSuccess, "/dashboard": dashboard, "/login": login, "/register": register, "/forgot-password": forgotPassword, "/reset-password": resetPassword, "/library": library, "/browse": browse, "/generator": generator, "/grader": grader, "/results": results, "/slides": slides, ...createStatic(join(root, "public"), production), ...app.routes },
+    routes: { "/": landing, "/pricing": pricing, "/free-bubble-sheet-generator": freeGenerator, "/how-to/make-a-quiz-with-chatgpt-or-claude": howToQuiz, "/how-to/grade-handwritten-answers-with-ai": howToGrade, "/test-json-format": testJsonFormat, "/zipgrade-alternative": vsZipgrade, "/gradescope-alternative": vsGradescope, "/policy": policy, "/terms": terms, "/billing/success": billingSuccess, "/dashboard": dashboard, "/login": login, "/register": register, "/forgot-password": forgotPassword, "/reset-password": resetPassword, "/library": library, "/browse": browse, "/generator": generator, "/grader": grader, "/results": results, "/account": account, "/confirm-email": confirmEmail, "/slides": slides, ...createStatic(join(root, "public"), production), ...app.routes },
     development: !production,
 };
 const hosts = [...new Set(["127.0.0.1", process.env.HOST?.trim()].filter((h): h is string => !!h))];

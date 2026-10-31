@@ -187,9 +187,13 @@ export async function startPage(active: string): Promise<{ me: Me; motd: string 
         await api("/api/auth/logout", { method: "POST" }).catch(() => {});
         location.assign("/login");
     });
-    const who = el("div", "small fg-secondary text-truncate px-3");
-    who.innerHTML = '<i class="bi bi-person me-2"></i>';
-    who.append(user.displayName);
+    // The signed-in user's name, linking to their account settings.
+    const who = el("a", `sidebar-link small${active === "account" ? " active" : ""}`);
+    who.href = "/account";
+    who.title = "Account settings";
+    if (active === "account") who.ariaCurrent = "page";
+    who.innerHTML = '<i class="bi bi-person-gear"></i>';
+    who.append(el("span", "text-truncate", user.displayName));
     const footer = el("div", "sidebar-footer");
     footer.append(who, themeSwitch(), out);
 

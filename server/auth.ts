@@ -13,10 +13,10 @@ export const RESET_TTL = 60 * 60;
 export const PAGES_PER_MONTH = 2500;
 /** A session's expiry is only pushed out when it has been this long since the last push. */
 const TOUCH_AFTER = 60 * 60;
-const MAX_PASSWORD = 200;
-const MIN_PASSWORD = 8;
+export const MAX_PASSWORD = 200;
+export const MIN_PASSWORD = 8;
 const MAX_MOTD = 1000;
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export interface User {
     id: number;
@@ -41,10 +41,10 @@ export interface AuthOptions {
     pagesPerMonth?: number;
 }
 
-const sha256 = (s: string) => new Bun.CryptoHasher("sha256").update(s).digest("hex");
+export const sha256 = (s: string) => new Bun.CryptoHasher("sha256").update(s).digest("hex");
 
 /** Failed-attempt limiter: `max` tries per `windowMs` for a key. */
-class RateLimit {
+export class RateLimit {
     private hits = new Map<string, number[]>();
     constructor(
         private max: number,
@@ -81,6 +81,7 @@ export function createAuth(db: Database, opts: AuthOptions = {}, mailer: Mailer 
     const purge = () => {
         db.query("DELETE FROM sessions WHERE expires_at <= ?").run(now());
         db.query("DELETE FROM password_resets WHERE expires_at <= ?").run(now());
+        db.query("DELETE FROM email_changes WHERE expires_at <= ?").run(now());
         loginLimit.sweep();
         registerLimit.sweep();
         forgotIpLimit.sweep();
@@ -204,7 +205,8 @@ export function createAuth(db: Database, opts: AuthOptions = {}, mailer: Mailer 
     }
 
     function refundPages(userId: number, pages: number, runId?: number): void {
-        if (pages > 0) recordUsage(db, userId, "grade_pages", -pages, { runId, refund: true });
+        // The account may have been deleted while the run was going.
+        if (pages > 0 && db.query("SELECT 1 FROM users WHERE id = ?").get(userId)) recordUsage(db, userId, "grade_pages", -pages, { runId, refund: true });
     }
 
     function publicUser(user: User) {
@@ -312,6 +314,8 @@ export function createAuth(db: Database, opts: AuthOptions = {}, mailer: Mailer 
             db.query("UPDATE users SET password_hash = ? WHERE id = ?").run(hash, row.user_id);
             db.query("DELETE FROM sessions WHERE user_id = ?").run(row.user_id);
             db.query("DELETE FROM password_resets WHERE user_id = ?").run(row.user_id);
+            // A pending email change may be someone else's doing; a reset cancels it (the change notice says so).
+            db.query("DELETE FROM email_changes WHERE user_id = ?").run(row.user_id);
             return row.user_id;
         })();
         if (userId == null) return fail(400, "this reset link is invalid or has expired; request a new one");
@@ -354,7 +358,27 @@ export function createAuth(db: Database, opts: AuthOptions = {}, mailer: Mailer 
         "/api/motd": { PUT: putMotd },
     };
 
-    return { routes, userFrom, requireUser, requireGrader, canGrade, admitPages, chargePages, refundPages, stop: () => clearInterval(timer) };
+    /** The hash of the request's session token, as stored in `sessions`, or null. */
+    const sessionHash = (req: Request): string | null => {
+        const token = readToken(req);
+        return token ? sha256(token) : null;
+    };
+
+    return {
+        routes,
+        userFrom,
+        requireUser,
+        requireGrader,
+        canGrade,
+        admitPages,
+        chargePages,
+        refundPages,
+        publicUser,
+        newToken,
+        sessionHash,
+        clearCookie: () => cookieHeader("", 0),
+        stop: () => clearInterval(timer),
+    };
 }
 
 export type Auth = ReturnType<typeof createAuth>;

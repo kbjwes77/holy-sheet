@@ -162,6 +162,17 @@ const MIGRATIONS: string[] = [
     );
     CREATE INDEX password_resets_user ON password_resets(user_id);
     `,
+    // Email changes waiting for the new address to be confirmed: only the token's SHA-256 is stored (server/account.ts).
+    `
+    CREATE TABLE email_changes (
+        token_hash TEXT PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        new_email TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        expires_at INTEGER NOT NULL
+    );
+    CREATE INDEX email_changes_user ON email_changes(user_id);
+    `,
 ];
 
 /** Opens (creating if needed) the database at `path`, or in memory for ":memory:", and migrates it. */

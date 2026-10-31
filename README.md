@@ -73,6 +73,13 @@ created on first run).
   new password signs out every other session. Sent through Resend's HTTPS API (DigitalOcean blocks outbound SMTP) when
   `RESEND_EMAIL_API_KEY` is set, otherwise printed to the console. In production it also needs `EMAIL_FROM` and
   `APP_BASE_URL`; verify the sending domain in Resend and add its SPF/DKIM DNS records.
+- **Account settings** (`/account`, `server/account.ts`): change the display name; change the password (needs the
+  current one, keeps this session and ends the others); change the email address, which emails a one-hour link to
+  `/confirm-email#token=…` at the new address and a notice to the old one, and takes effect only when the link is
+  opened (a password reset or change cancels a pending change); and delete the account. Deleting needs the password,
+  stops the user's grading jobs, deletes their Stripe customer (ending any subscription immediately, without a refund),
+  then deletes the user and everything that cascades from it. If Stripe can't be reached the account is kept. Wrong
+  current passwords are limited to 5 per account per 15 minutes.
 - **Materials:** a test's JSON with a type (`StudyGuide`, `Worksheet`, `Quiz`, `Exam`) or an
   uploaded `.pptx` with type `Slides`, plus a name, tags, and a status: `draft` and `private` are
   yours alone, `published` is visible to and downloadable by every signed-in user, who can also copy

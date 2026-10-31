@@ -74,6 +74,9 @@ export function createMailer(o: EmailOptions = {}) {
         send,
         welcome: (to: string, name: string, base: string, userId: number) => send({ to, ...welcomeEmail(name, base), idempotencyKey: `welcome-${userId}` }),
         passwordReset: (to: string, name: string, link: string) => send({ to, ...passwordResetEmail(name, link) }),
+        emailChange: (to: string, name: string, link: string) => send({ to, ...emailChangeEmail(name, link) }),
+        emailChangeNotice: (to: string, name: string, newEmail: string, base: string) => send({ to, ...emailChangeNoticeEmail(name, newEmail, base) }),
+        accountDeleted: (to: string, name: string) => send({ to, ...accountDeletedEmail(name) }),
     };
 }
 
@@ -115,5 +118,38 @@ export function passwordResetEmail(name: string, link: string) {
 ${button(link, "Choose a new password")}
 <p style="color:#616e7c;font-size:14px">If it wasn't you, ignore this email; your password stays the same.</p>`),
         text: `Hi ${name},\n\nSomeone asked to reset the password for your Grade Lake account. This link works once, for one hour:\n\n${link}\n\nIf it wasn't you, ignore this email; your password stays the same.`,
+    };
+}
+
+export function emailChangeEmail(name: string, link: string) {
+    return {
+        subject: "Confirm your new Grade Lake email address",
+        html: layout(`<p>Hi ${escapeHtml(name)},</p>
+<p>Confirm that you want to use this address for your Grade Lake account. The link works once, for one hour.</p>
+${button(link, "Confirm this address")}
+<p style="color:#616e7c;font-size:14px">If you didn't ask for this, ignore this email; nothing changes.</p>`),
+        text: `Hi ${name},\n\nConfirm that you want to use this address for your Grade Lake account. This link works once, for one hour:\n\n${link}\n\nIf you didn't ask for this, ignore this email; nothing changes.`,
+    };
+}
+
+export function emailChangeNoticeEmail(name: string, newEmail: string, base: string) {
+    const link = `${base}/forgot-password`;
+    return {
+        subject: "Your Grade Lake email address is being changed",
+        html: layout(`<p>Hi ${escapeHtml(name)},</p>
+<p>Someone signed in to your Grade Lake account asked to change its email address to <strong>${escapeHtml(newEmail)}</strong>. It changes once that address is confirmed.</p>
+<p>If this wasn't you, reset your password now, which signs everyone else out and cancels the change.</p>
+${button(link, "Reset my password")}`),
+        text: `Hi ${name},\n\nSomeone signed in to your Grade Lake account asked to change its email address to ${newEmail}. It changes once that address is confirmed.\n\nIf this wasn't you, reset your password now, which signs everyone else out and cancels the change: ${link}`,
+    };
+}
+
+export function accountDeletedEmail(name: string) {
+    return {
+        subject: "Your Grade Lake account was deleted",
+        html: layout(`<p>Hi ${escapeHtml(name)},</p>
+<p>Your Grade Lake account has been deleted, with your library, saved grading results and any subscription. Thanks for using Grade Lake.</p>
+<p style="color:#616e7c;font-size:14px">If you didn't do this, reply to this email.</p>`),
+        text: `Hi ${name},\n\nYour Grade Lake account has been deleted, with your library, saved grading results and any subscription. Thanks for using Grade Lake.\n\nIf you didn't do this, reply to this email.`,
     };
 }
