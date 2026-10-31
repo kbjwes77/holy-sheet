@@ -14,6 +14,8 @@ export interface AppOptions extends AuthOptions {
     grader?: Partial<GraderApiOptions>;
     billing?: BillingOptions;
     email?: EmailOptions;
+    /** Grading jobs one user may have unfinished, and that may be working across all users (defaults 1 and 3). */
+    limits?: { jobsPerUser?: number; jobs?: number };
 }
 
 export function createApp(o: AppOptions) {
@@ -30,11 +32,20 @@ export function createApp(o: AppOptions) {
             const user = action === "job" ? auth.requireGrader(req) : auth.requireUser(req);
             return user instanceof Response ? user : { userId: user.id };
         },
+        maxJobsPerUser: o.limits?.jobsPerUser ?? 1,
+        maxJobs: o.limits?.jobs ?? 3,
+        admit: (userId, { pages }) => auth.admitPages(userId, pages),
         onJob: (userId, info) => {
             recordUsage(o.db, userId, "grade_run", 1, { name: info.name, hasTest: info.hasTest });
-            return gradeRuns.start(userId, { uploadName: info.name, testTitle: info.testTitle, materialId: info.materialId });
+            const runId = gradeRuns.start(userId, { uploadName: info.name, testTitle: info.testTitle, materialId: info.materialId });
+            auth.chargePages(userId, info.pages, runId);
+            return runId;
         },
-        onDone: (runId, result) => gradeRuns.finish(runId, result),
+        onDone: (runId, result, userId) => {
+            gradeRuns.finish(runId, result);
+            // No model was called, so the run cost nothing: give its pages back.
+            if (result.modelRequests === 0) auth.refundPages(userId, result.pages, runId);
+        },
     });
     return {
         db: o.db,

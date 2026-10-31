@@ -9,7 +9,8 @@ export interface Me {
     isAdmin: boolean;
     canGrade: boolean;
     billing: { trialAvailable: boolean; manageable: boolean; status: string | null; interval: "month" | "year" | null; periodEnd: number | null; cancelAtPeriodEnd: boolean };
-    usage: { gradeRunsThisMonth: number };
+    /** pageLimit is null when there is no monthly limit (admins); resetsAt is when the month's pages reset (epoch seconds). */
+    usage: { gradeRunsThisMonth: number; pagesThisMonth: number; pageLimit: number | null; resetsAt: number };
 }
 
 export const MATERIAL_TYPES = ["StudyGuide", "Worksheet", "Quiz", "Exam", "Slides"] as const;

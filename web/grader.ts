@@ -25,10 +25,11 @@ import {
 } from "../src/review.ts";
 import type { QuestionStat } from "../server/grade-runs.ts";
 import type { JobEvent } from "./grader-api.ts";
-import { api, errorText, startPage } from "./common.ts";
+import { api, errorText, startPage, type Me } from "./common.ts";
 import { pickMaterial } from "./library-dialogs.ts";
+import { countZipPages } from "../src/zip.ts";
 
-await startPage("grader");
+const { me } = await startPage("grader");
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -79,6 +80,52 @@ const IMAGE = /\.(jpe?g|png)$/i;
 const byName = (a: File, b: File) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" });
 /** The chosen test JSON, once it validates with an answer for every question. */
 let test: { file: File; key: GradingKey; materialId?: number } | null = null;
+
+// ---- Page allowance ------------------------------------------------------------
+// Pro accounts grade up to a monthly number of pages; the server enforces it, this only shows it.
+
+let usage: Me["usage"] = me.usage;
+/** Page images in the chosen upload, once counted (a zip is read to count them). */
+let inputPages: number | null = null;
+let countSeq = 0;
+
+function countInputPages(): void {
+    const seq = ++countSeq;
+    inputPages = input?.kind === "images" ? input.files.length : null;
+    renderAllowance();
+    if (input?.kind !== "zip") return;
+    void input.file
+        .arrayBuffer()
+        .then((buf) => {
+            if (seq !== countSeq) return;
+            inputPages = countZipPages(new Uint8Array(buf));
+            renderAllowance();
+        })
+        .catch(() => {});
+}
+
+function renderAllowance(): void {
+    const box = $("page-allowance");
+    const limit = usage.pageLimit;
+    if (limit === null || !me.canGrade) return void (box.textContent = "");
+    const left = Math.max(0, limit - usage.pagesThisMonth);
+    const over = inputPages !== null && inputPages > left;
+    const upload = inputPages !== null ? `This upload: ${plural(inputPages, "page")} · ` : "";
+    box.textContent = `${upload}${left.toLocaleString()} of ${limit.toLocaleString()} pages left this month${over ? " (not enough for this upload)" : ""}`;
+    box.className = `small me-auto ${over ? "fg-danger" : "fg-secondary"}`;
+    box.title = `Your page allowance resets on ${new Date(usage.resetsAt * 1000).toLocaleDateString(undefined, { month: "long", day: "numeric", timeZone: "UTC" })}.`;
+}
+
+/** Re-reads the allowance after a run is charged or refunded. */
+function refreshUsage(): void {
+    api<{ user: Me }>("/api/me")
+        .then(({ user }) => {
+            usage = user.usage;
+            renderAllowance();
+        })
+        .catch(() => {});
+}
+
 const optMark = $<HTMLInputElement>("opt-mark");
 const optBlank = $<HTMLInputElement>("opt-blank");
 const optDebug = $<HTMLInputElement>("opt-debug");
@@ -122,6 +169,7 @@ function renderInput(): void {
     );
     show(list, files.length > 0);
     show($("file-empty"), !files.length);
+    countInputPages();
     const total = files.reduce((n, f) => n + f.size, 0);
     $("file-summary").textContent = !input
         ? "Pages are graded in order: zip entries as stored, images by file name. Keep each student's pages together, page 1 first."
@@ -334,6 +382,7 @@ async function grade(): Promise<void> {
         const job = await upload(bytes, testFile, params);
         jobId = job.id;
         runId = job.runId ?? null;
+        refreshUsage();
     } catch (e) {
         setRunning(false);
         setReviewPlaceholder("Nothing to review yet", "Add the scanned sheets and the test, then choose Grade.");
@@ -413,6 +462,7 @@ function onEvent(e: JobEvent): void {
             setReviewPlaceholder("Nothing left to review", "Grading is finished; see the results.");
             progress(1, false);
             showResults(e);
+            refreshUsage();
             show($("btn-view-results"));
             openPanel("panel-results");
             return;
@@ -1491,12 +1541,7 @@ fetch("/api/grader/info")
     .catch(() => inputError("Couldn't reach the grader server. Start it with `bun run web`."));
 
 // Starting a run needs a plan that can grade; say so up front rather than after the upload.
-fetch("/api/me")
-    .then((r) => (r.ok ? (r.json() as Promise<{ user: { canGrade: boolean } }>) : null))
-    .then((me) => {
-        if (me && !me.user.canGrade) show($("plan-warning"));
-    })
-    .catch(() => {});
+if (!me.canGrade) show($("plan-warning"));
 
 renderInput();
 

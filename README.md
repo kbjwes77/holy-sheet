@@ -94,6 +94,11 @@ created on first run).
 - **Grading** needs a Pro plan (or an admin account). You can also set plans by hand from the server:
   `bun run user plan you@example.com pro`, `bun run user admin you@example.com on`, `bun run user list`.
   Grading runs and downloads are recorded in `usage_events`.
+- **Grading limits:** one unfinished grading job per user (one waiting on its review counts), and at most 3 jobs working at
+  once across all users (one waiting on review doesn't count); beyond either, starting a job answers 429. Each non-admin
+  account may grade 2,500 pages (page images in the upload) per calendar month, UTC (`PAGES_PER_MONTH` in
+  `server/auth.ts`). Pages are charged as `grade_pages` usage events when a job starts and refunded if it ends before
+  calling any model. The limits are `limits` and `pagesPerMonth` in `createApp`'s options.
 - Emails in `ADMIN_EMAILS` become admins when they register and can edit the message of the day.
 - Production: `bun run start` marks the cookie `Secure`, so serve it over HTTPS (a reverse proxy
   forwarding to `127.0.0.1:3000`, with `TRUST_PROXY=1`). Back up the `data/` folder.

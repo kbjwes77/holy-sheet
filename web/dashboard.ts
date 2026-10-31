@@ -4,8 +4,9 @@ import { $, api, el, errorText, startPage } from "./common.ts";
 const { me, motd } = await startPage("dashboard");
 
 $("name").textContent = me.displayName;
-const runs = me.usage.gradeRunsThisMonth;
-$("plan-line").textContent = `${me.plan === "pro" ? "Pro plan" : "Free plan"}${me.canGrade ? ` · ${runs} grading run${runs === 1 ? "" : "s"} this month` : " · grading needs a Pro plan"}`;
+const { gradeRunsThisMonth: runs, pagesThisMonth, pageLimit } = me.usage;
+const pagesLeft = pageLimit === null ? "" : ` · ${Math.max(0, pageLimit - pagesThisMonth).toLocaleString()} of ${pageLimit.toLocaleString()} pages left`;
+$("plan-line").textContent = `${me.plan === "pro" ? "Pro plan" : "Free plan"}${me.canGrade ? ` · ${runs} grading run${runs === 1 ? "" : "s"} this month${pagesLeft}` : " · grading needs a Pro plan"}`;
 
 if (new URLSearchParams(location.search).get("subscribed") === "1") $("subscribed").classList.remove("d-none");
 

@@ -19,6 +19,22 @@ export function isPageImage(path: string): boolean {
     return !base.startsWith(".") && IMAGE.test(base);
 }
 
+/** Page images in a zip, counted as readZipImages would read them, without inflating anything; 0 if it isn't a zip. */
+export function countZipPages(bytes: Uint8Array): number {
+    let n = 0;
+    try {
+        unzipSync(bytes, {
+            filter: (f) => {
+                if (isPageImage(f.name)) n++;
+                return false;
+            },
+        });
+    } catch {
+        return 0;
+    }
+    return n;
+}
+
 export function readZipImages(bytes: Uint8Array): ZipImage[] {
     const order: string[] = [];
     let files: Record<string, Uint8Array>;

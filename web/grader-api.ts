@@ -11,8 +11,9 @@ import { basename, join, relative, resolve, sep } from "node:path";
 import { zipSync } from "fflate";
 import { sameOrigin } from "../server/http.ts";
 import { DEFAULT_THRESHOLDS } from "../src/pipeline.ts";
-import { StderrParser, summarizeStderr, type Skipped, type StderrEvent } from "../src/report.ts";
+import { REQUESTS_RE, StderrParser, summarizeStderr, type Skipped, type StderrEvent } from "../src/report.ts";
 import { REVIEW_FILE, REVIEW_START_RE, type ReviewFile, type ReviewItem, type ReviewThresholds } from "../src/review.ts";
+import { countZipPages } from "../src/zip.ts";
 
 export type JobEvent =
     | StderrEvent
@@ -39,6 +40,10 @@ interface Job {
     ownerId: number;
     /** The saved run `onJob` created for it, if any. */
     runId?: number;
+    /** Page images in the upload. */
+    pages: number;
+    /** Model requests the CLI said it would make (0 until it says; none are made before then). */
+    modelRequests: number;
 }
 
 /** A finished job's outcome, for `onDone`. */
@@ -49,6 +54,10 @@ export interface JobResult {
     totals?: string;
     fatal?: string;
     skipped: Skipped[];
+    /** Page images in the upload. */
+    pages: number;
+    /** Model requests the run set out to make; 0 means it ended before calling any model. */
+    modelRequests: number;
 }
 
 export interface GraderApiOptions {
@@ -68,9 +77,18 @@ export interface GraderApiOptions {
      * Called when a job starts, e.g. to record usage. It may return the id of a run saved for the
      * job, which is sent to the page and handed back to `onDone`.
      */
-    onJob?: (userId: number, info: { name: string; hasTest: boolean; testTitle?: string; materialId?: number }) => number | void;
-    /** Called once when a job with a saved run ends, however it ends. */
-    onDone?: (runId: number, result: JobResult) => void;
+    onJob?: (userId: number, info: { name: string; hasTest: boolean; testTitle?: string; materialId?: number; pages: number }) => number | void;
+    /** Called once when a job with a saved run ends, however it ends, with the user who started it. */
+    onDone?: (runId: number, result: JobResult, userId: number) => void;
+    /** Jobs one user may have unfinished at once, including one waiting on its review (default: no limit). */
+    maxJobsPerUser?: number;
+    /**
+     * Jobs that may be working at once across all users (default: no limit). A job waiting on the
+     * teacher's review uses no resources, so it doesn't count.
+     */
+    maxJobs?: number;
+    /** Decides whether a user may grade this many pages (e.g. a monthly budget): null to go ahead, or the response to send. */
+    admit?: (userId: number, info: { pages: number }) => Response | null;
 }
 
 const OCR_VARS = ["OPENROUTER_API_KEY", "VISION_MODEL", "REASONING_MODEL"] as const;
@@ -127,6 +145,8 @@ export function createGraderApi(o: GraderApiOptions) {
                 if (e.type === "prompt" || e.type === "keyError" || e.type === "reviewPrompt" || e.type === "reviewError") job.awaitingInput = true;
                 if (e.type === "keyAccepted") job.awaitingInput = false;
                 if (e.type === "prompt") job.waitingAt = "key";
+                const requests = e.type === "log" && REQUESTS_RE.exec(e.text);
+                if (requests) job.modelRequests = Number(requests[2]);
                 if (e.type === "reviewPrompt") job.waitingAt = String(e.item);
                 emit(job, e);
                 const review = e.type === "log" && REVIEW_START_RE.exec(e.text);
@@ -155,10 +175,22 @@ export function createGraderApi(o: GraderApiOptions) {
         }
         job.done = true;
         job.awaitingInput = false;
-        const result: JobResult = { exitCode: job.cancelled ? null : exitCode, cancelled: job.cancelled, csv, totals: summary.totals, fatal: summary.fatal, skipped: summary.skipped };
+        const result: JobResult = { exitCode: job.cancelled ? null : exitCode, cancelled: job.cancelled, csv, totals: summary.totals, fatal: summary.fatal, skipped: summary.skipped, pages: job.pages, modelRequests: job.modelRequests };
         saveRun(job, result);
         emit(job, { type: "done", exitCode: result.exitCode, cancelled: job.cancelled, csv, images: job.images });
         setTimeout(() => remove(job), keepMs).unref?.();
+    }
+
+    /** The response refusing a new job for this user when the concurrency limits are reached, or null. */
+    function tooBusy(userId: number): Response | null {
+        const unfinished = [...jobs.values()].filter((j) => !j.done);
+        if (o.maxJobsPerUser !== undefined && unfinished.filter((j) => j.ownerId === userId).length >= o.maxJobsPerUser) {
+            return fail(429, "you already have a grading run in progress; finish or cancel it before starting another");
+        }
+        if (o.maxJobs !== undefined && unfinished.filter((j) => !j.awaitingInput).length >= o.maxJobs) {
+            return Response.json({ error: "the grader is busy with other teachers' runs right now; try again in a minute" }, { status: 429, headers: { "retry-after": "60" } });
+        }
+        return null;
     }
 
     /** Hands the outcome to `onDone`, once per job. */
@@ -167,7 +199,7 @@ export function createGraderApi(o: GraderApiOptions) {
         const runId = job.runId;
         job.runId = undefined;
         try {
-            o.onDone?.(runId, result);
+            o.onDone?.(runId, result, job.ownerId);
         } catch (e) {
             console.error(`couldn't save grading run ${runId}: ${(e as Error).message}`);
         }
@@ -200,6 +232,9 @@ export function createGraderApi(o: GraderApiOptions) {
         if (!sameOrigin(req)) return fail(403, "cross-origin request refused");
         const who = authorize(req, "job");
         if (who instanceof Response) return who;
+        // Checked before the upload is read, to refuse early, and again just before starting.
+        const busy = tooBusy(who.userId);
+        if (busy) return busy;
         const url = new URL(req.url);
         let zip: Uint8Array;
         let test: { name: string; bytes: Uint8Array } | null = null;
@@ -234,6 +269,13 @@ export function createGraderApi(o: GraderApiOptions) {
         const material = url.searchParams.get("material");
         const materialId = material && /^\d+$/.test(material) ? Number(material) : undefined;
 
+        // Nothing below awaits, so no other job can start between these checks and this one starting.
+        const stillBusy = tooBusy(who.userId);
+        if (stillBusy) return stillBusy;
+        const pages = countZipPages(zip);
+        const refused = o.admit?.(who.userId, { pages });
+        if (refused) return refused;
+
         const dir = mkdtempSync(join(tmpdir(), "quiznotes-grade-"));
         const zipPath = join(dir, name);
         writeFileSync(zipPath, zip);
@@ -252,9 +294,9 @@ export function createGraderApi(o: GraderApiOptions) {
             stderr: "pipe",
         });
         const id = crypto.randomUUID();
-        const job: Job = { id, dir, proc, events: [], listeners: new Set(), awaitingInput: false, waitingAt: null, cancelled: false, done: false, images: [], ownerId: who.userId };
+        const job: Job = { id, dir, proc, events: [], listeners: new Set(), awaitingInput: false, waitingAt: null, cancelled: false, done: false, images: [], ownerId: who.userId, pages, modelRequests: 0 };
         jobs.set(id, job);
-        const runId = o.onJob?.(who.userId, { name, hasTest: !!test, testTitle: test ? testTitle(test.bytes) : undefined, materialId }) ?? undefined;
+        const runId = o.onJob?.(who.userId, { name, hasTest: !!test, testTitle: test ? testTitle(test.bytes) : undefined, materialId, pages }) ?? undefined;
         job.runId = runId;
         // The command as the user would type it: the test by its own name, not its temp path.
         const shown = test ? ["--test", test.name, ...args.slice(2)] : args;
@@ -262,7 +304,7 @@ export function createGraderApi(o: GraderApiOptions) {
         void run(job).catch((e) => {
             job.done = true;
             const fatal = `web grader: ${(e as Error).message}`;
-            saveRun(job, { exitCode: 1, cancelled: false, csv: "", fatal, skipped: [] });
+            saveRun(job, { exitCode: 1, cancelled: false, csv: "", fatal, skipped: [], pages: job.pages, modelRequests: job.modelRequests });
             emit(job, { type: "log", text: `fatal: ${fatal}` });
             emit(job, { type: "done", exitCode: 1, cancelled: false, csv: "", images: [] });
         });

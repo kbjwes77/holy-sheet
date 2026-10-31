@@ -9,6 +9,8 @@ import { getSetting, now, recordUsage, setSetting, usageSince, type Plan } from 
 export const COOKIE = "gl_session";
 export const SESSION_TTL = 30 * 24 * 60 * 60;
 export const RESET_TTL = 60 * 60;
+/** Pages a Pro account may grade per calendar month (UTC); admins have no limit. */
+export const PAGES_PER_MONTH = 2500;
 /** A session's expiry is only pushed out when it has been this long since the last push. */
 const TOUCH_AFTER = 60 * 60;
 const MAX_PASSWORD = 200;
@@ -35,6 +37,8 @@ export interface AuthOptions {
     trustProxy?: boolean;
     /** Sign-ups allowed per address per hour (default 10). */
     signUpsPerHour?: number;
+    /** Pages each non-admin account may grade per month (default PAGES_PER_MONTH). */
+    pagesPerMonth?: number;
 }
 
 const sha256 = (s: string) => new Bun.CryptoHasher("sha256").update(s).digest("hex");
@@ -166,6 +170,43 @@ export function createAuth(db: Database, opts: AuthOptions = {}, mailer: Mailer 
         return Math.floor(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1) / 1000);
     }
 
+    /** When this month's page allowance resets: the first of next month, UTC. */
+    function nextMonthStart(): number {
+        const d = new Date();
+        return Math.floor(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1) / 1000);
+    }
+
+    // ---- Page budget. A job's pages are charged when it starts ("grade_pages" usage events) and
+    // refunded with a negative event if it ends before making any model request, so a bad zip or
+    // the wrong test costs nothing. Cancelling after the models have read the sheets is not refunded.
+
+    const pagesPerMonth = opts.pagesPerMonth ?? PAGES_PER_MONTH;
+    const pageLimit = (isAdmin: boolean): number | null => (isAdmin ? null : pagesPerMonth);
+    const pagesUsed = (userId: number): number => usageSince(db, userId, "grade_pages", monthStart());
+
+    /** null if the user may grade `pages` more pages this month, else the 429 to send. */
+    function admitPages(userId: number, pages: number): Response | null {
+        const row = db.query("SELECT is_admin FROM users WHERE id = ?").get(userId) as { is_admin: number } | null;
+        const limit = pageLimit(!!row?.is_admin);
+        if (limit === null) return null;
+        const left = Math.max(0, limit - pagesUsed(userId));
+        if (pages <= left) return null;
+        const resets = new Date(nextMonthStart() * 1000).toLocaleDateString("en-US", { month: "long", day: "numeric", timeZone: "UTC" });
+        const fmt = (n: number) => n.toLocaleString("en-US");
+        const why = left
+            ? `this upload has ${fmt(pages)} pages, but only ${fmt(left)} of your ${fmt(limit)} pages this month are left`
+            : `you've graded all ${fmt(limit)} of this month's pages`;
+        return fail(429, `${why}. Your allowance resets on ${resets}.`);
+    }
+
+    function chargePages(userId: number, pages: number, runId?: number): void {
+        if (pages > 0) recordUsage(db, userId, "grade_pages", pages, { runId });
+    }
+
+    function refundPages(userId: number, pages: number, runId?: number): void {
+        if (pages > 0) recordUsage(db, userId, "grade_pages", -pages, { runId, refund: true });
+    }
+
     function publicUser(user: User) {
         return {
             id: user.id,
@@ -175,7 +216,7 @@ export function createAuth(db: Database, opts: AuthOptions = {}, mailer: Mailer 
             isAdmin: user.isAdmin,
             canGrade: canGrade(user),
             billing: { trialAvailable: !user.billing.trialUsed, manageable: user.billing.hasCustomer, status: user.billing.status, interval: user.billing.interval, periodEnd: user.billing.periodEnd, cancelAtPeriodEnd: user.billing.cancelAtPeriodEnd },
-            usage: { gradeRunsThisMonth: usageSince(db, user.id, "grade_run", monthStart()) },
+            usage: { gradeRunsThisMonth: usageSince(db, user.id, "grade_run", monthStart()), pagesThisMonth: pagesUsed(user.id), pageLimit: pageLimit(user.isAdmin), resetsAt: nextMonthStart() },
         };
     }
 
@@ -313,7 +354,7 @@ export function createAuth(db: Database, opts: AuthOptions = {}, mailer: Mailer 
         "/api/motd": { PUT: putMotd },
     };
 
-    return { routes, userFrom, requireUser, requireGrader, canGrade, stop: () => clearInterval(timer) };
+    return { routes, userFrom, requireUser, requireGrader, canGrade, admitPages, chargePages, refundPages, stop: () => clearInterval(timer) };
 }
 
 export type Auth = ReturnType<typeof createAuth>;
