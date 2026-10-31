@@ -38,6 +38,16 @@
                 <i class="bi bi-lock"></i>
                 <div>Grading needs a Pro plan. You can look around, but starting a grading run is disabled for your account. <a href="/pricing" class="alert-link">See pricing</a> for the 7-day free trial.</div>
             </div>
+            <div class="alert theme-info mb-5 d-none" id="pending-run" role="alert">
+                <i class="bi bi-hourglass-split"></i>
+                <div>
+                    <div id="pending-run-text"></div>
+                    <div class="d-flex flex-wrap gap-2 mt-3">
+                        <button type="button" class="btn-solid theme-primary btn-sm" id="btn-resume-run">Pick Up Where You Left Off</button>
+                        <button type="button" class="btn-outline theme-danger btn-sm" id="btn-discard-run">Cancel This Run</button>
+                    </div>
+                </div>
+            </div>
             <div class="alert theme-warning mb-5 d-none" id="config-warning" role="alert">
                 <i class="bi bi-exclamation-triangle"></i>
                 <div>

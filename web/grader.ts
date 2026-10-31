@@ -388,12 +388,27 @@ async function grade(): Promise<void> {
         setReviewPlaceholder("Nothing to review yet", "Add the scanned sheets and the test, then choose Grade.");
         status(`Couldn't start grading: ${(e as Error).message}`, "error");
         progress(0, false);
+        // Refused because a run is still going (e.g. from a closed tab): offer to pick it up.
+        void checkPendingRun();
         return;
     }
     status("Starting the grader…");
     progress(0, true);
+    listen();
+}
+
+/** Follows the job's events; the server replays them all from the start, so a reopened job catches up. */
+function listen(): void {
     source = new EventSource(`/api/grader/jobs/${jobId}/events`);
     source.onmessage = (m) => onEvent(JSON.parse(m.data) as JobEvent);
+    source.onerror = () => {
+        // EventSource retries on its own unless the server refused outright (e.g. the job is gone).
+        if (source?.readyState !== EventSource.CLOSED) return;
+        source = null;
+        setRunning(false);
+        status("Lost the connection to the grader. Reload the page to check on the run.", "error");
+        progress(0, false);
+    };
 }
 
 /**
@@ -452,6 +467,10 @@ function onEvent(e: JobEvent): void {
         case "reviewError":
             appendLog(`  ${e.text}`);
             onReviewError(e.item, e.text);
+            return;
+        case "replied":
+            // Replayed to a reopened page: the review was already sent, so the form is done with.
+            if (review && !review.replies && e.at !== null && e.at !== "key") lockReview(new Map());
             return;
         case "done":
             source?.close();
@@ -908,18 +927,26 @@ function finishReview(): void {
     reviewError.textContent = "";
     const replies = reviewReplies();
     if (!replies) return;
-    review.replies = replies;
+    lockReview(replies);
+    if (review.waiting !== null) void answerReview(review.waiting);
+}
+
+/** Closes the form once its replies are decided; they're sent as the grader asks for each. */
+function lockReview(replies: Map<number, string>): void {
+    review!.replies = replies;
     $<HTMLFieldSetElement>("review-fieldset").disabled = true;
     $<HTMLButtonElement>("btn-finish-review").disabled = true;
     status("Grading…");
     progress(1, true);
-    if (review.waiting !== null) void answerReview(review.waiting);
 }
 
 function onReviewPrompt(item: number): void {
     if (!review) return;
     review.waiting = item;
-    if (review.replies) void answerReview(item);
+    if (!review.replies) return;
+    // A reopened page that missed part of the review has no reply for this item: ask again.
+    if (review.replies.has(item)) void answerReview(item);
+    else unlockReview();
 }
 
 async function answerReview(item: number): Promise<void> {
@@ -1066,6 +1093,8 @@ function renderDifficulty(by: Map<number, Tally>): void {
 interface ResultView {
     exitCode: number | null;
     cancelled: boolean;
+    /** Cancelled because the review went unanswered too long. */
+    timedOut?: boolean;
     csv: string;
     totals?: string;
     fatal?: string;
@@ -1078,7 +1107,7 @@ interface ResultView {
 function showResults(e: Extract<JobEvent, { type: "done" }>): void {
     const s = summarizeStderr(log);
     const questions = questionTallies();
-    renderResults({ exitCode: e.exitCode, cancelled: e.cancelled, csv: e.csv, totals: s.totals, fatal: s.fatal, skipped: s.skipped, images: e.images, questions });
+    renderResults({ exitCode: e.exitCode, cancelled: e.cancelled, timedOut: e.timedOut, csv: e.csv, totals: s.totals, fatal: s.fatal, skipped: s.skipped, images: e.images, questions });
     if (runId === null) return;
     savedNote("Saved to your results.");
     if (questions.size) {
@@ -1098,7 +1127,7 @@ function renderResults(e: ResultView): void {
     show($("results-empty"), false);
     if (e.cancelled) {
         status("Cancelled", "idle");
-        alertBox("secondary", "bi-stop-circle", "Grading was cancelled.");
+        alertBox("secondary", "bi-stop-circle", e.timedOut ? "Grading was cancelled because it waited too long for your review. Grade the sheets again to start over." : "Grading was cancelled.");
     } else if (e.exitCode === 0) {
         status("Done", "ok");
         alertBox("success", "bi-check-circle", "Every submission was graded.", s.totals);
@@ -1542,6 +1571,71 @@ fetch("/api/grader/info")
 
 // Starting a run needs a plan that can grade; say so up front rather than after the upload.
 if (!me.canGrade) show($("plan-warning"));
+
+// ---- An unfinished run, left by a closed or reloaded tab -----------------------
+
+interface PendingJob {
+    id: string;
+    runId: number | null;
+    name: string;
+    startedAt: number;
+    /** Waiting for the teacher's review. */
+    waiting: boolean;
+}
+let pending: PendingJob | null = null;
+
+/** Offers to pick up or cancel the user's unfinished run, if there is one (only one can run at a time). */
+async function checkPendingRun(): Promise<void> {
+    if (running) return;
+    try {
+        pending = (await api<{ jobs: PendingJob[] }>("/api/grader/jobs")).jobs[0] ?? null;
+    } catch {
+        return;
+    }
+    show($("pending-run"), !!pending);
+    if (!pending) return;
+    const when = new Date(pending.startedAt).toLocaleTimeString(undefined, { timeStyle: "short" });
+    $("pending-run-text").textContent = pending.waiting
+        ? `Your grading run of ${pending.name}, started at ${when}, is waiting for your review. A run left waiting for 30 minutes is cancelled.`
+        : `Your grading run of ${pending.name}, started at ${when}, is still going.`;
+}
+
+function resumeRun(): void {
+    if (!pending || running) return;
+    const job = pending;
+    pending = null;
+    show($("pending-run"), false);
+    resetResults();
+    if (new URLSearchParams(location.search).has("run")) history.replaceState(null, "", location.pathname);
+    jobId = job.id;
+    runId = job.runId;
+    resultsName = job.name.replace(/\.zip$/i, "");
+    requestProgress(null);
+    setReviewPlaceholder("Reading the sheets…", "The review opens here once every name and written answer is read.");
+    show($("run"));
+    setRunning(true);
+    status("Reconnecting to the grader…");
+    progress(0, true);
+    listen();
+}
+
+async function discardRun(): Promise<void> {
+    if (!pending) return;
+    const button = $<HTMLButtonElement>("btn-discard-run");
+    button.disabled = true;
+    await fetch(`/api/grader/jobs/${pending.id}/cancel`, { method: "POST" }).catch(() => null);
+    // The run takes a moment to stop (and, if no model was called yet, to give its pages back).
+    for (let i = 0; i < 20 && pending; i++) {
+        await new Promise((r) => setTimeout(r, 250));
+        await checkPendingRun();
+    }
+    button.disabled = false;
+    refreshUsage();
+}
+
+$("btn-resume-run").addEventListener("click", resumeRun);
+$("btn-discard-run").addEventListener("click", () => void discardRun());
+void checkPendingRun();
 
 renderInput();
 

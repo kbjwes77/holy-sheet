@@ -79,8 +79,19 @@ const parseJson = <T>(text: string | null | undefined, fallback: T): T => {
 const isInt = (v: unknown): v is number => Number.isInteger(v);
 
 export function createGradeRuns(db: Database, auth: Auth) {
-    // A job still marked running when the server starts died with the previous process.
-    db.query("UPDATE grade_runs SET status = 'interrupted', finished_at = ? WHERE status = 'running'").run(now());
+    // A job still marked running when the server starts died with the previous process. That's
+    // not the user's doing, so its pages are refunded, dated with the charge so the refund lands
+    // in the month that was charged.
+    db.transaction(() => {
+        db.query(
+            `INSERT INTO usage_events (user_id, kind, quantity, metadata, created_at)
+             SELECT u.user_id, 'grade_pages', -SUM(u.quantity), json_object('runId', r.id, 'refund', json('true'), 'interrupted', json('true')), MIN(u.created_at)
+             FROM grade_runs r JOIN usage_events u ON u.kind = 'grade_pages' AND u.user_id = r.owner_id AND json_extract(u.metadata, '$.runId') = r.id
+             WHERE r.status = 'running'
+             GROUP BY r.id HAVING SUM(u.quantity) > 0`,
+        ).run();
+        db.query("UPDATE grade_runs SET status = 'interrupted', finished_at = ? WHERE status = 'running'").run(now());
+    })();
 
     /** Records a job as it starts; returns the run's id. The test material is kept only if the user can see it. */
     function start(userId: number, info: { uploadName: string; testTitle?: string; materialId?: number }): number {

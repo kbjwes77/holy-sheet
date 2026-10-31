@@ -13,7 +13,7 @@ afterAll(() => stops.forEach((s) => s()));
 
 /** An app on its own in-memory database, its grader running the stub CLI. */
 function serve(over: Partial<AppOptions> = {}) {
-    const db = openDb(":memory:");
+    const db = over.db ?? openDb(":memory:");
     const app = createApp({ db, root: process.cwd(), signUpsPerHour: 1000, adminEmails: ["admin@example.com"], grader: { command: stubCli }, ...over });
     const server = Bun.serve({ port: 0, routes: app.routes });
     stops.push(() => {
@@ -35,6 +35,8 @@ function serve(over: Partial<AppOptions> = {}) {
                 return fetch(`${base}/api/grader/jobs?name=${encodeURIComponent(name)}`, { method: "POST", headers: { cookie, "content-type": "application/zip" }, body: zipSync(files) });
             },
             cancel: (id: string) => call(`/api/grader/jobs/${id}/cancel`, "POST"),
+            jobs: async () => ((await (await call("/api/grader/jobs")).json()) as { jobs: { id: string; runId: number | null; name: string; waiting: boolean }[] }).jobs,
+            status: async (runId: number) => ((await (await call(`/api/grade-runs/${runId}`)).json()) as { run: { status: string } }).run.status,
             usage: async () => ((await (await call("/api/me")).json()) as { user: { usage: { pagesThisMonth: number; pageLimit: number | null } } }).user.usage,
             /** Waits until the run has finished and its pages are settled. */
             settled: async (runId: number) => {
@@ -136,5 +138,43 @@ describe("grading limits", () => {
         expect((await admin.usage()).pageLimit).toBeNull();
         const big = await started(await admin.grade("requests.zip", 50));
         await admin.settled(big.runId);
+    });
+
+    test("unfinished jobs are listed for their owner, so a page opened later can pick one up", async () => {
+        const { user } = serve();
+        const a = await user("a@example.com");
+        const b = await user("b@example.com");
+        const job = await started(await a.grade("prompt.zip"));
+        for (let i = 0; i < 100 && !(await a.jobs())[0]?.waiting; i++) await Bun.sleep(20);
+        expect(await a.jobs()).toEqual([expect.objectContaining({ id: job.id, runId: job.runId, name: "prompt.zip", waiting: true })]);
+        expect(await b.jobs()).toEqual([]);
+        await a.cancel(job.id);
+        await a.settled(job.runId);
+        expect(await a.jobs()).toEqual([]);
+    });
+
+    test("a prompt left unanswered cancels the run, frees the user's slot and, with no model called, refunds its pages", async () => {
+        const { user } = serve({ grader: { command: stubCli, waitTimeoutMs: 200 } });
+        const t = await user("teacher@example.com");
+        const job = await started(await t.grade("prompt.zip", 3));
+        expect((await t.usage()).pagesThisMonth).toBe(3);
+        await t.settled(job.runId);
+        expect(await t.status(job.runId)).toBe("cancelled");
+        expect((await t.usage()).pagesThisMonth).toBe(0);
+        const next = await started(await t.grade("hold.zip"));
+        await t.cancel(next.id);
+    });
+
+    test("a run cut off by a restart is marked interrupted and its pages refunded", async () => {
+        const db = openDb(":memory:");
+        const before = serve({ db });
+        const t = await before.user("teacher@example.com");
+        // Models were called, so only the restart (not the run ending) gives the pages back.
+        const job = await started(await t.grade("requests-hold.zip", 5));
+        expect((await t.usage()).pagesThisMonth).toBe(5);
+        serve({ db });
+        expect(await t.status(job.runId)).toBe("interrupted");
+        expect((await t.usage()).pagesThisMonth).toBe(0);
+        await t.cancel(job.id);
     });
 });

@@ -105,7 +105,10 @@ created on first run).
   once across all users (one waiting on review doesn't count); beyond either, starting a job answers 429. Each non-admin
   account may grade 2,500 pages (page images in the upload) per calendar month, UTC (`PAGES_PER_MONTH` in
   `server/auth.ts`). Pages are charged as `grade_pages` usage events when a job starts and refunded if it ends before
-  calling any model. The limits are `limits` and `pagesPerMonth` in `createApp`'s options.
+  calling any model, or if the server restarts while it runs. A job left waiting on the teacher for 30 minutes is
+  cancelled (`waitTimeoutMs` in the grader options), so an abandoned review doesn't hold the user's slot; the grader page
+  offers to pick up or cancel an unfinished job (`GET /api/grader/jobs`). The limits are `limits` and `pagesPerMonth` in
+  `createApp`'s options.
 - Emails in `ADMIN_EMAILS` become admins when they register and can edit the message of the day.
 - Production: `bun run start` marks the cookie `Secure`, so serve it over HTTPS (a reverse proxy
   forwarding to `127.0.0.1:3000`, with `TRUST_PROXY=1`). Back up the `data/` folder.

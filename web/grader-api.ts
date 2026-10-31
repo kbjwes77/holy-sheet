@@ -19,7 +19,8 @@ export type JobEvent =
     | StderrEvent
     | { type: "start"; command: string }
     | { type: "review"; thresholds: ReviewThresholds; items: ReviewItem[] }
-    | { type: "done"; exitCode: number | null; cancelled: boolean; csv: string; images: string[] };
+    | { type: "replied"; at: string | null }
+    | { type: "done"; exitCode: number | null; cancelled: boolean; timedOut: boolean; csv: string; images: string[] };
 
 interface Job {
     id: string;
@@ -31,13 +32,20 @@ interface Job {
     awaitingInput: boolean;
     /** The prompt waiting ("key" or a review item), so a late or repeated reply can't answer another. */
     waitingAt: string | null;
+    /** Cancels the job if the prompt waiting gets no reply in time. */
+    waitTimer?: ReturnType<typeof setTimeout>;
     cancelled: boolean;
+    /** Cancelled because a prompt went unanswered for `waitTimeoutMs`. */
+    timedOut: boolean;
     done: boolean;
     images: string[];
     debugDir?: string;
     review?: { dir: string; images: Set<string> };
     /** The user who started it; only they may see or answer it. */
     ownerId: number;
+    /** The upload's file name, and when the job started (epoch ms), for listing unfinished jobs. */
+    name: string;
+    startedAt: number;
     /** The saved run `onJob` created for it, if any. */
     runId?: number;
     /** Page images in the upload. */
@@ -68,6 +76,11 @@ export interface GraderApiOptions {
     env?: Record<string, string | undefined>;
     /** How long a finished job's results and files are kept. */
     keepMs?: number;
+    /**
+     * How long a prompt (key or review) may wait for a reply before the job is cancelled, so a
+     * run abandoned mid-review doesn't hold the user's job slot forever (default 30 minutes).
+     */
+    waitTimeoutMs?: number;
     /**
      * Decides who may use the API: the user, or the response to send instead (401/402). "job" is
      * asked to start grading, "info" for everything else. Without it, anyone may.
@@ -115,6 +128,7 @@ export function createGraderApi(o: GraderApiOptions) {
     const env = o.env ?? process.env;
     const command = o.command ?? [process.execPath, join(o.root, "grade.ts")];
     const keepMs = o.keepMs ?? 2 * 60 * 60 * 1000;
+    const waitTimeoutMs = o.waitTimeoutMs ?? 30 * 60 * 1000;
     const jobs = new Map<string, Job>();
     const authorize = (req: Request, action: "info" | "job"): { userId: number } | Response => o.authorize?.(req, action) ?? { userId: 0 };
 
@@ -123,7 +137,25 @@ export function createGraderApi(o: GraderApiOptions) {
         for (const l of job.listeners) l(e, job.events.length - 1);
     }
 
+    /** Marks the job as waiting for a reply (restarting the timeout) or not. */
+    function setWaiting(job: Job, on: boolean): void {
+        job.awaitingInput = on;
+        clearTimeout(job.waitTimer);
+        job.waitTimer = undefined;
+        if (!on || job.done) return;
+        job.waitTimer = setTimeout(() => {
+            if (job.done || !job.awaitingInput) return;
+            const minutes = Math.round(waitTimeoutMs / 60_000);
+            emit(job, { type: "log", text: `No reply in ${minutes} minute${minutes === 1 ? "" : "s"}, so the run was cancelled.` });
+            job.timedOut = true;
+            job.cancelled = true;
+            job.proc.kill();
+        }, waitTimeoutMs);
+        job.waitTimer.unref?.();
+    }
+
     function remove(job: Job): void {
+        clearTimeout(job.waitTimer);
         if (!job.done) job.proc.kill();
         jobs.delete(job.id);
         rmSync(job.dir, { recursive: true, force: true });
@@ -142,8 +174,8 @@ export function createGraderApi(o: GraderApiOptions) {
         const handle = (events: StderrEvent[]) => {
             for (const e of events) {
                 if (e.type === "log") log.push(e.text);
-                if (e.type === "prompt" || e.type === "keyError" || e.type === "reviewPrompt" || e.type === "reviewError") job.awaitingInput = true;
-                if (e.type === "keyAccepted") job.awaitingInput = false;
+                if (e.type === "prompt" || e.type === "keyError" || e.type === "reviewPrompt" || e.type === "reviewError") setWaiting(job, true);
+                if (e.type === "keyAccepted") setWaiting(job, false);
                 if (e.type === "prompt") job.waitingAt = "key";
                 const requests = e.type === "log" && REQUESTS_RE.exec(e.text);
                 if (requests) job.modelRequests = Number(requests[2]);
@@ -174,10 +206,10 @@ export function createGraderApi(o: GraderApiOptions) {
             }
         }
         job.done = true;
-        job.awaitingInput = false;
+        setWaiting(job, false);
         const result: JobResult = { exitCode: job.cancelled ? null : exitCode, cancelled: job.cancelled, csv, totals: summary.totals, fatal: summary.fatal, skipped: summary.skipped, pages: job.pages, modelRequests: job.modelRequests };
         saveRun(job, result);
-        emit(job, { type: "done", exitCode: result.exitCode, cancelled: job.cancelled, csv, images: job.images });
+        emit(job, { type: "done", exitCode: result.exitCode, cancelled: job.cancelled, timedOut: job.timedOut, csv, images: job.images });
         setTimeout(() => remove(job), keepMs).unref?.();
     }
 
@@ -185,7 +217,7 @@ export function createGraderApi(o: GraderApiOptions) {
     function tooBusy(userId: number): Response | null {
         const unfinished = [...jobs.values()].filter((j) => !j.done);
         if (o.maxJobsPerUser !== undefined && unfinished.filter((j) => j.ownerId === userId).length >= o.maxJobsPerUser) {
-            return fail(429, "you already have a grading run in progress; finish or cancel it before starting another");
+            return fail(429, "you already have a grading run in progress; pick it up or cancel it before starting another");
         }
         if (o.maxJobs !== undefined && unfinished.filter((j) => !j.awaitingInput).length >= o.maxJobs) {
             return Response.json({ error: "the grader is busy with other teachers' runs right now; try again in a minute" }, { status: 429, headers: { "retry-after": "60" } });
@@ -294,7 +326,7 @@ export function createGraderApi(o: GraderApiOptions) {
             stderr: "pipe",
         });
         const id = crypto.randomUUID();
-        const job: Job = { id, dir, proc, events: [], listeners: new Set(), awaitingInput: false, waitingAt: null, cancelled: false, done: false, images: [], ownerId: who.userId, pages, modelRequests: 0 };
+        const job: Job = { id, dir, proc, events: [], listeners: new Set(), awaitingInput: false, waitingAt: null, cancelled: false, timedOut: false, done: false, images: [], ownerId: who.userId, name, startedAt: Date.now(), pages, modelRequests: 0 };
         jobs.set(id, job);
         const runId = o.onJob?.(who.userId, { name, hasTest: !!test, testTitle: test ? testTitle(test.bytes) : undefined, materialId, pages }) ?? undefined;
         job.runId = runId;
@@ -303,10 +335,11 @@ export function createGraderApi(o: GraderApiOptions) {
         emit(job, { type: "start", command: ["bun run grade.ts", ...[name, ...shown].map((a) => (/\s/.test(a) ? `"${a}"` : a))].join(" ") });
         void run(job).catch((e) => {
             job.done = true;
+            setWaiting(job, false);
             const fatal = `web grader: ${(e as Error).message}`;
             saveRun(job, { exitCode: 1, cancelled: false, csv: "", fatal, skipped: [], pages: job.pages, modelRequests: job.modelRequests });
             emit(job, { type: "log", text: `fatal: ${fatal}` });
-            emit(job, { type: "done", exitCode: 1, cancelled: false, csv: "", images: [] });
+            emit(job, { type: "done", exitCode: 1, cancelled: false, timedOut: false, csv: "", images: [] });
         });
         return json(runId === undefined ? { id } : { id, runId }, 201);
     }
@@ -358,9 +391,11 @@ export function createGraderApi(o: GraderApiOptions) {
         // Checked after reading the body, so of two replies in flight only one gets through.
         if (!job.awaitingInput) return fail(409, "the grader isn't waiting for input");
         if (at !== null && at !== job.waitingAt) return fail(409, `the grader isn't waiting at ${at}`);
-        job.awaitingInput = false;
+        setWaiting(job, false);
         job.proc.stdin.write(`${line}\n`);
         job.proc.stdin.flush();
+        // Lets a page that reopens the job see which prompts were already answered.
+        emit(job, { type: "replied", at: job.waitingAt });
         return new Response(null, { status: 204 });
     }
 
@@ -415,7 +450,16 @@ export function createGraderApi(o: GraderApiOptions) {
                 });
             },
         },
-        "/api/grader/jobs": { POST: create },
+        "/api/grader/jobs": {
+            /** The user's unfinished jobs, so a page opened later can pick one up or cancel it. */
+            GET: (req: Request) => {
+                const who = authorize(req, "info");
+                if (who instanceof Response) return who;
+                const mine = [...jobs.values()].filter((j) => j.ownerId === who.userId && !j.done);
+                return json({ jobs: mine.map((j) => ({ id: j.id, runId: j.runId ?? null, name: j.name, startedAt: j.startedAt, waiting: j.awaitingInput })) });
+            },
+            POST: create,
+        },
         "/api/grader/jobs/:id/events": { GET: withJob(events) },
         "/api/grader/jobs/:id/input": { POST: withJob(input) },
         "/api/grader/jobs/:id/cancel": { POST: withJob(cancel) },
