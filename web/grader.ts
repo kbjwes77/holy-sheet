@@ -915,8 +915,11 @@ function badge(icon: string, text: string): HTMLElement {
 function alertBox(kind: string, icon: string, title: string, detail?: string): void {
     const box = $("result-alert");
     box.className = `alert theme-${kind}`;
-    box.replaceChildren(el("i", `bi ${icon} me-1`), el("strong", "", title));
-    if (detail) box.append(el("div", "small mt-1", detail));
+    // An alert is a flex row: the icon, then one block holding the title and the detail under it.
+    const text = el("div");
+    text.append(el("strong", "", title));
+    if (detail) text.append(el("div", "small mt-1", detail));
+    box.replaceChildren(el("i", `bi ${icon}`), text);
 }
 
 type Tally = { correct: number; answered: number };

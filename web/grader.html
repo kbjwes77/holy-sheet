@@ -35,13 +35,15 @@
                 </div>
             </div>
             <div class="alert theme-warning mb-5 d-none" id="plan-warning" role="alert">
-                <i class="bi bi-lock me-1"></i>
-                Grading needs a Pro plan. You can look around, but starting a grading run is disabled for your account. <a href="/pricing" class="alert-link">See pricing</a> for the 7-day free trial.
+                <i class="bi bi-lock"></i>
+                <div>Grading needs a Pro plan. You can look around, but starting a grading run is disabled for your account. <a href="/pricing" class="alert-link">See pricing</a> for the 7-day free trial.</div>
             </div>
             <div class="alert theme-warning mb-5 d-none" id="config-warning" role="alert">
-                <i class="bi bi-exclamation-triangle me-1"></i>
-                Name reading isn't set up: <span id="config-missing"></span> must be set in <code>.env</code>. Restart
-                <code>bun run web</code> after adding them.
+                <i class="bi bi-exclamation-triangle"></i>
+                <div>
+                    Name reading isn't set up: <span id="config-missing"></span> must be set in <code>.env</code>. Restart
+                    <code>bun run web</code> after adding them.
+                </div>
             </div>
 
             <details class="how-it-works card shadow-sm mb-5" id="before-you-start" open>
