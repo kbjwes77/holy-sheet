@@ -109,6 +109,14 @@ created on first run).
   cancelled (`waitTimeoutMs` in the grader options), so an abandoned review doesn't hold the user's slot; the grader page
   offers to pick up or cancel an unfinished job (`GET /api/grader/jobs`). The limits are `limits` and `pagesPerMonth` in
   `createApp`'s options.
+- **Analytics** (`server/analytics.ts`, `web/track.ts`, admin page `/admin`): every page posts a page view to `/api/t`
+  with its path, the referrer and any `utm_source`/`utm_medium`/`utm_campaign` tags. The server keeps a first-party
+  visitor cookie (`gl_vid`, about 13 months), the visitor's first external referrer (domain only), landing page and UTM
+  tags, and links the visitor to the account when it signs up or in. Browsers sending Global Privacy Control or Do Not
+  Track, bots and admins aren't tracked. Sign-ups, account deletions and new materials are recorded by SQLite triggers
+  (migration 8, which also backfills existing rows); graded pages by `app.ts`. Deleting an account deletes its visitors
+  and leaves its events as anonymous counts; page views older than about 13 months are purged daily. Admins see totals,
+  per-day charts, a sign-up funnel, referrers, campaigns, landing and top pages, and each recent sign-up's journey.
 - Emails in `ADMIN_EMAILS` become admins when they register and can edit the message of the day.
 - Production: `bun run start` marks the cookie `Secure`, so serve it over HTTPS (a reverse proxy
   forwarding to `127.0.0.1:3000`, with `TRUST_PROXY=1`). Back up the `data/` folder.

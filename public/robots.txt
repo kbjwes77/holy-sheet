@@ -15,6 +15,7 @@ Disallow: /generator
 Disallow: /grader
 Disallow: /results
 Disallow: /account
+Disallow: /admin
 Disallow: /confirm-email
 Disallow: /api/
 

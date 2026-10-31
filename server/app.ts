@@ -2,6 +2,7 @@
 import type { Database } from "bun:sqlite";
 import { createGraderApi, type GraderApiOptions } from "../web/grader-api.ts";
 import { createAccount } from "./account.ts";
+import { createAnalytics } from "./analytics.ts";
 import { createAuth, type AuthOptions } from "./auth.ts";
 import { createBilling, type BillingOptions } from "./billing.ts";
 import { recordUsage } from "./db.ts";
@@ -22,6 +23,8 @@ export interface AppOptions extends AuthOptions {
 export function createApp(o: AppOptions) {
     const mailer = createMailer(o.email);
     const auth = createAuth(o.db, o, mailer);
+    const analytics = createAnalytics(o.db, auth, { secureCookies: o.secureCookies });
+    auth.hooks.signedIn = (req, userId) => analytics.linkVisitor(req, userId);
     const materials = createMaterialsApi(o.db, auth);
     const billing = createBilling(o.db, auth, o.billing);
     const gradeRuns = createGradeRuns(o.db, auth);
@@ -46,6 +49,7 @@ export function createApp(o: AppOptions) {
             gradeRuns.finish(runId, result);
             // No model was called, so the run cost nothing: give its pages back.
             if (result.modelRequests === 0) auth.refundPages(userId, result.pages, runId);
+            else analytics.record("grade", userId, { quantity: result.pages });
         },
     });
     const account = createAccount(o.db, { auth, mailer, deleteCustomer: billing.deleteCustomer, cancelJobs: (userId) => graderApi.cancelUserJobs(userId) });
@@ -55,10 +59,12 @@ export function createApp(o: AppOptions) {
         mailer,
         graderApi,
         gradeRuns,
-        routes: { ...auth.routes, ...account.routes, ...materials.routes, ...billing.routes, ...graderApi.routes, ...gradeRuns.routes },
+        analytics,
+        routes: { ...analytics.routes, ...auth.routes, ...account.routes, ...materials.routes, ...billing.routes, ...graderApi.routes, ...gradeRuns.routes },
         shutdown(): void {
             graderApi.shutdown();
             auth.stop();
+            analytics.stop();
         },
     };
 }

@@ -173,6 +173,56 @@ const MIGRATIONS: string[] = [
     );
     CREATE INDEX email_changes_user ON email_changes(user_id);
     `,
+    // First-party analytics (server/analytics.ts). A visitor is a browser (the gl_vid cookie). Events are page views
+    // and business events; the latter keep their counts when an account is deleted (user and visitor set to NULL).
+    // Sign-ups, deletions and new materials are recorded by triggers; existing rows are backfilled.
+    `
+    CREATE TABLE visitors (
+        id TEXT PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        first_seen INTEGER NOT NULL,
+        last_seen INTEGER NOT NULL,
+        referrer TEXT,
+        landing TEXT,
+        utm_source TEXT,
+        utm_medium TEXT,
+        utm_campaign TEXT
+    );
+    CREATE INDEX visitors_user ON visitors(user_id);
+    CREATE INDEX visitors_first_seen ON visitors(first_seen);
+
+    CREATE TABLE analytics_events (
+        id INTEGER PRIMARY KEY,
+        visitor_id TEXT REFERENCES visitors(id) ON DELETE SET NULL,
+        user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        kind TEXT NOT NULL,
+        path TEXT,
+        referrer TEXT,
+        quantity INTEGER NOT NULL DEFAULT 1,
+        created_at INTEGER NOT NULL
+    );
+    CREATE INDEX analytics_kind_time ON analytics_events(kind, created_at);
+    CREATE INDEX analytics_visitor ON analytics_events(visitor_id, created_at);
+    CREATE INDEX analytics_user ON analytics_events(user_id);
+
+    CREATE TRIGGER analytics_signup AFTER INSERT ON users BEGIN
+        INSERT INTO analytics_events (user_id, kind, created_at) VALUES (NEW.id, 'signup', NEW.created_at);
+    END;
+    CREATE TRIGGER analytics_account_deleted AFTER DELETE ON users BEGIN
+        INSERT INTO analytics_events (kind, created_at) VALUES ('account_deleted', unixepoch());
+    END;
+    CREATE TRIGGER analytics_material AFTER INSERT ON study_materials BEGIN
+        INSERT INTO analytics_events (user_id, kind, created_at) VALUES (NEW.owner_id, 'material', NEW.created_at);
+    END;
+
+    INSERT INTO analytics_events (user_id, kind, created_at) SELECT id, 'signup', created_at FROM users;
+    INSERT INTO analytics_events (user_id, kind, created_at) SELECT owner_id, 'material', created_at FROM study_materials;
+    INSERT INTO analytics_events (user_id, kind, quantity, created_at)
+        SELECT r.owner_id, 'grade',
+            COALESCE((SELECT SUM(u.quantity) FROM usage_events u WHERE u.kind = 'grade_pages' AND u.user_id = r.owner_id AND json_extract(u.metadata, '$.runId') = r.id), 0),
+            r.created_at
+        FROM grade_runs r WHERE r.status IN ('graded', 'partial');
+    `,
 ];
 
 /** Opens (creating if needed) the database at `path`, or in memory for ":memory:", and migrates it. */

@@ -31,6 +31,103 @@
         <link rel="icon" type="image/png" sizes="16x16" href="../public/images/favicon-16x16.png" />
         <link rel="apple-touch-icon" href="../public/images/apple-touch-icon.png" />
         <link rel="manifest" href="../public/site.webmanifest" />
+        <script type="application/ld+json">
+            {
+                "@context": "https://schema.org",
+                "@graph": [
+                    {
+                        "@type": "Product",
+                        "@id": "https://gradelake.com/pricing#pro",
+                        "name": "Grade Lake Pro",
+                        "description": "Grade scanned or photographed answer sheets, including handwritten free-response answers, up to 2,500 pages a month. Starts with a 7-day free trial.",
+                        "brand": {
+                            "@type": "Brand",
+                            "name": "Grade Lake"
+                        },
+                        "image": "https://gradelake.com/images/og-image.jpg",
+                        "url": "https://gradelake.com/pricing",
+                        "offers": [
+                            {
+                                "@type": "Offer",
+                                "name": "Pro, monthly",
+                                "price": "5.00",
+                                "priceCurrency": "USD",
+                                "availability": "https://schema.org/InStock",
+                                "url": "https://gradelake.com/pricing",
+                                "priceSpecification": {
+                                    "@type": "UnitPriceSpecification",
+                                    "price": "5.00",
+                                    "priceCurrency": "USD",
+                                    "billingDuration": "P1M",
+                                    "unitCode": "MON"
+                                }
+                            },
+                            {
+                                "@type": "Offer",
+                                "name": "Pro, yearly",
+                                "price": "40.00",
+                                "priceCurrency": "USD",
+                                "availability": "https://schema.org/InStock",
+                                "url": "https://gradelake.com/pricing",
+                                "priceSpecification": {
+                                    "@type": "UnitPriceSpecification",
+                                    "price": "40.00",
+                                    "priceCurrency": "USD",
+                                    "billingDuration": "P1Y",
+                                    "unitCode": "ANN"
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        "@type": "FAQPage",
+                        "mainEntity": [
+                            {
+                                "@type": "Question",
+                                "name": "How does the free trial work?",
+                                "acceptedAnswer": {
+                                    "@type": "Answer",
+                                    "text": "Start Pro and grade with the full monthly allowance for 7 days. Checkout asks for a card so grading keeps working if you stay, but you aren't charged until the trial ends, and you can cancel before then at no cost. Each account gets one trial."
+                                }
+                            },
+                            {
+                                "@type": "Question",
+                                "name": "What do I get without paying?",
+                                "acceptedAnswer": {
+                                    "@type": "Answer",
+                                    "text": "Everything except the grader: browsing, creating and sharing study material, generating study guides, quizzes and exams from any material on the site, and printing answer sheets."
+                                }
+                            },
+                            {
+                                "@type": "Question",
+                                "name": "How many sheets can I grade?",
+                                "acceptedAnswer": {
+                                    "@type": "Answer",
+                                    "text": "Pro grades up to 2,500 scanned pages each calendar month, enough for a class of 30 to take a two-page test every school day, with room to spare. The Grade Sheets page shows how many pages you have left. Runs that stop before any answers are read, such as a zip of the wrong test, don't count. You can grade one set of sheets at a time."
+                                }
+                            },
+                            {
+                                "@type": "Question",
+                                "name": "What happens if I cancel?",
+                                "acceptedAnswer": {
+                                    "@type": "Answer",
+                                    "text": "Pro stays on until the end of the period you've paid for, then your account goes back to Free. Your library and everything you've published stay exactly as they were."
+                                }
+                            },
+                            {
+                                "@type": "Question",
+                                "name": "How do I pay, and can I change my card?",
+                                "acceptedAnswer": {
+                                    "@type": "Answer",
+                                    "text": "Payments are handled by Stripe, so your card details never touch Grade Lake. Once you're subscribed, Manage subscription on this page opens Stripe's portal to switch between monthly and yearly, update your card, download invoices or cancel. If a renewal payment fails, Pro stays on while Stripe retries the charge."
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        </script>
+        <script type="module" src="./track.ts"></script>
     </head>
     <body>
         <div class="wrap">

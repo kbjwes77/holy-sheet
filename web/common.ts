@@ -169,6 +169,7 @@ export async function startPage(active: string): Promise<{ me: Me; motd: string 
         ["results", "/results", "bi-journal-check", "Results"],
         ["pricing", "/pricing", "bi-credit-card", user.plan === "pro" ? "Billing" : "Upgrade"],
     ];
+    if (user.isAdmin) links.push(["admin", "/admin", "bi-graph-up", "Stats"]);
     const nav = el("nav", "sidebar-nav");
     nav.ariaLabel = "Main";
     for (const [id, href, icon, label] of links) {

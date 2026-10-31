@@ -1156,3 +1156,129 @@
 #before-you-start[open] .status-chevron {
     transform: rotate(-180deg);
 }
+
+/* Admin stats (web/admin.ts). */
+.stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+    gap: 1rem;
+}
+.stat-tile {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1rem;
+}
+.stat-value {
+    font-variant-numeric: tabular-nums;
+}
+.stats-charts {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 26rem), 1fr));
+    gap: 1rem;
+}
+.stats-chart {
+    display: block;
+    width: 100%;
+    height: auto;
+    overflow: visible;
+}
+.stats-chart .grid {
+    stroke: var(--bs-border-color-translucent);
+    stroke-width: 1;
+}
+.stats-chart .axis {
+    stroke: var(--bs-border-color);
+    stroke-width: 1;
+}
+.stats-chart .tick {
+    fill: var(--bs-secondary-fg);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+}
+.stats-chart .mark {
+    fill: var(--bs-primary-base);
+}
+.stats-chart .line {
+    fill: none;
+    stroke: var(--bs-primary-base);
+    stroke-width: 2;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+}
+.stats-chart .area {
+    fill: var(--bs-primary-base);
+    opacity: 0.1;
+}
+.stats-chart .dot {
+    fill: var(--bs-primary-base);
+    stroke: var(--bs-bg-body);
+    stroke-width: 2;
+}
+.stats-chart .guide {
+    stroke: var(--bs-secondary-fg);
+    stroke-width: 1;
+}
+.stats-chart .hit {
+    fill: transparent;
+}
+.chart-tooltip {
+    position: absolute;
+    z-index: 1080;
+    pointer-events: none;
+    padding: 0.375rem 0.625rem;
+    border: 1px solid var(--bs-border-color);
+    border-radius: var(--bs-radius-4, 0.375rem);
+    background: var(--bs-bg-body);
+    box-shadow: 0 0.25rem 0.75rem rgb(0 0 0 / 0.12);
+    font-variant-numeric: tabular-nums;
+}
+/* Cards lay out their body as a flex item; let wide tables scroll inside it instead of widening the card. */
+.stats-page .card-body {
+    min-width: 0;
+}
+.stats-page .card {
+    overflow-x: clip;
+}
+/* Wide enough to read; narrower screens scroll the table sideways. */
+.stats-page #signups {
+    min-width: 48rem;
+}
+.stats-page .table {
+    min-width: 20rem;
+}
+/* A closed <details> still lays out its wide table; keep it from widening the page on phones. */
+.stats-table-toggle {
+    overflow-x: clip;
+}
+.funnel-row + .funnel-row {
+    margin-top: 0.75rem;
+}
+.funnel-pct {
+    min-width: 2.75rem;
+    text-align: end;
+}
+.funnel-track {
+    height: 0.5rem;
+    border-radius: 999px;
+    background: color-mix(in oklch, var(--bs-primary-base) 14%, transparent);
+}
+.funnel-bar {
+    height: 100%;
+    min-width: 2px;
+    border-radius: 999px;
+    background: var(--bs-primary-base);
+}
+.journey {
+    list-style: none;
+    padding: 0.5rem 0 0.5rem 0.75rem;
+    border-inline-start: 2px solid var(--bs-border-color);
+}
+.journey li + li {
+    margin-top: 0.25rem;
+}
+.journey-time {
+    display: inline-block;
+    min-width: 11rem;
+}

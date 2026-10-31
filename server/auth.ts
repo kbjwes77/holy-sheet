@@ -115,8 +115,12 @@ export function createAuth(db: Database, opts: AuthOptions = {}, mailer: Mailer 
 
     const newToken = () => Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("base64url");
 
+    /** Called whenever a browser signs in (including on sign-up and after a password reset); app.ts hooks analytics here. */
+    const hooks = { signedIn: (_req: Request, _userId: number): void => {} };
+
     /** Starts a session and returns the Set-Cookie header value. */
-    function startSession(userId: number): string {
+    function startSession(userId: number, req: Request): string {
+        hooks.signedIn(req, userId);
         const token = newToken();
         const t = now();
         db.query("INSERT INTO sessions (token_hash, user_id, created_at, last_seen_at, expires_at) VALUES (?, ?, ?, ?, ?)").run(sha256(token), userId, t, t, t + SESSION_TTL);
@@ -250,7 +254,7 @@ export function createAuth(db: Database, opts: AuthOptions = {}, mailer: Mailer 
         }
         recordUsage(db, id, "register");
         void mailer.welcome(email, displayName, mailer.baseUrl(req), id);
-        return json({ ok: true }, 201, { "set-cookie": startSession(id) });
+        return json({ ok: true }, 201, { "set-cookie": startSession(id, req) });
     }
 
     async function login(req: Request, server: Bun.Server<unknown>): Promise<Response> {
@@ -269,7 +273,7 @@ export function createAuth(db: Database, opts: AuthOptions = {}, mailer: Mailer 
         }
         loginLimit.clear(key);
         recordUsage(db, row.id, "login");
-        return json({ ok: true }, 200, { "set-cookie": startSession(row.id) });
+        return json({ ok: true }, 200, { "set-cookie": startSession(row.id, req) });
     }
 
     /** Emails a reset link if the account exists. The answer is the same either way, so it doesn't reveal who has an account. */
@@ -320,7 +324,7 @@ export function createAuth(db: Database, opts: AuthOptions = {}, mailer: Mailer 
         })();
         if (userId == null) return fail(400, "this reset link is invalid or has expired; request a new one");
         recordUsage(db, userId, "password_reset");
-        return json({ ok: true }, 200, { "set-cookie": startSession(userId) });
+        return json({ ok: true }, 200, { "set-cookie": startSession(userId, req) });
     }
 
     function logout(req: Request): Response {
@@ -366,6 +370,7 @@ export function createAuth(db: Database, opts: AuthOptions = {}, mailer: Mailer 
 
     return {
         routes,
+        hooks,
         userFrom,
         requireUser,
         requireGrader,

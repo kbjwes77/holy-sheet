@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="darkreader-lock" />
+        <meta name="robots" content="noindex" />
+        <title>Grade Lake - Stats</title>
+        <script>
+            let theme = null;
+            try {
+                theme = localStorage.getItem("theme");
+            } catch {}
+            document.documentElement.dataset.bsTheme = theme === "light" || theme === "dark" ? theme : matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        </script>
+        <link rel="stylesheet" href="../public/css/bootstrap.min.css" />
+        <link rel="stylesheet" href="../public/css/bootstrap-icons.min.css" />
+        <link rel="stylesheet" href="./app.css" />
+        <link rel="icon" href="../public/images/favicon.ico" sizes="48x48" />
+        <link rel="icon" type="image/svg+xml" href="../public/images/logo-square.svg" />
+        <link rel="icon" type="image/png" sizes="32x32" href="../public/images/favicon-32x32.png" />
+        <link rel="icon" type="image/png" sizes="16x16" href="../public/images/favicon-16x16.png" />
+        <link rel="apple-touch-icon" href="../public/images/apple-touch-icon.png" />
+    </head>
+    <body hidden>
+        <nav id="nav"></nav>
+        <main class="container py-7 stats-page">
+            <div class="page-header">
+                <div class="page-header-icon"><i class="bi bi-graph-up"></i></div>
+                <div class="page-header-text">
+                    <h1 class="page-header-title">Stats</h1>
+                    <p class="page-header-subtitle">Accounts, materials, grading and where visitors come from. Days are UTC. Admins' own visits aren't counted.</p>
+                </div>
+            </div>
+            <div class="alert theme-danger d-none" id="error" role="alert"></div>
+
+            <div class="d-flex align-items-center gap-3 flex-wrap mb-5">
+                <div class="btn-group" role="group" aria-label="Date range" id="range">
+                    <label class="btn-check btn-outline theme-secondary btn-sm"><input type="radio" name="range" value="7" autocomplete="off" />7 days</label>
+                    <label class="btn-check btn-outline theme-secondary btn-sm"><input type="radio" name="range" value="30" autocomplete="off" checked />30 days</label>
+                    <label class="btn-check btn-outline theme-secondary btn-sm"><input type="radio" name="range" value="90" autocomplete="off" />90 days</label>
+                    <label class="btn-check btn-outline theme-secondary btn-sm"><input type="radio" name="range" value="365" autocomplete="off" />1 year</label>
+                </div>
+                <span class="small fg-secondary" id="range-note"></span>
+            </div>
+
+            <h2 class="h6 fw-semibold mb-3">All time</h2>
+            <div class="stat-grid mb-6" id="totals"></div>
+
+            <h2 class="h6 fw-semibold mb-3">Per day</h2>
+            <div class="stats-charts mb-3" id="charts"></div>
+            <details class="mb-6 stats-table-toggle">
+                <summary class="small fg-secondary">Show as table</summary>
+                <div class="table-responsive mt-3">
+                    <table class="table table-sm small mb-0" id="daily-table">
+                        <thead>
+                            <tr>
+                                <th scope="col">Day</th>
+                                <th scope="col" class="text-end">Accounts</th>
+                                <th scope="col" class="text-end">Sign-ups</th>
+                                <th scope="col" class="text-end">Materials</th>
+                                <th scope="col" class="text-end">Grading runs</th>
+                                <th scope="col" class="text-end">Pages graded</th>
+                                <th scope="col" class="text-end">Visitors</th>
+                                <th scope="col" class="text-end">Page views</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </details>
+
+            <div class="row g-5 mb-6">
+                <div class="col-lg-6">
+                    <section class="card shadow-sm h-100">
+                        <div class="card-body">
+                            <h2 class="h6 fw-semibold mb-1">Funnel</h2>
+                            <p class="small fg-secondary mb-4">New visitors in the range, and how far the accounts created in the range got.</p>
+                            <div id="funnel"></div>
+                        </div>
+                    </section>
+                </div>
+                <div class="col-lg-6">
+                    <section class="card shadow-sm h-100">
+                        <div class="card-body">
+                            <h2 class="h6 fw-semibold mb-1">Where new visitors came from</h2>
+                            <p class="small fg-secondary mb-3">The site that linked each new visitor's first visit, and how many of them have signed up.</p>
+                            <div class="table-responsive"><table class="table table-sm small mb-0" id="referrers"></table></div>
+                        </div>
+                    </section>
+                </div>
+                <div class="col-lg-6">
+                    <section class="card shadow-sm h-100">
+                        <div class="card-body">
+                            <h2 class="h6 fw-semibold mb-1">Landing pages</h2>
+                            <p class="small fg-secondary mb-3">The first page new visitors saw.</p>
+                            <div class="table-responsive"><table class="table table-sm small mb-0" id="landings"></table></div>
+                        </div>
+                    </section>
+                </div>
+                <div class="col-lg-6">
+                    <section class="card shadow-sm h-100">
+                        <div class="card-body">
+                            <h2 class="h6 fw-semibold mb-1">Top pages</h2>
+                            <p class="small fg-secondary mb-3">Page views in the range.</p>
+                            <div class="table-responsive"><table class="table table-sm small mb-0" id="pages"></table></div>
+                        </div>
+                    </section>
+                </div>
+                <div class="col-12 d-none" id="campaigns-card">
+                    <section class="card shadow-sm">
+                        <div class="card-body">
+                            <h2 class="h6 fw-semibold mb-1">Campaigns</h2>
+                            <p class="small fg-secondary mb-3">New visitors whose first link carried <code>utm_source</code> (and medium, campaign) tags.</p>
+                            <div class="table-responsive"><table class="table table-sm small mb-0" id="campaigns"></table></div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+
+            <section class="card shadow-sm">
+                <div class="card-body">
+                    <h2 class="h6 fw-semibold mb-1">Recent sign-ups</h2>
+                    <p class="small fg-secondary mb-3">Where each account came from. Open a journey to see every page it viewed, in order, across its browsers.</p>
+                    <div class="table-responsive">
+                        <table class="table table-sm small align-middle mb-0" id="signups">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Signed up</th>
+                                    <th scope="col">Account</th>
+                                    <th scope="col">Plan</th>
+                                    <th scope="col">Came from</th>
+                                    <th scope="col">Landed on</th>
+                                    <th scope="col" class="text-end">Pages before</th>
+                                    <th scope="col"><span class="visually-hidden">Journey</span></th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+        </main>
+        <div class="chart-tooltip d-none" id="tooltip" role="status"></div>
+        <script type="module" src="./admin.ts"></script>
+    </body>
+</html>

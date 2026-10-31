@@ -21,6 +21,7 @@ import { openDb } from "../server/db.ts";
 import { emailOptionsFromEnv } from "../server/email.ts";
 import { createStatic } from "../server/static.ts";
 import account from "./account.html";
+import admin from "./admin.html";
 import billingSuccess from "./billing-success.html";
 import browse from "./browse.html";
 import confirmEmail from "./confirm-email.html";
@@ -34,6 +35,7 @@ import login from "./login.html";
 import policy from "./policy.html";
 import freeGenerator from "./free-generator.html";
 import howToGrade from "./how-to-grade-handwritten.html";
+import howToScan from "./how-to-scan-answer-sheets.html";
 import howToQuiz from "./how-to-make-a-quiz-with-ai.html";
 import pricing from "./pricing.html";
 import register from "./register.html";
@@ -73,7 +75,7 @@ const options = {
     port,
     // Phone photos add up: allow large zips.
     maxRequestBodySize: 1024 * 1024 * 1024,
-    routes: { "/": landing, "/pricing": pricing, "/free-bubble-sheet-generator": freeGenerator, "/how-to/make-a-quiz-with-chatgpt-or-claude": howToQuiz, "/how-to/grade-handwritten-answers-with-ai": howToGrade, "/test-json-format": testJsonFormat, "/zipgrade-alternative": vsZipgrade, "/gradescope-alternative": vsGradescope, "/policy": policy, "/terms": terms, "/billing/success": billingSuccess, "/dashboard": dashboard, "/login": login, "/register": register, "/forgot-password": forgotPassword, "/reset-password": resetPassword, "/library": library, "/browse": browse, "/generator": generator, "/grader": grader, "/results": results, "/account": account, "/confirm-email": confirmEmail, "/slides": slides, ...createStatic(join(root, "public"), production), ...app.routes },
+    routes: { "/": landing, "/pricing": pricing, "/free-bubble-sheet-generator": freeGenerator, "/how-to/make-a-quiz-with-chatgpt-or-claude": howToQuiz, "/how-to/grade-handwritten-answers-with-ai": howToGrade, "/how-to/scan-answer-sheets": howToScan, "/test-json-format": testJsonFormat, "/zipgrade-alternative": vsZipgrade, "/gradescope-alternative": vsGradescope, "/policy": policy, "/terms": terms, "/billing/success": billingSuccess, "/dashboard": dashboard, "/login": login, "/register": register, "/forgot-password": forgotPassword, "/reset-password": resetPassword, "/library": library, "/browse": browse, "/generator": generator, "/grader": grader, "/results": results, "/account": account, "/admin": admin, "/confirm-email": confirmEmail, "/slides": slides, ...createStatic(join(root, "public"), production), ...app.routes },
     development: !production,
 };
 const hosts = [...new Set(["127.0.0.1", process.env.HOST?.trim()].filter((h): h is string => !!h))];
