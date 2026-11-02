@@ -26,7 +26,6 @@
 - [Test JSON format reference](https://gradelake.com/test-json-format): every field, limit and rule of the Test JSON test format
 - [ZipGrade alternative](https://gradelake.com/zipgrade-alternative): comparison of Grade Lake and ZipGrade on price, bubble scanning, handwritten answers and test creation
 - [Gradescope alternative](https://gradelake.com/gradescope-alternative): comparison of Grade Lake and Gradescope for individual teachers versus institutions
-- [Pricing](https://gradelake.com/pricing): Free and Pro plans
 - [Privacy Policy](https://gradelake.com/policy)
 - [Terms of Service](https://gradelake.com/terms)
 - [Create an account](https://gradelake.com/register)
